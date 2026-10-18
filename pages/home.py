@@ -2107,50 +2107,125 @@ def _guided_workflow(store: dict) -> html.Div:
 
 
 def _synthesis_card(store: dict) -> html.Div | None:
-    eda_runs = [r for r in store.get("eda", []) if r.get("status") == "complete"]
-    ml_runs  = [r for r in store.get("mlops_review", []) if r.get("status") == "complete"]
-    if not eda_runs or not ml_runs:
+    """Session digest — appears when 2+ skills have run."""
+    from skills.session import build_digest
+
+    SKILL_KEYS_ORDERED = [
+        "data_quality", "leakage_detector", "join_auditor", "model_selector",
+        "mlops_review", "eda", "feature_engineering",
+    ]
+    results = {}
+    n_run = 0
+    for skill in SKILL_KEYS_ORDERED:
+        runs = [r for r in store.get(skill, []) if r.get("status") == "complete"]
+        if runs:
+            results[skill] = runs[-1].get("result", {})
+            n_run += 1
+
+    if n_run < 2:
         return None
 
-    eda_res  = eda_runs[-1]["result"]
-    ml_res   = ml_runs[-1]["result"]
-    targets  = eda_res.get("potential_targets", [])
-    ml_score = ml_res.get("readiness_score", 0)
-    ml_crits = [f for f in ml_res.get("findings", []) if f.get("severity") == "critical"]
+    d = build_digest(results)
+    verdict  = d["overall_verdict"]
+    blockers = d["blockers"]
+    cautions = d["cautions"]
+    cleared  = d["cleared"]
+    next_step = d["next_step"]
 
-    target_items = [html.Li([
-        html.Code(t["column"], className="me-1", style={"fontSize": "0.8rem"}),
-        html.Span(f"({t['task_type']})", className="text-muted small me-1"),
-        html.Span(t.get("rationale","")[:60], className="small"),
-    ], className="mb-1") for t in targets[:4]]
+    vc = {"blocked": "danger", "caution": "warning",
+          "ready": "success", "in_progress": "secondary"}.get(verdict, "secondary")
+    vl = {"blocked": "BLOCKED", "caution": "CAUTION",
+          "ready": "READY TO TRAIN", "in_progress": "IN PROGRESS"}.get(verdict, "PENDING")
 
-    rdy_color = "success" if ml_score >= 70 else "warning" if ml_score >= 40 else "danger"
+    # ── Blockers ─────────────────────────────────────────────────────────────
+    blocker_rows = []
+    for b in blockers:
+        src   = b["source"].replace("_", " ")
+        color = "danger" if b["source"] in ("leakage", "leakage_detector") else "warning"
+        blocker_rows.append(html.Tr([
+            html.Td(dbc.Badge(src, color=color, style={"fontSize":"0.65rem"})),
+            html.Td(html.Code(b["column"], style={"fontSize":"0.75rem"})),
+            html.Td([
+                html.Span(b["issue"], className="small"),
+                html.Br() if b.get("action") else html.Span(),
+                html.Span(f"→ {b['action']}", className="text-muted small") if b.get("action") else html.Span(),
+            ]),
+        ], style={"borderLeft": "3px solid #dc3545"}))
+
+    blockers_section = html.Div([
+        html.Div([
+            html.I(className="bi bi-x-octagon-fill text-danger me-1"),
+            html.Strong(f"Fix before training ({len(blockers)})", className="small text-danger"),
+        ], className="mb-1"),
+        dbc.Table([html.Tbody(blocker_rows)], size="sm", bordered=False,
+                  style={"backgroundColor": "transparent", "fontSize": "0.8rem"}),
+    ], className="mb-3") if blockers else html.Div()
+
+    # ── Cautions ─────────────────────────────────────────────────────────────
+    caution_rows = []
+    for c in cautions:
+        src = c["source"].replace("_", " ")
+        caution_rows.append(html.Tr([
+            html.Td(dbc.Badge(src, color="warning", text_color="dark",
+                              style={"fontSize": "0.65rem"})),
+            html.Td(html.Code(c["column"], style={"fontSize": "0.75rem"})),
+            html.Td(html.Span(c["issue"], className="small")),
+        ], style={"borderLeft": "3px solid #ffc107"}))
+
+    cautions_section = html.Div([
+        html.Div([
+            html.I(className="bi bi-exclamation-triangle text-warning me-1"),
+            html.Strong(f"Review ({len(cautions)})", className="small text-warning"),
+        ], className="mb-1"),
+        dbc.Table([html.Tbody(caution_rows)], size="sm", bordered=False,
+                  style={"backgroundColor": "transparent", "fontSize": "0.8rem"}),
+    ], className="mb-3") if cautions else html.Div()
+
+    # ── Cleared ───────────────────────────────────────────────────────────────
+    cleared_items = [
+        html.Span([
+            dbc.Badge(c["skill"].replace("_", " "), color="success",
+                      style={"fontSize": "0.6rem"}, className="me-1"),
+            html.Span(c["summary"], className="text-muted", style={"fontSize": "0.75rem"}),
+        ], className="me-3")
+        for c in cleared
+    ]
+    cleared_section = html.Div([
+        html.Div([
+            html.I(className="bi bi-check-circle-fill text-success me-1"),
+            html.Strong("Cleared", className="small text-success me-2"),
+            *cleared_items,
+        ], className="d-flex align-items-center flex-wrap gap-1"),
+    ], className="mb-3") if cleared else html.Div()
+
+    # ── Next step ─────────────────────────────────────────────────────────────
+    next_section = dbc.Alert([
+        html.I(className="bi bi-arrow-right-circle me-2"),
+        html.Strong("Next: "),
+        next_step,
+    ], color="success" if verdict == "ready" else "warning" if verdict == "caution" else "secondary",
+       className="py-2 mb-0 small") if next_step else html.Div()
+
+    accent = {"danger": "#dc3545", "warning": "#ffc107", "success": "#198754"}.get(vc, "#6c757d")
+    body_children = (
+        [dbc.Row([dbc.Col(blockers_section, md=6), dbc.Col(cautions_section, md=6)]),
+         cleared_section, next_section]
+        if blocker_rows else
+        [cautions_section, cleared_section, next_section]
+    )
 
     return dbc.Card([
         dbc.CardHeader([
-            html.I(className="bi bi-arrow-left-right me-2"),
-            html.Strong("EDA ↔ MLOps Synthesis"),
-            html.Span(" — auto-appears when both skills have run",
-                      className="text-muted small ms-2"),
-        ]),
-        dbc.CardBody(dbc.Row([
-            dbc.Col([
-                html.Div("EDA identified these ML targets:", className="text-muted small mb-1"),
-                html.Ul(target_items, className="mb-0 ps-3") if target_items
-                else html.P("No ML targets found.", className="text-muted small mb-0"),
-            ], width=6),
-            dbc.Col([
-                html.Div("Code production readiness:", className="text-muted small mb-1"),
-                dbc.Badge(f"{ml_score}/100", color=rdy_color, className="me-2"),
-                html.Span(f"{len(ml_crits)} critical issue{'s' if len(ml_crits)!=1 else ''}",
-                          className="small text-danger") if ml_crits
-                else html.Span("No critical issues", className="small text-success"),
-                html.Ul([html.Li(f.get("description","")[:80], className="small")
-                         for f in ml_crits[:3]],
-                        className="mb-0 ps-3 mt-1") if ml_crits else html.Div(),
-            ], width=6),
-        ])),
-    ], className="mb-3", style={"border": "1px solid #3a3a5a"})
+            html.I(className="bi bi-journal-text me-2"),
+            html.Strong("Session Digest"),
+            html.Span(f" · {n_run} skill{'s' if n_run != 1 else ''} run",
+                      className="text-muted small ms-1"),
+            dbc.Badge(vl, color=vc, pill=True, className="ms-2",
+                      style={"fontSize": "0.65rem"}),
+        ], className="d-flex align-items-center"),
+        dbc.CardBody(body_children),
+    ], className="mb-3", style={"border": "1px solid #3a3a5a",
+                                 "borderLeft": f"4px solid {accent}"})
 
 
 def _cross_skill_conflicts(store: dict) -> html.Div | None:

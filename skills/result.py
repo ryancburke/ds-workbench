@@ -796,6 +796,105 @@ def _render_preflight(r: dict) -> str:
     )
 
 
+def _render_session_digest(r: dict) -> str:
+    verdict  = r.get("overall_verdict", "in_progress")
+    blockers = r.get("blockers", [])
+    cautions = r.get("cautions", [])
+    cleared  = r.get("cleared", [])
+    next_step = r.get("next_step", "")
+    skills   = r.get("skills_run", [])
+
+    vc = {"blocked": "danger", "caution": "warning",
+          "ready": "success", "in_progress": "secondary"}.get(verdict, "secondary")
+    vl = {"blocked": "BLOCKED", "caution": "CAUTION",
+          "ready": "READY", "in_progress": "IN PROGRESS"}.get(verdict, "PENDING")
+
+    # Blockers table
+    blockers_html = ""
+    if blockers:
+        rows = ""
+        for b in blockers:
+            src = b["source"].replace("_", " ")
+            sc  = "danger" if b["source"] in ("leakage", "leakage_detector") else "warning"
+            rows += (
+                f'<tr class="wr-crit">'
+                f'<td>{_badge(src, sc)}</td>'
+                f'<td><span class="wr-mono">{b["column"]}</span></td>'
+                f'<td>{b["issue"]}'
+                + (f'<br><span class="wr-muted">→ {b["action"]}</span>' if b.get("action") else "")
+                + f'</td></tr>'
+            )
+        n = len(blockers)
+        blockers_html = (
+            '<div style="margin-bottom:10px">'
+            f'<div style="font-size:11px;font-weight:600;color:#c62828;margin-bottom:4px">'
+            f'⛔ FIX BEFORE TRAINING ({n})</div>'
+            f'<table class="wr-tbl"><thead><tr>'
+            f'<th>Source</th><th>Column</th><th>Issue &amp; Fix</th>'
+            f'</tr></thead><tbody>{rows}</tbody></table></div>'
+        )
+
+    # Cautions table
+    cautions_html = ""
+    if cautions:
+        rows = ""
+        for c in cautions:
+            src = c["source"].replace("_", " ")
+            rows += (
+                f'<tr class="wr-warn">'
+                f'<td>{_badge(src, "warning")}</td>'
+                f'<td><span class="wr-mono">{c["column"]}</span></td>'
+                f'<td>{c["issue"]}</td></tr>'
+            )
+        n = len(cautions)
+        cautions_html = (
+            '<div style="margin-bottom:10px">'
+            f'<div style="font-size:11px;font-weight:600;color:#856404;margin-bottom:4px">'
+            f'⚠ REVIEW ({n})</div>'
+            f'<table class="wr-tbl"><thead><tr>'
+            f'<th>Source</th><th>Column</th><th>Issue</th>'
+            f'</tr></thead><tbody>{rows}</tbody></table></div>'
+        )
+
+    # Cleared row
+    cleared_html = ""
+    if cleared:
+        items = "&nbsp; · &nbsp;".join(
+            f'{_badge(c["skill"].replace("_"," "), "success")}'
+            f' <span class="wr-muted" style="font-size:11px">{c["summary"]}</span>'
+            for c in cleared
+        )
+        cleared_html = (
+            '<div style="margin-bottom:10px;font-size:12px">'
+            f'<span style="font-size:11px;font-weight:600;color:#1b5e20;margin-right:6px">✓ CLEARED</span>'
+            f'{items}</div>'
+        )
+
+    # Next step
+    next_html = ""
+    if next_step:
+        next_html = (
+            '<div style="background:#e8f5e9;border-radius:4px;padding:7px 12px;font-size:12px">'
+            f'<strong style="color:#1b5e20">→ Next: </strong>{next_step}</div>'
+        )
+
+    n_skills = len(skills)
+    s = "s" if n_skills != 1 else ""
+    return (
+        f'<div class="wr-header">'
+        f'<span>📋 Session Digest</span>'
+        f'{_badge(f"{n_skills} skill{s} run", "secondary")}'
+        f'{_badge(vl, vc)}'
+        f'</div>'
+        f'<div class="wr-body">'
+        + blockers_html
+        + cautions_html
+        + cleared_html
+        + next_html
+        + '</div>'
+    )
+
+
 def _render_error(r: dict) -> str:
     err   = r.get("error", "Unknown error")
     skill = r.get("skill_name", "Skill")
@@ -821,6 +920,7 @@ _RENDERERS = {
     "nl_to_spark":         _render_nl_to_spark,
     "mlops_reviewer":      _render_mlops_reviewer,
     "preflight":           _render_preflight,
+    "session_digest":      _render_session_digest,
 }
 
 
