@@ -5,7 +5,7 @@ import numpy as np
 from config import config
 from skills.result import SkillResult
 from skills.api_retry import api_call
-from skills.models import REASONING_MODEL, STRUCTURED_MODEL, THINKING_ADAPTIVE
+from skills.models import REASONING_MODEL, STRUCTURED_MODEL, THINKING_ADAPTIVE, REASONING_EXTRA
 
 _client: anthropic.Anthropic | None = None
 
@@ -197,6 +197,7 @@ After all six steps:
         model=REASONING_MODEL,
         max_tokens=14000,
         thinking=THINKING_ADAPTIVE,
+        **REASONING_EXTRA,
         messages=[{"role": "user", "content": _prompt}],
     )
     analysis = next((b.text for b in pass1.content if b.type == "text"), "")

@@ -391,13 +391,14 @@ def start_scheduler():
     we always start regardless of WERKZEUG_RUN_MAIN. This avoids duplicate schedulers
     in dev without blocking production.
     """
-    local_dev = os.getenv("LOCAL_DEV_MODE", "false").lower() == "true"
-    if local_dev and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+    from config import config
+
+    if config.local_dev_mode and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
         # Dev mode: skip the Werkzeug monitor (parent) process.
         # The child, which actually serves requests, has WERKZEUG_RUN_MAIN=true.
         return None
 
-    interval_hours = float(os.getenv("SIM_INTERVAL_HOURS", "6"))
+    interval_hours = config.sim_interval_hours
 
     try:
         from apscheduler.schedulers.background import BackgroundScheduler
@@ -445,6 +446,8 @@ def draft_code_change(rec_id: str) -> tuple[str, str]:
     """
     from config import config
     import anthropic
+    from skills.api_retry import check_response, response_text
+    from skills.models import CODE_EXTRA, CODE_MODEL
 
     rec = get_rec(rec_id)
     if not rec:
@@ -456,13 +459,16 @@ def draft_code_change(rec_id: str) -> tuple[str, str]:
 
     current_code = full_path.read_text() if full_path.exists() else "# File not found"
 
+    # A whole-file rewrite can be tens of thousands of tokens (pages/home.py is ~3.3k
+    # lines), so stream with a large max_tokens rather than truncating at 8k.
     client = anthropic.Anthropic(api_key=config.anthropic_api_key)
-    resp = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=8096,
+    with client.messages.stream(
+        model=CODE_MODEL,
+        max_tokens=64000,
+        **CODE_EXTRA,
         system=(
             "You are an expert Plotly Dash developer implementing a UX improvement for a "
-            "data science workbench. The app uses Dash 2.14+, dash-bootstrap-components with "
+            "data science workbench. The app uses Dash 4.4, dash-bootstrap-components with "
             "the DARKLY theme, and Plotly Express/Graph Objects. All callbacks use the "
             "`@callback` decorator. Pattern-matching callbacks use MATCH/ALL. "
             "A global `runs-store` (session storage) holds run history per skill. "
@@ -480,9 +486,13 @@ def draft_code_change(rec_id: str) -> tuple[str, str]:
                 "Return the complete updated file. Preserve all existing functionality."
             ),
         }],
-    )
+    ) as stream:
+        resp = check_response(stream.get_final_message())
 
-    new_code = resp.content[0].text.strip()
+    if resp.stop_reason == "max_tokens":
+        raise RuntimeError(f"Draft for {file_path} was cut off at max_tokens — not saving a partial file")
+
+    new_code = response_text(resp)
     # Strip accidental markdown fences
     if new_code.startswith("```"):
         new_code = "\n".join(new_code.split("\n")[1:])

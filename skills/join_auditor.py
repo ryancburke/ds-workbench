@@ -3,7 +3,7 @@ import anthropic
 import pandas as pd
 from config import config
 from skills.api_retry import api_call
-from skills.models import ANALYSIS_MODEL, STRUCTURED_MODEL, THINKING_ADAPTIVE
+from skills.models import ANALYSIS_MODEL, STRUCTURED_MODEL, THINKING_ADAPTIVE, ANALYSIS_EXTRA
 
 _client: anthropic.Anthropic | None = None
 
@@ -128,6 +128,7 @@ Reference the actual table names ({left_name}, {right_name}) and key columns ({j
         model=ANALYSIS_MODEL,
         max_tokens=12000,
         thinking=THINKING_ADAPTIVE,
+        **ANALYSIS_EXTRA,
         messages=[{"role": "user", "content": _prompt}],
     )
     _analysis = next((b.text for b in _r1.content if b.type == "text"), "")

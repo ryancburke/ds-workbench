@@ -12,6 +12,8 @@ from datetime import datetime, timezone
 import anthropic
 
 from config import config
+from skills.api_retry import check_response, response_text
+from skills.models import SIM_EXTRA, SIM_JUDGE_EXTRA, SIM_JUDGE_MODEL, SIM_MODEL
 
 _client_instance: anthropic.Anthropic | None = None
 
@@ -342,20 +344,25 @@ Think about the business question and what the team has already surfaced. What's
 
 If you have enough information to give a solid recommendation, choose give_debrief instead."""
 
+    # 5.x models reject forced tool_choice, so the tool is strict + auto and the
+    # prompt names it. Thinking counts toward max_tokens, hence the headroom.
     resp = _client().messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=1024,
+        model=SIM_MODEL,
+        max_tokens=4096,
+        **SIM_EXTRA,
         system=system,
         messages=[{
             "role": "user",
-            "content": "Choose your next action.",
+            "content": "Choose your next action by calling the decide_action tool.",
         }],
         tools=[{
             "name": "decide_action",
+            "strict": True,
             "description": "Choose your next step",
             "input_schema": {
                 "type": "object",
                 "required": ["reasoning", "action"],
+                "additionalProperties": False,
                 "properties": {
                     "reasoning": {
                         "type": "string",
@@ -382,8 +389,9 @@ If you have enough information to give a solid recommendation, choose give_debri
                 },
             },
         }],
-        tool_choice={"type": "tool", "name": "decide_action"},
+        tool_choice={"type": "auto"},
     )
+    check_response(resp)
 
     for block in resp.content:
         if block.type == "tool_use":
@@ -397,8 +405,9 @@ def interpret_step(persona: dict, skill: str, dataset: str, result: dict) -> str
     summary = _result_summary(skill, result)
 
     resp = _client().messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=280,
+        model=SIM_MODEL,
+        max_tokens=2048,  # length is set by the prompt; headroom is for thinking
+        **SIM_EXTRA,
         system=(
             f"You are {persona['name']}, {persona['role']}. "
             f"Your style: {persona['approach']}"
@@ -413,7 +422,7 @@ def interpret_step(persona: dict, skill: str, dataset: str, result: dict) -> str
             ),
         }],
     )
-    return resp.content[0].text.strip()
+    return response_text(check_response(resp))
 
 
 def debrief_step(persona: dict, scenario: dict, my_steps: list) -> str:
@@ -424,8 +433,9 @@ def debrief_step(persona: dict, scenario: dict, my_steps: list) -> str:
     ) or "Worked from my teammates' findings."
 
     resp = _client().messages.create(
-        model="claude-opus-4-8",
-        max_tokens=450,
+        model=SIM_JUDGE_MODEL,
+        max_tokens=4096,  # length is set by the prompt; headroom is for thinking
+        **SIM_JUDGE_EXTRA,
         system=(
             f"You are {persona['name']}, {persona['role']}. "
             f"Your style: {persona['approach']}"
@@ -441,7 +451,7 @@ def debrief_step(persona: dict, scenario: dict, my_steps: list) -> str:
             ),
         }],
     )
-    return resp.content[0].text.strip()
+    return response_text(check_response(resp))
 
 
 # ── Skill execution ────────────────────────────────────────────────────────────
@@ -728,8 +738,9 @@ def evaluate_output_step(
 
     try:
         qual_resp = _client().messages.create(
-            model="claude-opus-4-8",
-            max_tokens=512,
+            model=SIM_JUDGE_MODEL,
+            max_tokens=2048,
+            **SIM_JUDGE_EXTRA,
             system=(
                 f"You are {persona['name']}, {persona['role']}. "
                 f"You just used the {skill} skill while working on this question: "
@@ -743,23 +754,28 @@ def evaluate_output_step(
                     "Rate the output on two dimensions:\n"
                     "- usefulness (1-5): Did it help you answer the business question?\n"
                     "- clarity (1-5): How easy was it to extract the key insight at a glance?\n"
-                    "- brief_note: One sentence on what you'd improve (or 'none')."
+                    "- brief_note: One sentence on what you'd improve (or 'none').\n\n"
+                    "Submit your rating by calling the rate_output tool."
                 ),
             }],
+            # strict mode doesn't support minimum/maximum, so the 1-5 range is an enum
             tools=[{
                 "name": "rate_output",
+                "strict": True,
                 "input_schema": {
                     "type": "object",
                     "required": ["usefulness", "clarity", "brief_note"],
+                    "additionalProperties": False,
                     "properties": {
-                        "usefulness":  {"type": "integer", "minimum": 1, "maximum": 5},
-                        "clarity":     {"type": "integer", "minimum": 1, "maximum": 5},
+                        "usefulness":  {"type": "integer", "enum": [1, 2, 3, 4, 5]},
+                        "clarity":     {"type": "integer", "enum": [1, 2, 3, 4, 5]},
                         "brief_note":  {"type": "string"},
                     },
                 },
             }],
-            tool_choice={"type": "tool", "name": "rate_output"},
+            tool_choice={"type": "auto"},
         )
+        check_response(qual_resp)
         qual_block = next(b for b in qual_resp.content if b.type == "tool_use")
         qual = qual_block.input
     except Exception:
@@ -926,8 +942,9 @@ When these skill results appear in the team dashboard — do the findings surfac
 Be specific and honest. Reference what you actually ran and what you saw in the outputs."""
 
     resp = _client().messages.create(
-        model="claude-opus-4-8",
-        max_tokens=2048,
+        model=SIM_JUDGE_MODEL,
+        max_tokens=8192,  # 2-3 tool calls plus thinking
+        **SIM_JUDGE_EXTRA,
         system=system,
         messages=[{
             "role": "user",
