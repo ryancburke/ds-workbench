@@ -1,5 +1,17 @@
 # DS Workbench — Project Context for Claude
 
+## Project rules (always apply)
+
+1. **Use the venv explicitly.** The shell does not activate `.venv`. Run Python with
+   `.venv/bin/python` and install packages with `.venv/bin/pip` — never bare `python`/`pip`.
+2. **API keys live in `.env` only**, loaded by python-dotenv in `config.py`. Never ask for
+   keys, print them, log them, or export them into the shell. See "API key handling" below.
+3. **Model names are settings, never hardcoded.** Model IDs are read from `config.py`
+   (overridable via `.env`). No `"claude-..."` string literals in skills, agents, pages, or
+   benchmarks.
+4. **Feature branches + pull requests.** Never commit or push directly to `main`. Branch,
+   commit there, and open a PR.
+
 ## What this is
 
 A two-surface AI-powered data science platform:
@@ -62,11 +74,15 @@ shows quality trends per skill over time.
 - **Dash 4.4.1** — `use_pages=True`, pattern-matching callbacks (`MATCH`/`ALL`), `dcc.Store`,
   `allow_duplicate=True` for multiple callbacks writing to the same output
 - **Dash Bootstrap Components** — DARKLY theme throughout; never introduce a different theme
-- **Anthropic SDK** — model IDs centralized in `skills/models.py`; Opus 5.5 for heavy
-  reasoning (DQ), Fable 5.1 for leakage, Sonnet 5.5 for general analysis, Haiku 5.5 for
-  structured extraction (Pass 2); all structured outputs use forced tool calls
-  (`tool_choice={"type":"tool","name":"..."}`) so JSON is guaranteed; all 5.x models use
-  `thinking={"type":"adaptive"}` (the 4.x `enabled`+`budget_tokens` format is retired)
+- **Anthropic SDK** — model IDs are settings in `config.py` (see Project rules #3; as of
+  2026-10-18 they still live as constants in `skills/models.py`, pending migration). Opus 5.5
+  for heavy reasoning (DQ), Fable 5.1 for leakage, Sonnet 5.5 for general analysis, Haiku 5.5
+  for structured extraction (Pass 2). Pass 2 uses forced tool calls
+  (`tool_choice={"type":"tool","name":"..."}`) — this is valid **only on Haiku 5.5**; Opus 5.5,
+  Sonnet 5.5, and Fable 5.1 return a 400 on forced `tool` / `any`, so on those use
+  `tool_choice={"type":"auto"}` + `strict: true` or `output_config.format`. All 5.x models use
+  adaptive thinking (`budget_tokens` returns a 400). Thinking is on by default on 5.x, so read
+  response blocks by `type`, never `content[0].text`
 - **APScheduler `BackgroundScheduler`** — runs simulations on a configurable interval
   (`SIM_INTERVAL_HOURS`, default 6h); guarded against Werkzeug double-start via `WERKZEUG_RUN_MAIN`
 - **python-dotenv** — `load_dotenv()` is called at the top of `config.py` before `Config()`
@@ -75,7 +91,7 @@ shows quality trends per skill over time.
 
 ## CRITICAL: API key handling
 
-**Never ask for the `ANTHROPIC_API_KEY`. Never export it into the shell. Never hardcode it.**
+**Never ask for the `ANTHROPIC_API_KEY`. Never print or log it. Never export it into the shell. Never hardcode it.**
 The key lives exclusively in `.env` (gitignored), loaded by `config.py`'s `load_dotenv()` call.
 All code accesses it via `from config import config` then `config.anthropic_api_key`.
 Test scripts use `.venv/bin/python` and check `config.anthropic_api_key`, not `os.getenv`.
