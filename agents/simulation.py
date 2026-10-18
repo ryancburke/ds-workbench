@@ -417,8 +417,9 @@ def interpret_step(persona: dict, skill: str, dataset: str, result: dict) -> str
             "content": (
                 f"You just ran {skill.replace('_', ' ')} on the {dataset} dataset.\n\n"
                 f"Key findings:\n{summary}\n\n"
-                "In 2-3 sentences in your own voice: what does this tell you? "
-                "What stands out most, and does it change anything about how you see the problem?"
+                "In your own voice: what does this tell you? "
+                "What stands out most, and does it change anything about how you see the problem? "
+                "Answer in at most 3 sentences (under 70 words) of plain prose — no headings or lists."
             ),
         }],
     )
@@ -447,7 +448,9 @@ def debrief_step(persona: dict, scenario: dict, my_steps: list) -> str:
                 f"What you investigated:\n{history}\n\n"
                 "Give your final recommendation in your own voice. Be specific and direct. "
                 "What's the bottom line? What should the business actually do? "
-                "What are the key risks or caveats they need to know?"
+                "What are the key risks or caveats they need to know? "
+                "Keep it under 200 words: a bottom-line sentence, then at most 3 short bullets "
+                "for actions and risks. No headings."
             ),
         }],
     )
