@@ -1,0 +1,88 @@
+{
+  "_meta": {
+    "dataset": "hr_attrition",
+    "skill": "feature_engineering",
+    "schema_version": "1.0",
+    "target_col": "attrition",
+    "generator": "databricks_client._gen_hr_attrition(n=500)",
+    "description": "HR employee records. Target: attrition (bool → cast to int label). employee_id must be dropped (unique sequential ID). department and job_level are low-cardinality categoricals needing OHE. salary and tenure_years are clean numerics. performance_score and satisfaction_score are object dtype (numeric-like) with 10% and 7% nulls respectively — need cast + impute + scale. remote_pct is int with 5 values — can be treated as numeric (scale) or categorical.",
+    "columns": {
+      "employee_id": "identifier — drop",
+      "department": "categorical, 5 values, 0% null — encode",
+      "job_level": "categorical, 6 values, 0% null — encode",
+      "salary": "numeric, clean — scale",
+      "tenure_years": "numeric, clean — scale",
+      "performance_score": "object (numeric-like), 10% null — cast + impute + scale",
+      "satisfaction_score": "object (numeric-like), 7% null — cast + impute + scale",
+      "attrition": "boolean TARGET — cast to int as 'label'",
+      "remote_pct": "int, 5 distinct values — scale or encode (either acceptable)"
+    }
+  },
+
+  "required_transformations": [
+    {
+      "id": "department_encode",
+      "column_hint": "department",
+      "acceptable_actions": ["encode_ohe", "encode_index"],
+      "requires_imputation": false,
+      "note": "department has 5 categories (Engineering, Marketing, Sales, etc.) — OHE or StringIndexer"
+    },
+    {
+      "id": "salary_scale",
+      "column_hint": "salary",
+      "acceptable_actions": ["scale"],
+      "requires_imputation": false,
+      "note": "salary is a clean float — standard scaling"
+    },
+    {
+      "id": "tenure_scale",
+      "column_hint": "tenure",
+      "acceptable_actions": ["scale"],
+      "requires_imputation": false,
+      "note": "tenure_years is a clean float — standard scaling"
+    },
+    {
+      "id": "performance_score_scale",
+      "column_hint": "performance_score",
+      "acceptable_actions": ["scale"],
+      "requires_imputation": true,
+      "note": "performance_score is object dtype (numeric values) with 10% nulls — must cast to numeric, impute median, then scale"
+    },
+    {
+      "id": "satisfaction_score_scale",
+      "column_hint": "satisfaction_score",
+      "acceptable_actions": ["scale"],
+      "requires_imputation": true,
+      "note": "satisfaction_score is object dtype (numeric values) with 7% nulls — cast + impute + scale"
+    }
+  ],
+
+  "required_dropped_cols": [
+    {
+      "id": "employee_id_drop",
+      "column_hint": "employee_id",
+      "note": "employee_id is a sequential unique identifier (E0001, E0002...) — must not be used as a feature"
+    }
+  ],
+
+  "required_code_elements": [
+    "Pipeline",
+    "VectorAssembler",
+    "StringIndexer",
+    "StandardScaler",
+    "Imputer"
+  ],
+
+  "forbidden_in_features": [
+    {
+      "id": "attrition_not_in_features",
+      "column_hint": "attrition",
+      "note": "Target column must not appear as a feature — it should become 'label'"
+    },
+    {
+      "id": "employee_id_not_in_features",
+      "column_hint": "employee_id",
+      "note": "employee_id must not be used as a feature column"
+    }
+  ]
+}

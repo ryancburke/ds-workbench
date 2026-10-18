@@ -1,0 +1,57 @@
+{
+  "_meta": {
+    "dataset": "ecommerce_leakage",
+    "skill": "leakage_detector",
+    "schema_version": "1.0",
+    "target_col": "converted",
+    "generator": "databricks_client._gen_ecommerce_leakage(n=700)",
+    "description": "E-commerce sessions with two planted leakage features. conversion_score is derived from the target (0.75-1.0 for converted=True, 0.0-0.35 for False; point-biserial r=0.894). order_id is a post-event proxy that only exists when converted=True (conditional_null_pct: True=0%, False=100%). Both must be flagged as critical leakage.",
+    "planted_leakage": [
+      "conversion_score: float [0.75-1.0] when converted=True, [0.0-0.35] when False — direct leakage (r=0.894)",
+      "order_id: non-null only for converted=True (proxy — post-event artifact)"
+    ]
+  },
+
+  "expected_verdict": "leakage_detected",
+
+  "required_findings": [
+    {
+      "id": "conversion_score_leakage",
+      "column_hint": "conversion_score",
+      "acceptable_leakage_types": ["direct", "high_correlation", "proxy"],
+      "min_severity": "critical",
+      "note": "correlation_with_target ≈ 0.894 — this is almost certainly a downstream score derived from the target. Critical leakage; must be removed."
+    },
+    {
+      "id": "order_id_proxy",
+      "column_hint": "order_id",
+      "acceptable_leakage_types": ["proxy", "identifier"],
+      "min_severity": "critical",
+      "note": "conditional_null_pct: {True: 0%, False: 100%} — order_id only exists after a conversion happens. Classic post-event proxy leakage."
+    }
+  ],
+
+  "forbidden_findings": [
+    {
+      "id": "page_views_not_leakage",
+      "column_hint": "page_views",
+      "max_severity": "warning",
+      "note": "page_views is a pre-event feature — known before any conversion decision. Info-level at most."
+    },
+    {
+      "id": "cart_value_not_leakage",
+      "column_hint": "cart_value",
+      "max_severity": "warning",
+      "note": "cart_value is a pre-event feature. High cart value predicts conversion legitimately."
+    },
+    {
+      "id": "time_on_site_not_leakage",
+      "column_hint": "time_on_site",
+      "max_severity": "warning",
+      "note": "time_on_site is a pre-event engagement metric. Legitimate predictor."
+    }
+  ],
+
+  "max_total_findings": 5,
+  "note_on_max": "Two planted leakage features. A few legitimate features might get info-level notes. More than 5 findings suggests noise."
+}

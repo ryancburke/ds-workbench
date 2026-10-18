@@ -1,0 +1,12 @@
+services:
+  workbench:
+    image: python:3.11-slim
+    working_dir: /app
+    volumes:
+      - .:/app
+    ports:
+      - "8050:8050"
+    env_file:
+      - .env
+    command: >
+      sh -c "pip install -r requirements.txt -q && python app.py"

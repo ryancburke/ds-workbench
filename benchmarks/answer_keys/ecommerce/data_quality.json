@@ -1,0 +1,61 @@
+{
+  "_meta": {
+    "dataset": "ecommerce",
+    "skill": "data_quality",
+    "schema_version": "1.0",
+    "generator": "databricks_client._gen_ecommerce(seed=55, n=700)",
+    "description": "E-commerce session records with moderate missing data across user tracking fields. user_id (10.3% null) is the most significant issue — anonymous sessions cannot be attributed to users. channel (5.6%) and time_on_site_s (5.4%) are borderline. cart_value has 11 values beyond 3×IQR but these are legitimate high-value carts, not errors. converted is severely imbalanced (8% positive, 11.73:1 ratio).",
+    "planted_issues": [
+      "user_id: 72 nulls (10.3%) — anonymous sessions, above warning threshold",
+      "channel: 39 nulls (5.6%) — unknown acquisition source, borderline warning",
+      "time_on_site_s: 38 nulls (5.4%) — borderline warning",
+      "cart_value: 11 statistical outliers (high-value carts up to 639.6) — legitimate, not errors"
+    ]
+  },
+
+  "score": {
+    "min": 58,
+    "max": 85,
+    "note": "One clear warning (user_id 10.3% null) and two borderline warnings. No critical issues. Expected score 58-85. Lower bound is 58 because cart_value outliers (legitimate high carts) can add extra deduction."
+  },
+
+  "required_findings": [
+    {
+      "id": "user_id_nulls",
+      "column_hint": "user_id",
+      "issue_type": "null_rate",
+      "min_severity": "warning",
+      "note": "10.3% null rate in user_id — clearly above the 5% threshold. Anonymous sessions represent a meaningful attribution gap."
+    }
+  ],
+
+  "optional_findings": [
+    {
+      "id": "channel_nulls",
+      "column_hint": "channel",
+      "issue_type": "null_rate",
+      "note": "5.6% null rate — just over threshold. May be flagged as warning."
+    },
+    {
+      "id": "time_on_site_nulls",
+      "column_hint": "time_on_site",
+      "issue_type": "null_rate",
+      "note": "5.4% null rate — borderline. May be flagged as warning."
+    }
+  ],
+
+  "forbidden_findings": [],
+
+  "forbidden_severity_overrides": [
+    {
+      "id": "cart_value_max_severity_warning",
+      "column_hint": "cart_value",
+      "issue_type": "outlier",
+      "max_severity": "warning",
+      "note": "High cart values are real, not errors. Critical-level flag is unjustified."
+    }
+  ],
+
+  "max_total_findings": 6,
+  "note_on_max": "Three real issues (user_id, channel, time_on_site nulls) + possibly cart_value = max 4 legitimate findings."
+}

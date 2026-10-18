@@ -1,0 +1,22 @@
+.env
+.venv/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# macOS
+.DS_Store
+
+# Runtime data (persisted feedback, benchmark history, and cache — machine-local)
+feedback/
+benchmarks/benchmark_history.json
+benchmarks/cache/
+
+# Editor
+.idea/
+.vscode/
+*.swp

@@ -1,0 +1,73 @@
+{
+  "_meta": {
+    "dataset": "ecommerce",
+    "skill": "model_selector",
+    "schema_version": "1.0",
+    "target_col": "converted",
+    "known_characteristics": [
+      "Binary target: True/False (conversion event)",
+      "Class balance: 55 True / 645 False = 11.73:1 SEVERE imbalance",
+      "700 rows \u2014 moderate dataset",
+      "user_id: 10.3% null, channel: 5.6% null, time_on_site_s: 5.4% null",
+      "cart_value: strong signal for conversion (0.0 for 30% of sessions)",
+      "device: mobile 55%, desktop 38%, tablet 7% \u2014 device mix is informative",
+      "No time-series structure despite session_date column \u2014 sessions are independent"
+    ]
+  },
+  "required_fields": {
+    "task_type": {
+      "acceptable_values": [
+        "binary_classification"
+      ],
+      "note": "Target is boolean converted \u2014 unambiguously binary classification. time_series_forecasting would be wrong; sessions are independent events, not a time series."
+    },
+    "class_balance_issue": {
+      "expected_value": true,
+      "note": "11.73:1 imbalance is severe. Accuracy is a misleading metric here (92% accuracy by predicting all False). The skill must recognise this."
+    },
+    "data_readiness": {
+      "acceptable_values": [
+        "ready",
+        "needs_prep"
+      ],
+      "note": "Either acceptable. 'needs_prep' is better given multiple null columns. 'insufficient' is incorrect."
+    }
+  },
+  "target_analysis": {
+    "class_balance_issue_required": true,
+    "imbalance_ratio": {
+      "min": 10.0,
+      "max": 13.5,
+      "note": "Exact ratio is 11.73. The severe imbalance (>10:1) should be prominently noted."
+    }
+  },
+  "recommendations": {
+    "min_count": 2,
+    "max_count": 5,
+    "top_1_acceptable_families": [
+      "gradient_boosting",
+      "xgboost",
+      "lightgbm",
+      "catboost",
+      "random_forest"
+    ],
+    "acceptable_families": [
+      "gradient_boosting",
+      "xgboost",
+      "lightgbm",
+      "catboost",
+      "random_forest",
+      "logistic_regression"
+    ],
+    "forbidden_families": [
+      "clustering",
+      "k-means",
+      "dbscan",
+      "time_series",
+      "arima",
+      "prophet"
+    ],
+    "imbalance_handling_required": true,
+    "imbalance_handling_note": "At 11.73:1, the recommendations MUST address the imbalance explicitly. Acceptable signals: scale_pos_weight, class_weight='balanced', SMOTE, precision-recall curve as primary metric, F1 or AUC-PR over accuracy. Missing this is a critical quality failure for this benchmark. Removed 'regression' \u2014 logistic regression with class_weight is valid for imbalanced classification."
+  }
+}

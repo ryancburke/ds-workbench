@@ -1,0 +1,63 @@
+{
+  "_meta": {
+    "dataset": "hr_attrition",
+    "skill": "data_quality",
+    "schema_version": "1.0",
+    "generator": "databricks_client._gen_hr_attrition(seed=77, n=500)",
+    "description": "HR employee records with injected salary outliers and missing survey scores. The salary column has 8 extreme values injected (5000, 8000, 500000, 750000) alongside a realistic normal distribution (mean ~85k, std ~22k). The IQR fence is [-17875, 189850], so 7 of the 8 injected values fall outside it and are flagged as outliers. performance_score and satisfaction_score have realistic survey non-response rates (10% and 7% respectively). The attrition column is 18% positive — a 4.68:1 class imbalance.",
+    "planted_issues": [
+      "salary: 7 outliers beyond 3×IQR fence [-17875, 189850] — injected extreme values (5000, 8000, 500000, 750000)",
+      "performance_score: 50 nulls (10.0%) — survey non-response",
+      "satisfaction_score: 35 nulls (7.0%) — survey non-response",
+      "tenure_years: 11 values above 3×IQR upper fence (14.4) — NOT a real defect, just the tail of a clipped exponential distribution. Legitimate long-tenure employees."
+    ]
+  },
+
+  "score": {
+    "min": 58,
+    "max": 82,
+    "note": "Two required warnings (salary outliers, performance_score nulls) and one borderline warning (satisfaction_score nulls). No critical issues. Expected score 58-82. Lower bound is 58 because borderline tenure_years outliers at the clip boundary can add extra deduction."
+  },
+
+  "required_findings": [
+    {
+      "id": "salary_outliers",
+      "column_hint": "salary",
+      "issue_type": "outlier",
+      "min_severity": "warning",
+      "note": "7 values are outside the 3×IQR fence (injected: 5000, 8000, 500000, 750000). The profile reports outlier_count=7 explicitly. These represent likely data entry errors or test records."
+    },
+    {
+      "id": "performance_score_nulls",
+      "column_hint": "performance_score",
+      "issue_type": "null_rate",
+      "min_severity": "warning",
+      "note": "10% null rate — above the 5% warning threshold. Missing performance data creates bias risk in any downstream model."
+    }
+  ],
+
+  "optional_findings": [
+    {
+      "id": "satisfaction_score_nulls",
+      "column_hint": "satisfaction_score",
+      "issue_type": "null_rate",
+      "note": "7% null rate — above the 5% threshold. Whether flagged as warning vs info depends on model judgement."
+    }
+  ],
+
+  "forbidden_findings": [],
+
+
+  "forbidden_severity_overrides": [
+    {
+      "id": "tenure_max_severity_info",
+      "column_hint": "tenure",
+      "issue_type": "outlier",
+      "max_severity": "info",
+      "note": "tenure outliers are at the natural clip boundary, not injected errors. If reported, must be info-level."
+    }
+  ],
+
+  "max_total_findings": 6,
+  "note_on_max": "Two required + two optional legitimate issues = max 4 real findings. More than 6 suggests noise."
+}

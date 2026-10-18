@@ -1,0 +1,26 @@
+{
+  "_meta": {
+    "dataset": "hr_attrition",
+    "skill": "leakage_detector",
+    "schema_version": "1.0",
+    "target_col": "attrition",
+    "generator": "databricks_client._gen_hr_attrition(n=500)",
+    "description": "HR employee records — clean of leakage. All features (salary, tenure, performance_score, satisfaction_score, department, age) are legitimate pre-event attributes known before an employee leaves. This is a precision test: the skill must not produce false-positive critical findings.",
+    "planted_leakage": []
+  },
+
+  "expected_verdicts": ["clean", "suspicious"],
+
+  "required_findings": [],
+
+  "forbidden_findings": [
+    {
+      "id": "no_critical_leakage",
+      "max_severity": "warning",
+      "note": "No features in hr_attrition are derived from the attrition target. Any critical leakage finding is a false positive. Salary, tenure, performance_score, and satisfaction_score are all legitimate pre-event attributes."
+    }
+  ],
+
+  "max_total_findings": 3,
+  "note_on_max": "No planted leakage. employee_id might get an info-level identifier note. More than 3 findings suggests noise."
+}

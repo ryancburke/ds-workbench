@@ -1,0 +1,60 @@
+{
+  "_meta": {
+    "dataset": "sales_forecasting",
+    "skill": "model_selector",
+    "schema_version": "1.0",
+    "target_col": "revenue",
+    "known_characteristics": [
+      "Continuous numeric target: daily revenue (10420–82035, mean ~42k)",
+      "730 rows of daily data — 2-year time series",
+      "promotions_spend has very strong correlation with revenue: r=0.879",
+      "Seasonal pattern: 25% amplitude annual sine wave",
+      "Weekly pattern: weekends 30% lower than weekdays",
+      "Clean data, no nulls, no quality issues",
+      "Features include date, region, channel, promotions_spend, units_sold, returns_pct, new_customers"
+    ]
+  },
+
+  "required_fields": {
+    "task_type": {
+      "acceptable_values": ["regression", "time_series_forecasting"],
+      "note": "Revenue is a continuous numeric target. Both regression and time_series_forecasting are correct framings. binary_classification, multiclass_classification, clustering, or anomaly_detection would all be wrong.",
+      "forbidden_values": ["binary_classification", "multiclass_classification", "clustering", "anomaly_detection"]
+    },
+    "class_balance_issue": {
+      "expected_value": false,
+      "note": "Continuous regression target — class balance does not apply. Reporting class_balance_issue=true would indicate the model misidentified the task type."
+    },
+    "data_readiness": {
+      "acceptable_values": ["ready", "needs_prep"],
+      "note": "Clean data so 'ready' is correct for a baseline. 'needs_prep' is also acceptable if the skill flags date feature extraction (day-of-week, month, lag features) or seasonality encoding — these are legitimate preprocessing steps for time series regression. 'insufficient' is incorrect."
+    }
+  },
+
+  "target_analysis": {
+    "class_balance_issue_required": false,
+    "note": "No class balance analysis applies. The skill should report continuous target statistics (mean, range, skewness) instead."
+  },
+
+  "recommendations": {
+    "min_count": 2,
+    "max_count": 5,
+    "top_1_acceptable_families": [
+      "gradient_boosting", "xgboost", "lightgbm", "random_forest",
+      "time_series", "prophet", "linear_regression"
+    ],
+    "acceptable_families": [
+      "gradient_boosting", "xgboost", "lightgbm", "catboost",
+      "random_forest", "linear_regression", "ridge", "lasso",
+      "time_series", "prophet", "arima", "sarima",
+      "neural_network"
+    ],
+    "forbidden_families": [
+      "binary_classification", "logistic_regression",
+      "clustering", "k-means", "dbscan",
+      "anomaly_detection", "isolation_forest"
+    ],
+    "key_insight_required": "promotions_spend",
+    "key_insight_note": "promotions_spend has r=0.879 correlation with revenue — the strongest signal in the dataset. A high-quality recommendation must explicitly mention this feature's importance or its linear relationship with revenue."
+  }
+}

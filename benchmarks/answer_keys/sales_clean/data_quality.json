@@ -1,0 +1,56 @@
+{
+  "_meta": {
+    "dataset": "sales_clean",
+    "skill": "data_quality",
+    "schema_version": "1.0",
+    "generator": "databricks_client._gen_sales_clean(seed=99, n=600)",
+    "description": "Intentionally clean sales dataset. Zero nulls, zero duplicate rows, consistent string casing ('Electronics', 'Accessories', 'Bundles'; 'North', 'South', 'East', 'West'), fixed price tiers [9.99, 19.99, 49.99, 99.99, 199.99], and integer quantities 1-20. This is the precision / false-positive benchmark — a high-quality skill should find very little here.",
+    "planted_issues": []
+  },
+
+  "score": {
+    "min": 80,
+    "max": 100,
+    "note": "No real quality issues exist. A score below 80 indicates the skill is flagging false positives. The design-intent low-cardinality price/discount columns may cause Claude to rate the dataset 82-88 even on clean data."
+  },
+
+  "required_findings": [],
+
+  "optional_findings": [
+    {
+      "id": "price_low_cardinality",
+      "column_hint": "unit_price",
+      "issue_type": "low_cardinality",
+      "note": "unit_price has only 5 distinct values. This is by design (price tiers), not a defect. If flagged it should be info-level, not warning or critical."
+    },
+    {
+      "id": "discount_low_cardinality",
+      "column_hint": "discount_pct",
+      "issue_type": "low_cardinality",
+      "note": "discount_pct has 5 discrete values [0, 5, 10, 15, 20]. Expected by design. Max info-level if flagged."
+    }
+  ],
+
+  "forbidden_findings": [
+    {
+      "id": "no_null_findings",
+      "issue_type": "null_rate",
+      "note": "Zero nulls exist in this dataset across all columns. Any null_rate finding is a false positive."
+    },
+    {
+      "id": "no_format_findings",
+      "issue_type": "inconsistent_format",
+      "note": "All string columns use consistent capitalization. Any inconsistent_format finding is a false positive."
+    },
+    {
+      "id": "no_duplicate_findings",
+      "issue_type": "duplicate_rows",
+      "note": "Zero duplicate rows. Any duplicate_rows finding is a false positive."
+    }
+  ],
+
+  "max_critical_findings": 0,
+  "max_warning_findings": 0,
+  "max_total_findings": 2,
+  "note_on_max": "Only the two low-cardinality info observations are legitimate. More than 2 findings indicates false positives."
+}

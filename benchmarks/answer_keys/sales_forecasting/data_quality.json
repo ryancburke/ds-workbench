@@ -1,0 +1,59 @@
+{
+  "_meta": {
+    "dataset": "sales_forecasting",
+    "skill": "data_quality",
+    "schema_version": "1.0",
+    "generator": "databricks_client._gen_sales_forecasting(seed=61, n=730)",
+    "description": "Clean daily sales time series spanning 2 years. No injected quality issues. units_sold has 4 statistical outliers from natural variance at the extreme of the (revenue/price) range — these are legitimate business events, not errors. promotions_spend has a strong correlation with revenue (r=0.879) by design. This is a precision benchmark alongside sales_clean.",
+    "planted_issues": []
+  },
+
+  "score": {
+    "min": 80,
+    "max": 100,
+    "note": "No real quality issues. Score below 80 indicates false positives. The 4 units_sold outliers are legitimate high-sales days; Claude may give 84-100 depending on how it weights them."
+  },
+
+  "required_findings": [],
+
+  "optional_findings": [
+    {
+      "id": "units_sold_outliers",
+      "column_hint": "units_sold",
+      "issue_type": "outlier",
+      "note": "4 statistical outliers from natural variance. Legitimate high-sales days. At most info-level."
+    }
+  ],
+
+  "forbidden_findings": [
+    {
+      "id": "no_null_findings",
+      "issue_type": "null_rate",
+      "note": "Zero nulls exist in this dataset. Any null_rate finding is a false positive."
+    },
+    {
+      "id": "no_format_findings",
+      "issue_type": "inconsistent_format",
+      "note": "All string columns (region, channel) use consistent capitalisation. Any inconsistent_format finding is a false positive."
+    },
+    {
+      "id": "no_duplicate_findings",
+      "issue_type": "duplicate_rows",
+      "note": "Zero duplicate rows."
+    }
+  ],
+
+  "forbidden_severity_overrides": [
+    {
+      "id": "units_sold_max_severity_info",
+      "column_hint": "units_sold",
+      "issue_type": "outlier",
+      "max_severity": "info",
+      "note": "Natural variance in a clean dataset. Warning or critical would be incorrect."
+    }
+  ],
+
+  "max_critical_findings": 0,
+  "max_warning_findings": 0,
+  "max_total_findings": 2
+}

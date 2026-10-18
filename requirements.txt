@@ -1,0 +1,12 @@
+dash>=2.14
+dash-bootstrap-components>=1.5
+plotly>=5.18
+anthropic>=0.34
+pandas>=2.0
+numpy>=1.24
+python-dotenv>=1.0
+gunicorn>=21.0
+apscheduler>=3.10
+# Databricks (comment out for local dev)
+# databricks-sql-connector>=3.0
+# databricks-sdk>=0.20

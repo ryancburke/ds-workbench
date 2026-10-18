@@ -1,0 +1,543 @@
+{
+  "runs": [
+    {
+      "ts": "20261018T144421",
+      "rows": [
+        {
+          "ts": "20261018T144421",
+          "skill": "data_quality",
+          "dataset": "orders_dirty",
+          "model": "opus-4.8",
+          "duration_s": 40.1,
+          "overall": 100.0,
+          "passed": true,
+          "recall": 1.0,
+          "precision": null,
+          "correctness": null,
+          "missed_findings": [],
+          "false_positives": 0,
+          "notes": []
+        },
+        {
+          "ts": "20261018T144421",
+          "skill": "data_quality",
+          "dataset": "orders_dirty",
+          "model": "fable-5-medium",
+          "duration_s": 36.2,
+          "overall": 100.0,
+          "passed": true,
+          "recall": 1.0,
+          "precision": null,
+          "correctness": null,
+          "missed_findings": [],
+          "false_positives": 0,
+          "notes": []
+        },
+        {
+          "ts": "20261018T144421",
+          "skill": "data_quality",
+          "dataset": "orders_dirty",
+          "model": "fable-5-high",
+          "duration_s": 42.7,
+          "overall": 100.0,
+          "passed": true,
+          "recall": 1.0,
+          "precision": null,
+          "correctness": null,
+          "missed_findings": [],
+          "false_positives": 0,
+          "notes": []
+        },
+        {
+          "ts": "20261018T144421",
+          "skill": "data_quality",
+          "dataset": "sales_clean",
+          "model": "opus-4.8",
+          "duration_s": 20.3,
+          "overall": 100.0,
+          "passed": true,
+          "recall": 1.0,
+          "precision": null,
+          "correctness": null,
+          "missed_findings": [],
+          "false_positives": 0,
+          "notes": []
+        },
+        {
+          "ts": "20261018T144421",
+          "skill": "data_quality",
+          "dataset": "sales_clean",
+          "model": "fable-5-medium",
+          "duration_s": 16.9,
+          "overall": 100.0,
+          "passed": true,
+          "recall": 1.0,
+          "precision": null,
+          "correctness": null,
+          "missed_findings": [],
+          "false_positives": 0,
+          "notes": []
+        },
+        {
+          "ts": "20261018T144421",
+          "skill": "data_quality",
+          "dataset": "sales_clean",
+          "model": "fable-5-high",
+          "duration_s": 19.3,
+          "overall": 100.0,
+          "passed": true,
+          "recall": 1.0,
+          "precision": null,
+          "correctness": null,
+          "missed_findings": [],
+          "false_positives": 0,
+          "notes": []
+        },
+        {
+          "ts": "20261018T144421",
+          "skill": "data_quality",
+          "dataset": "hr_attrition",
+          "model": "opus-4.8",
+          "duration_s": 43.1,
+          "overall": 90.0,
+          "passed": true,
+          "recall": 1.0,
+          "precision": null,
+          "correctness": null,
+          "missed_findings": [],
+          "false_positives": 0,
+          "notes": [
+            "SEVERITY VIOLATION 'tenure_max_severity_info': 'tenure_years' reported as warning but max is info"
+          ]
+        },
+        {
+          "ts": "20261018T144421",
+          "skill": "data_quality",
+          "dataset": "hr_attrition",
+          "model": "fable-5-medium",
+          "duration_s": 39.4,
+          "overall": 90.0,
+          "passed": true,
+          "recall": 1.0,
+          "precision": null,
+          "correctness": null,
+          "missed_findings": [],
+          "false_positives": 0,
+          "notes": [
+            "SEVERITY VIOLATION 'tenure_max_severity_info': 'tenure_years' reported as warning but max is info"
+          ]
+        },
+        {
+          "ts": "20261018T144421",
+          "skill": "data_quality",
+          "dataset": "hr_attrition",
+          "model": "fable-5-high",
+          "duration_s": 46.3,
+          "overall": 90.0,
+          "passed": true,
+          "recall": 1.0,
+          "precision": null,
+          "correctness": null,
+          "missed_findings": [],
+          "false_positives": 0,
+          "notes": [
+            "SEVERITY VIOLATION 'tenure_max_severity_info': 'tenure_years' reported as warning but max is info"
+          ]
+        },
+        {
+          "ts": "20261018T144421",
+          "skill": "data_quality",
+          "dataset": "ecommerce",
+          "model": "opus-4.8",
+          "duration_s": 48.3,
+          "overall": 100.0,
+          "passed": true,
+          "recall": 1.0,
+          "precision": null,
+          "correctness": null,
+          "missed_findings": [],
+          "false_positives": 0,
+          "notes": []
+        },
+        {
+          "ts": "20261018T144421",
+          "skill": "data_quality",
+          "dataset": "ecommerce",
+          "model": "fable-5-medium",
+          "duration_s": 43.2,
+          "overall": 100.0,
+          "passed": true,
+          "recall": 1.0,
+          "precision": null,
+          "correctness": null,
+          "missed_findings": [],
+          "false_positives": 0,
+          "notes": []
+        },
+        {
+          "ts": "20261018T144421",
+          "skill": "data_quality",
+          "dataset": "ecommerce",
+          "model": "fable-5-high",
+          "duration_s": 51.3,
+          "overall": 100.0,
+          "passed": true,
+          "recall": 1.0,
+          "precision": null,
+          "correctness": null,
+          "missed_findings": [],
+          "false_positives": 0,
+          "notes": []
+        },
+        {
+          "ts": "20261018T144421",
+          "skill": "data_quality",
+          "dataset": "transactions_fraud",
+          "model": "opus-4.8",
+          "duration_s": 42.8,
+          "overall": 75.0,
+          "passed": true,
+          "recall": 1.0,
+          "precision": null,
+          "correctness": null,
+          "missed_findings": [],
+          "false_positives": 0,
+          "notes": [
+            "SCORE OUT OF RANGE: got 78, expected 50-72"
+          ]
+        },
+        {
+          "ts": "20261018T144421",
+          "skill": "data_quality",
+          "dataset": "transactions_fraud",
+          "model": "fable-5-medium",
+          "duration_s": 34.4,
+          "overall": 75.0,
+          "passed": true,
+          "recall": 1.0,
+          "precision": null,
+          "correctness": null,
+          "missed_findings": [],
+          "false_positives": 0,
+          "notes": [
+            "SCORE OUT OF RANGE: got 78, expected 50-72"
+          ]
+        },
+        {
+          "ts": "20261018T144421",
+          "skill": "data_quality",
+          "dataset": "transactions_fraud",
+          "model": "fable-5-high",
+          "duration_s": 47.1,
+          "overall": 75.0,
+          "passed": true,
+          "recall": 1.0,
+          "precision": null,
+          "correctness": null,
+          "missed_findings": [],
+          "false_positives": 0,
+          "notes": [
+            "SCORE OUT OF RANGE: got 78, expected 50-72"
+          ]
+        },
+        {
+          "ts": "20261018T144421",
+          "skill": "leakage_detector",
+          "dataset": "ecommerce_leakage",
+          "model": "opus-4.8",
+          "duration_s": 32.6,
+          "overall": 75.0,
+          "passed": true,
+          "recall": 0.5,
+          "precision": null,
+          "correctness": null,
+          "missed_findings": [
+            "order_id_proxy"
+          ],
+          "false_positives": 0,
+          "notes": [
+            "MISSED LEAKAGE 'order_id_proxy': did not flag 'order_id' \u2014 conditional_null_pct: {True: 0%, False: 100%} \u2014 order_id only exists after a conversion happens. Classic post-event proxy leakage.",
+            "NOISY: 6 findings, expected at most 5 (1 likely noise)"
+          ]
+        },
+        {
+          "ts": "20261018T144421",
+          "skill": "leakage_detector",
+          "dataset": "ecommerce_leakage",
+          "model": "fable-5-medium",
+          "duration_s": 35.5,
+          "overall": 50.0,
+          "passed": false,
+          "recall": 0.0,
+          "precision": null,
+          "correctness": null,
+          "missed_findings": [
+            "conversion_score_leakage",
+            "order_id_proxy"
+          ],
+          "false_positives": 0,
+          "notes": [
+            "MISSED LEAKAGE 'conversion_score_leakage': did not flag 'conversion_score' \u2014 correlation_with_target \u2248 0.894 \u2014 this is almost certainly a downstream score derived from the target. Critical leakage; must be removed.",
+            "MISSED LEAKAGE 'order_id_proxy': did not flag 'order_id' \u2014 conditional_null_pct: {True: 0%, False: 100%} \u2014 order_id only exists after a conversion happens. Classic post-event proxy leakage.",
+            "NOISY: 10 findings, expected at most 5 (5 likely noise)"
+          ]
+        },
+        {
+          "ts": "20261018T144421",
+          "skill": "leakage_detector",
+          "dataset": "ecommerce_leakage",
+          "model": "fable-5-high",
+          "duration_s": 36.0,
+          "overall": 75.0,
+          "passed": true,
+          "recall": 0.5,
+          "precision": null,
+          "correctness": null,
+          "missed_findings": [
+            "order_id_proxy"
+          ],
+          "false_positives": 0,
+          "notes": [
+            "MISSED LEAKAGE 'order_id_proxy': did not flag 'order_id' \u2014 conditional_null_pct: {True: 0%, False: 100%} \u2014 order_id only exists after a conversion happens. Classic post-event proxy leakage.",
+            "NOISY: 6 findings, expected at most 5 (1 likely noise)"
+          ]
+        },
+        {
+          "ts": "20261018T144421",
+          "skill": "leakage_detector",
+          "dataset": "hr_attrition",
+          "model": "opus-4.8",
+          "duration_s": 27.2,
+          "overall": 100.0,
+          "passed": true,
+          "recall": 1.0,
+          "precision": null,
+          "correctness": null,
+          "missed_findings": [],
+          "false_positives": 0,
+          "notes": []
+        },
+        {
+          "ts": "20261018T144421",
+          "skill": "leakage_detector",
+          "dataset": "hr_attrition",
+          "model": "fable-5-medium",
+          "duration_s": 31.1,
+          "overall": 100.0,
+          "passed": true,
+          "recall": 1.0,
+          "precision": null,
+          "correctness": null,
+          "missed_findings": [],
+          "false_positives": 0,
+          "notes": [
+            "NOISY: 4 findings, expected at most 3 (1 likely noise)"
+          ]
+        },
+        {
+          "ts": "20261018T144421",
+          "skill": "leakage_detector",
+          "dataset": "hr_attrition",
+          "model": "fable-5-high",
+          "duration_s": 33.6,
+          "overall": 100.0,
+          "passed": true,
+          "recall": 1.0,
+          "precision": null,
+          "correctness": null,
+          "missed_findings": [],
+          "false_positives": 0,
+          "notes": [
+            "NOISY: 5 findings, expected at most 3 (2 likely noise)"
+          ]
+        }
+      ]
+    },
+    {
+      "ts": "20261018T175903",
+      "rows": [
+        {
+          "ts": "20261018T175903",
+          "skill": "model_selector",
+          "dataset": "transactions_fraud",
+          "model": "sonnet-5.5",
+          "duration_s": 41.3,
+          "overall": 100.0,
+          "passed": true,
+          "recall": 1.333,
+          "precision": null,
+          "correctness": null,
+          "missed_findings": [],
+          "false_positives": 0,
+          "notes": [
+            "GOOD: imbalance handling strategy mentioned in output"
+          ]
+        },
+        {
+          "ts": "20261018T175903",
+          "skill": "model_selector",
+          "dataset": "transactions_fraud",
+          "model": "opus-5.5",
+          "duration_s": 78.2,
+          "overall": 80.0,
+          "passed": true,
+          "recall": 1.0,
+          "precision": null,
+          "correctness": null,
+          "missed_findings": [
+            "top1_recommendation"
+          ],
+          "false_positives": 0,
+          "notes": [
+            "TOP-1 model 'logistic_regression' not in acceptable set ['gradient_boosting', 'xgboost', 'lightgbm', 'catboost', 'random_forest', 'isolation_forest']",
+            "GOOD: imbalance handling strategy mentioned in output"
+          ]
+        },
+        {
+          "ts": "20261018T175903",
+          "skill": "model_selector",
+          "dataset": "transactions_fraud",
+          "model": "fable-5.1-medium",
+          "duration_s": 85.2,
+          "overall": 80.0,
+          "passed": true,
+          "recall": 1.0,
+          "precision": null,
+          "correctness": null,
+          "missed_findings": [
+            "top1_recommendation"
+          ],
+          "false_positives": 0,
+          "notes": [
+            "TOP-1 model 'Regularized Logistic Regression (elastic-net, class-weighted)' not in acceptable set ['gradient_boosting', 'xgboost', 'lightgbm', 'catboost', 'random_forest', 'isolation_forest']",
+            "GOOD: imbalance handling strategy mentioned in output"
+          ]
+        },
+        {
+          "ts": "20261018T175903",
+          "skill": "model_selector",
+          "dataset": "ecommerce",
+          "model": "sonnet-5.5",
+          "duration_s": 46.2,
+          "overall": 100.0,
+          "passed": true,
+          "recall": 1.333,
+          "precision": null,
+          "correctness": null,
+          "missed_findings": [],
+          "false_positives": 0,
+          "notes": [
+            "GOOD: imbalance handling strategy mentioned in output"
+          ]
+        },
+        {
+          "ts": "20261018T175903",
+          "skill": "model_selector",
+          "dataset": "ecommerce",
+          "model": "opus-5.5",
+          "duration_s": 107.7,
+          "overall": null,
+          "error": "can only concatenate str (not \"NoneType\") to str"
+        },
+        {
+          "ts": "20261018T175903",
+          "skill": "model_selector",
+          "dataset": "ecommerce",
+          "model": "fable-5.1-medium",
+          "duration_s": 77.3,
+          "overall": 80.0,
+          "passed": true,
+          "recall": 1.0,
+          "precision": null,
+          "correctness": null,
+          "missed_findings": [
+            "top1_recommendation"
+          ],
+          "false_positives": 0,
+          "notes": [
+            "TOP-1 model 'GradientBoostedTreeClassifier' not in acceptable set ['gradient_boosting', 'xgboost', 'lightgbm', 'catboost', 'random_forest']",
+            "GOOD: imbalance handling strategy mentioned in output"
+          ]
+        },
+        {
+          "ts": "20261018T175903",
+          "skill": "model_selector",
+          "dataset": "hr_attrition",
+          "model": "sonnet-5.5",
+          "duration_s": 51.0,
+          "overall": null,
+          "error": "can only concatenate str (not \"NoneType\") to str"
+        },
+        {
+          "ts": "20261018T175903",
+          "skill": "model_selector",
+          "dataset": "hr_attrition",
+          "model": "opus-5.5",
+          "duration_s": 86.7,
+          "overall": null,
+          "error": "can only concatenate str (not \"NoneType\") to str"
+        },
+        {
+          "ts": "20261018T175903",
+          "skill": "model_selector",
+          "dataset": "hr_attrition",
+          "model": "fable-5.1-medium",
+          "duration_s": 80.0,
+          "overall": null,
+          "error": "can only concatenate str (not \"NoneType\") to str"
+        },
+        {
+          "ts": "20261018T175903",
+          "skill": "model_selector",
+          "dataset": "sales_forecasting",
+          "model": "sonnet-5.5",
+          "duration_s": 43.5,
+          "overall": 100.0,
+          "passed": true,
+          "recall": 1.667,
+          "precision": null,
+          "correctness": null,
+          "missed_findings": [],
+          "false_positives": 0,
+          "notes": [
+            "GOOD: key feature 'promotions_spend' mentioned in output"
+          ]
+        },
+        {
+          "ts": "20261018T175903",
+          "skill": "model_selector",
+          "dataset": "sales_forecasting",
+          "model": "opus-5.5",
+          "duration_s": 71.8,
+          "overall": 100.0,
+          "passed": true,
+          "recall": 1.667,
+          "precision": null,
+          "correctness": null,
+          "missed_findings": [],
+          "false_positives": 0,
+          "notes": [
+            "GOOD: key feature 'promotions_spend' mentioned in output"
+          ]
+        },
+        {
+          "ts": "20261018T175903",
+          "skill": "model_selector",
+          "dataset": "sales_forecasting",
+          "model": "fable-5.1-medium",
+          "duration_s": 72.0,
+          "overall": 100.0,
+          "passed": true,
+          "recall": 1.667,
+          "precision": null,
+          "correctness": null,
+          "missed_findings": [],
+          "false_positives": 0,
+          "notes": [
+            "GOOD: key feature 'promotions_spend' mentioned in output"
+          ]
+        }
+      ]
+    }
+  ]
+}

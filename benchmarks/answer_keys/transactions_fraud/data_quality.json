@@ -1,0 +1,59 @@
+{
+  "_meta": {
+    "dataset": "transactions_fraud",
+    "skill": "data_quality",
+    "schema_version": "1.0",
+    "generator": "databricks_client._gen_transactions_fraud(seed=13, n=1000)",
+    "description": "Financial transaction records with three distinct quality issues: user_id nulls (8.4%), mixed-case country values ('US', 'us', 'United States', 'UK', 'uk', 'CA', 'ca'), and extreme amount outliers (39 values beyond 3×IQR — injected fraud transaction amounts of 8500, 12000, 25000, 47500 against a normal range of 1-2000). The is_fraud column has a 32.33:1 class imbalance which may be noted as context.",
+    "planted_issues": [
+      "user_id: 84 nulls (8.4%) — above warning threshold",
+      "country: mixed case/name variants ['AU', 'CA', 'UK', 'US', 'United States', 'ca', 'uk', 'us'] — inconsistent_format",
+      "amount: 39 outliers beyond 3×IQR (range 1.0–47500.0) — injected fraud amounts",
+      "merchant_id: 20 nulls (2.0%) — below 5% threshold, likely info-level at most"
+    ]
+  },
+
+  "score": {
+    "min": 50,
+    "max": 72,
+    "note": "Three real issues (user_id nulls, country format, amount outliers). Amount outliers from injected fraud amounts may push toward the lower end. Expected 50-72."
+  },
+
+  "required_findings": [
+    {
+      "id": "user_id_nulls",
+      "column_hint": "user_id",
+      "issue_type": "null_rate",
+      "min_severity": "warning",
+      "note": "8.4% null rate — clearly above the 5% warning threshold. Missing user attribution on 84 transactions is a data pipeline concern."
+    },
+    {
+      "id": "country_format",
+      "column_hint": "country",
+      "issue_type": "inconsistent_format",
+      "min_severity": "warning",
+      "note": "country has 8 distinct values representing essentially 4 countries: 'US'/'us'/'United States', 'UK'/'uk', 'CA'/'ca', 'AU'. Mixed case and mixed naming conventions in a reference field."
+    },
+    {
+      "id": "amount_outliers",
+      "column_hint": "amount",
+      "issue_type": "outlier",
+      "min_severity": "warning",
+      "note": "39 values (3.9%) exceed the 3×IQR fence. These are the injected fraud amounts (8500–47500) against a normal transaction range of 1–2000. In a fraud dataset this is meaningful signal, not noise."
+    }
+  ],
+
+  "optional_findings": [
+    {
+      "id": "merchant_id_nulls",
+      "column_hint": "merchant_id",
+      "issue_type": "null_rate",
+      "note": "2.0% null rate — below the 5% threshold. May be noted as info. Not expected to be flagged as warning."
+    }
+  ],
+
+  "forbidden_findings": [],
+
+  "max_total_findings": 7,
+  "note_on_max": "Three required + one optional + possibly is_fraud imbalance context note = max 5 legitimate findings."
+}

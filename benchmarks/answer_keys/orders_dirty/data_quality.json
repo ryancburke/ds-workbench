@@ -1,0 +1,79 @@
+{
+  "_meta": {
+    "dataset": "orders_dirty",
+    "skill": "data_quality",
+    "schema_version": "1.0",
+    "generator": "databricks_client._gen_orders_dirty(seed=42, n=800)",
+    "description": "Order records with deliberately planted quality issues: null amounts, null contact fields, and mixed-case categorical values. No duplicate rows exist — the .head(n) call in the generator removes appended duplicates before they appear in the final frame.",
+    "planted_issues": [
+      "amount: 63 nulls (7.9%) — above 5% warning threshold",
+      "status: mixed case variants ['CANCELLED', 'Completed', 'completed', 'pending', 'refunded'] + 41 nulls (5.1%)",
+      "region: mixed case variants ['NORTH', 'South', 'West', 'east'] + 37 nulls (4.6%)",
+      "email: 42 nulls (5.2%) — at warning threshold",
+      "customer_id: 28 nulls (3.5%) — below 5% threshold but notable for a key field",
+      "duplicate_rows: 0 (planted dupes are removed by .head(800) in the generator)"
+    ]
+  },
+
+  "score": {
+    "min": 52,
+    "max": 72,
+    "note": "Three clear warnings (amount nulls, status format, region format) should push the score into the 52-72 band. No critical issues exist, so a score below 52 signals over-penalisation; above 72 signals the skill is missing real problems."
+  },
+
+  "required_findings": [
+    {
+      "id": "amount_nulls",
+      "column_hint": "amount",
+      "issue_type": "null_rate",
+      "min_severity": "warning",
+      "note": "7.9% null rate in amount — clearly above the 5% warning threshold. A key financial metric cannot be ~8% missing without being flagged."
+    },
+    {
+      "id": "status_format",
+      "column_hint": "status",
+      "issue_type": "inconsistent_format",
+      "min_severity": "warning",
+      "note": "status has 5 distinct values that include 'completed', 'Completed', and 'CANCELLED' — three casing variants of the same concept. The profile shows these as separate top-values, so the skill has all the information it needs."
+    },
+    {
+      "id": "region_format",
+      "column_hint": "region",
+      "issue_type": "inconsistent_format",
+      "min_severity": "warning",
+      "note": "region has 'NORTH', 'South', 'West', 'east' — each a different casing convention. A consistent categorical column should never have this pattern."
+    }
+  ],
+
+  "optional_findings": [
+    {
+      "id": "email_nulls",
+      "column_hint": "email",
+      "issue_type": "null_rate",
+      "note": "5.2% null rate in email — just over the warning threshold. Whether flagged depends on model judgement about contact field importance."
+    },
+    {
+      "id": "customer_id_nulls",
+      "column_hint": "customer_id",
+      "issue_type": "null_rate",
+      "note": "3.5% null rate — below the 5% threshold. Claude may still flag it because 'customer_id' reads as a key column where any null is suspicious."
+    },
+    {
+      "id": "status_nulls",
+      "column_hint": "status",
+      "issue_type": "null_rate",
+      "note": "5.1% null rate in status may be reported as a separate null_rate finding in addition to the inconsistent_format finding."
+    }
+  ],
+
+  "forbidden_findings": [
+    {
+      "id": "no_duplicate_rows",
+      "issue_type": "duplicate_rows",
+      "note": "The generator appends 24 duplicate rows then calls .head(800) which removes them. df.duplicated().sum() == 0 in the actual data. Reporting duplicate_rows is a false positive and indicates the skill is hallucinating or misreading the profile."
+    }
+  ],
+
+  "max_total_findings": 8,
+  "note_on_max": "This dataset has 3 required + 3 optional real issues = at most 6 legitimate findings. More than 8 suggests the skill is generating noise."
+}

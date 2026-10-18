@@ -1,0 +1,88 @@
+{
+  "_meta": {
+    "dataset": "ecommerce",
+    "skill": "feature_engineering",
+    "schema_version": "1.0",
+    "target_col": "converted",
+    "generator": "databricks_client._gen_ecommerce(n=700)",
+    "description": "E-commerce session data. Target: converted (bool → cast to int label). session_id must be dropped (unique per row). user_id is a high-cardinality user ID — drop or acceptable. channel and device are low-cardinality categoricals needing encoding. page_views and cart_value are clean numerics needing scaling. time_on_site_s is object dtype (numeric-like) with 5.4% nulls — needs cast + impute + scale. session_date is a datetime — extract features or drop.",
+    "columns": {
+      "session_id": "identifier — drop",
+      "user_id": "high-cardinality user ID — drop or acceptable to handle",
+      "channel": "categorical, 5 values, 5.6% null — encode + impute",
+      "device": "categorical, 3 values, 0% null — encode",
+      "page_views": "numeric, clean — scale",
+      "time_on_site_s": "object (numeric-like), 5.4% null — cast + impute + scale",
+      "cart_value": "numeric, clean — scale",
+      "session_date": "datetime — extract or drop",
+      "converted": "boolean TARGET — cast to int as 'label'"
+    }
+  },
+
+  "required_transformations": [
+    {
+      "id": "channel_encode",
+      "column_hint": "channel",
+      "acceptable_actions": ["encode_ohe", "encode_index"],
+      "requires_imputation": true,
+      "note": "channel has 5.6% nulls and 5 categories — needs imputation (mode/constant) + OHE or StringIndexer"
+    },
+    {
+      "id": "device_encode",
+      "column_hint": "device",
+      "acceptable_actions": ["encode_ohe", "encode_index"],
+      "requires_imputation": false,
+      "note": "device has 3 categories, 0% nulls — encode (OHE or StringIndexer)"
+    },
+    {
+      "id": "page_views_scale",
+      "column_hint": "page_views",
+      "acceptable_actions": ["scale"],
+      "requires_imputation": false,
+      "note": "page_views is a clean integer — standard scaling"
+    },
+    {
+      "id": "time_on_site_scale",
+      "column_hint": "time_on_site",
+      "acceptable_actions": ["scale"],
+      "requires_imputation": true,
+      "note": "time_on_site_s is object-dtype numeric with 5.4% nulls — cast to float, median impute, then scale"
+    },
+    {
+      "id": "cart_value_scale",
+      "column_hint": "cart_value",
+      "acceptable_actions": ["scale"],
+      "requires_imputation": false,
+      "note": "cart_value is a clean float — standard scaling"
+    }
+  ],
+
+  "required_dropped_cols": [
+    {
+      "id": "session_id_drop",
+      "column_hint": "session_id",
+      "note": "session_id is unique per row — a perfect unique identifier that must be excluded from features"
+    }
+  ],
+
+  "required_code_elements": [
+    "Pipeline",
+    "VectorAssembler",
+    "StringIndexer",
+    "StandardScaler",
+    "Imputer"
+  ],
+
+  "forbidden_in_features": [
+    {
+      "id": "converted_not_in_features",
+      "column_hint": "converted",
+      "note": "Target column must not appear as a feature — it should become 'label'"
+    },
+    {
+      "id": "session_id_not_in_features",
+      "column_hint": "session_id",
+      "note": "session_id must not be used as a feature column"
+    }
+  ]
+}
