@@ -332,6 +332,17 @@ Reference the specific statistics from the profile in your evidence fields."""
                          session_warnings=session_warnings)
     if sample_note:
         result["sample_note"] = sample_note
+
+    # Cross-reference: columns flagged by both DQ and leakage
+    if dq_findings:
+        dq_cols = {f.get("column") for f in dq_findings
+                   if f.get("column") and f.get("severity") in ("critical", "warning")}
+        ld_cols = {f.get("column") for f in result.get("findings", [])
+                   if f.get("column") and f.get("severity") in ("critical", "warning")}
+        overlap = sorted(dq_cols & ld_cols)
+        if overlap:
+            result["cross_referenced_cols"] = overlap
+
     if session is not None:
         session.register("leakage_detector", result)
     return result

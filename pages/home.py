@@ -76,6 +76,7 @@ ML_FEAS_ICON    = {"ready": "bi-check-circle-fill text-success",
                    "marginal": "bi-exclamation-circle text-warning",
                    "insufficient": "bi-x-circle-fill text-danger"}
 ML_CAT_ICON = {
+    "data_leakage":       "bi-exclamation-diamond-fill",
     "hardcoded_config":   "bi-lock",
     "missing_logging":    "bi-journal-x",
     "no_error_handling":  "bi-shield-x",
@@ -2160,6 +2161,23 @@ def _cross_skill_conflicts(store: dict) -> html.Div | None:
     fe_runs = [r for r in store.get("feature_engineering",[]) if r.get("status") == "complete"]
     ja_runs = [r for r in store.get("join_auditor",       []) if r.get("status") == "complete"]
     nl_runs = [r for r in store.get("nl_to_spark",        []) if r.get("status") == "complete"]
+
+    if dq_runs and ld_runs:
+        dq_findings = dq_runs[-1].get("result", {}).get("findings", [])
+        ld_findings = ld_runs[-1].get("result", {}).get("findings", [])
+        dq_cols = {f.get("column") for f in dq_findings
+                   if f.get("column") and f.get("severity") in ("critical", "warning")}
+        ld_cols = {f.get("column") for f in ld_findings
+                   if f.get("column") and f.get("severity") in ("critical", "warning")}
+        overlap = sorted(dq_cols & ld_cols)
+        if overlap:
+            col_list = ", ".join(f"`{c}`" for c in overlap[:5])
+            more = f" (+{len(overlap)-5} more)" if len(overlap) > 5 else ""
+            conflicts.append({
+                "icon": "bi-exclamation-diamond-fill", "color": "danger",
+                "title": "Columns flagged by both DQ and Leakage",
+                "detail": f"{col_list}{more} — these have data quality AND leakage issues. Highest priority to resolve before training.",
+            })
 
     if dq_runs and ml_runs:
         dq_crit  = dq_runs[-1].get("summary", {}).get("critical", 0)

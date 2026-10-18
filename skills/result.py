@@ -239,6 +239,7 @@ def _render_leakage_detector(r: dict) -> str:
     risk     = r.get("risk_level", "none")
     findings = _sort_findings(r.get("findings", []))
     summary  = r.get("summary", "")
+    xref     = r.get("cross_referenced_cols", [])
     vc = {"leakage_detected":"danger","suspicious":"warning","clean":"success"}.get(verdict,"secondary")
     rc = {"high":"danger","medium":"warning","low":"info","none":"success"}.get(risk,"secondary")
 
@@ -300,12 +301,22 @@ def _render_leakage_detector(r: dict) -> str:
         f'{_badge(f"risk: {risk}", rc)}'
         f'</div>'
         f'<div class="wr-body">'
-        f'<p class="wr-sum">{summary}</p>'
         + _critical_callout(
             findings,
             "Exclude from training set before fitting any model",
             code_snippet=_leakage_drop_snippet(findings),
         )
+        + (
+            '<div style="background:#ede7f6;border-left:4px solid #6a1b9a;border-radius:4px;'
+            'padding:8px 12px;margin:6px 0;font-size:12px">'
+            '<strong style="color:#4527a0">⚡ Also flagged by Data Quality: </strong>'
+            + " ".join(f'<span class="wr-mono">{c}</span>' for c in xref)
+            + '<br><span style="color:#666;font-size:11px">'
+            'These columns have both data quality issues and leakage risk — '
+            'highest priority to resolve.</span></div>'
+            if xref else ""
+        )
+        + f'<p class="wr-sum">{summary}</p>'
         + f'{findings_tbl}'
         f'</div>'
     )
@@ -612,10 +623,24 @@ def _render_nl_to_spark(r: dict) -> str:
     )
 
 
+_MLOPS_CAT_ORDER = {
+    "data_leakage": 0, "reproducibility": 1, "security": 2,
+    "no_error_handling": 3, "hardcoded_config": 4, "missing_logging": 5,
+    "inefficient_spark": 6, "missing_tests": 7, "code_structure": 8, "documentation": 9,
+}
+_MLOPS_SEV_ORDER = {"critical": 0, "warning": 1, "suggestion": 2}
+
+
 def _render_mlops_reviewer(r: dict) -> str:
     score    = r.get("readiness_score",0)
     summary  = r.get("summary","")
-    findings = r.get("findings",[])
+    findings = sorted(
+        r.get("findings", []),
+        key=lambda f: (
+            _MLOPS_SEV_ORDER.get(f.get("severity", "suggestion"), 2),
+            _MLOPS_CAT_ORDER.get(f.get("category", ""), 9),
+        ),
+    )
     sc = "success" if score >= 70 else "warning" if score >= 40 else "danger"
 
     critical = [f for f in findings if f.get("severity") == "critical"]

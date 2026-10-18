@@ -50,9 +50,9 @@ _TOOL = {
                         "category": {
                             "type": "string",
                             "enum": [
-                                "hardcoded_config", "missing_logging", "no_error_handling",
-                                "inefficient_spark", "reproducibility", "missing_tests",
-                                "code_structure", "security", "documentation",
+                                "data_leakage", "hardcoded_config", "missing_logging",
+                                "no_error_handling", "inefficient_spark", "reproducibility",
+                                "missing_tests", "code_structure", "security", "documentation",
                             ],
                         },
                         "severity": {"type": "string", "enum": ["critical", "warning", "suggestion"]},
