@@ -1,7 +1,7 @@
 import anthropic
 from config import config
 from skills.result import SkillResult
-from skills.api_retry import api_call
+from skills.api_retry import api_call, skill_entry
 from skills.models import GENERAL_MODEL, GENERAL_EXTRA
 
 _client: anthropic.Anthropic | None = None
@@ -71,6 +71,7 @@ _TOOL = {
 }
 
 
+@skill_entry("mlops_review")
 def review(code: str) -> dict:
     try:
         return _review(code)

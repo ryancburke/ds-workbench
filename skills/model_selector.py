@@ -2,7 +2,7 @@ import anthropic
 import pandas as pd
 from config import config
 from skills.result import SkillResult
-from skills.api_retry import api_call
+from skills.api_retry import api_call, skill_entry
 from skills.models import ANALYSIS_MODEL, STRUCTURED_MODEL, THINKING_ADAPTIVE, ANALYSIS_EXTRA
 
 _client: anthropic.Anthropic | None = None
@@ -182,6 +182,7 @@ def _build_profile(df: pd.DataFrame, target_col: str) -> str:
     return "\n".join(lines)
 
 
+@skill_entry("model_selector")
 def select(
     df: pd.DataFrame,
     target_col: str,

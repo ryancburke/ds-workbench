@@ -2,7 +2,7 @@ import json
 import anthropic
 import pandas as pd
 from config import config
-from skills.api_retry import api_call
+from skills.api_retry import api_call, skill_entry
 from skills.models import GENERAL_MODEL, GENERAL_EXTRA
 
 _client: anthropic.Anthropic | None = None
@@ -58,6 +58,7 @@ _TOOL = {
 }
 
 
+@skill_entry("eda")
 def analyze(
     df: pd.DataFrame,
     table_name: str = "dataset",

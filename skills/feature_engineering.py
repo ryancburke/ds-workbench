@@ -11,7 +11,7 @@ import pandas as pd
 import numpy as np
 from config import config
 from skills.result import SkillResult
-from skills.api_retry import api_call
+from skills.api_retry import api_call, skill_entry
 from skills.models import GENERAL_MODEL, GENERAL_EXTRA
 
 _client: anthropic.Anthropic | None = None
@@ -213,6 +213,7 @@ def build_feature_profile(df: pd.DataFrame, target_col: str) -> dict:
     return profile
 
 
+@skill_entry("feature_engineering")
 def suggest(
     df: pd.DataFrame,
     target_col: str,

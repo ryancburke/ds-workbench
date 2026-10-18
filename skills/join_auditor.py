@@ -2,7 +2,7 @@ import json
 import anthropic
 import pandas as pd
 from config import config
-from skills.api_retry import api_call
+from skills.api_retry import api_call, skill_entry
 from skills.models import ANALYSIS_MODEL, STRUCTURED_MODEL, THINKING_ADAPTIVE, ANALYSIS_EXTRA
 
 _client: anthropic.Anthropic | None = None
@@ -51,6 +51,7 @@ _TOOL = {
 }
 
 
+@skill_entry("join_auditor")
 def audit(
     left_df: pd.DataFrame,
     right_df: pd.DataFrame,

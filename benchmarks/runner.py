@@ -26,6 +26,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from config import config  # triggers load_dotenv
+from skills.api_retry import call_context
 
 BENCHMARKS_DIR = Path(__file__).parent
 CACHE_DIR = BENCHMARKS_DIR / "cache"
@@ -287,7 +288,8 @@ def run_benchmarks(
             try:
                 df = bm["df_fn"]()
                 t0 = time.perf_counter()
-                output = bm["run_fn"](df, **bm["run_kwargs"])
+                with call_context(dataset=bm["dataset"], benchmark=bid):
+                    output = bm["run_fn"](df, **bm["run_kwargs"])
                 duration_s = time.perf_counter() - t0
                 _write_cache(bid, ts, output, duration_s)
                 print(f"    Claude call completed in {duration_s:.1f}s")

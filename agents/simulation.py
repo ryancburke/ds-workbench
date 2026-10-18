@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 import anthropic
 
 from config import config
-from skills.api_retry import check_response, response_text
+from skills.api_retry import call_context, check_response, response_text
 from skills.models import SIM_EXTRA, SIM_JUDGE_EXTRA, SIM_JUDGE_MODEL, SIM_MODEL
 
 _client_instance: anthropic.Anthropic | None = None
@@ -458,6 +458,12 @@ def debrief_step(persona: dict, scenario: dict, my_steps: list) -> str:
 
 def _execute_skill(skill: str, dataset: str, decision: dict, scenario: dict) -> tuple[dict, dict]:
     """Run a skill and return (result_dict, run_record_for_store)."""
+    # Tags any refusal-log entry with the dataset and scenario behind it
+    with call_context(dataset=dataset, scenario=scenario["id"]):
+        return _run_skill(skill, dataset, decision, scenario)
+
+
+def _run_skill(skill: str, dataset: str, decision: dict, scenario: dict) -> tuple[dict, dict]:
     run_id = f"{skill}_{int(time.time() * 1000)}"
     ts = datetime.now().strftime("%H:%M")
 
@@ -776,21 +782,31 @@ def evaluate_output_step(
             tool_choice={"type": "auto"},
         )
         check_response(qual_resp)
-        qual_block = next(b for b in qual_resp.content if b.type == "tool_use")
+        qual_block = next((b for b in qual_resp.content
+                           if b.type == "tool_use" and b.name == "rate_output"), None)
+        if qual_block is None:
+            raise RuntimeError(f"persona did not call rate_output (stop_reason={qual_resp.stop_reason})")
         qual = qual_block.input
-    except Exception:
-        qual = {"usefulness": 3, "clarity": 3, "brief_note": "evaluation unavailable"}
+        error = None
+    except Exception as exc:
+        # Record the failure rather than a made-up rating; overall=None keeps it
+        # out of every aggregate (all readers filter on overall is not None).
+        qual, error = None, f"{type(exc).__name__}: {exc}"
 
     # ── Combine ───────────────────────────────────────────────────────────────
-    qual_avg = (qual["usefulness"] + qual["clarity"]) / 2.0
-    if quant is not None:
+    if error:
+        overall, score_type = None, "error"
+    elif quant is not None:
+        qual_avg = (qual["usefulness"] + qual["clarity"]) / 2.0
         overall = round(0.6 * quant["score"] + 0.4 * qual_avg, 2)
         score_type = "quantitative+qualitative"
     else:
-        overall = round(qual_avg, 2)
+        overall = round((qual["usefulness"] + qual["clarity"]) / 2.0, 2)
         score_type = "qualitative"
 
     return {
+        "status":        "error" if error else "ok",
+        "error":         error,
         "id":            f"bench_{int(time.time() * 1000)}",
         "timestamp":     datetime.now(timezone.utc).isoformat(),
         "skill":         skill,

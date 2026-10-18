@@ -11,7 +11,7 @@ import pandas as pd
 import numpy as np
 from config import config
 from skills.result import SkillResult
-from skills.api_retry import api_call
+from skills.api_retry import api_call, skill_entry
 from skills.models import LEAKAGE_MODEL, STRUCTURED_MODEL, THINKING_ADAPTIVE, LEAKAGE_EXTRA
 
 _client: anthropic.Anthropic | None = None
@@ -162,6 +162,7 @@ def _maybe_sample(
     return sampled, f"Sampled {len(sampled):,} of {len(df):,} rows (stratified) for analysis"
 
 
+@skill_entry("leakage_detector")
 def check(
     df: pd.DataFrame,
     target_col: str,
