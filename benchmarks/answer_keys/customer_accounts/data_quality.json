@@ -1,0 +1,111 @@
+{
+ "_meta": {
+  "dataset": "customer_accounts",
+  "skill": "data_quality",
+  "schema_version": "1.1",
+  "generator": "databricks_client._gen_customer_accounts(n=1500)",
+  "description": "Hard case: problems that null counts and type checks alone don't reveal. Missing values hidden as '' (email, 7%) and 'N/A' (annual_income, 6%); age sentinels 999 (4%) and -1 (1%); 3% of signup_date in 2031; country codes split by stray whitespace and case ('US', 'US ', ' us'); annual_income stored as text with thousands separators; 20% of monthly_fee recorded in cents (x100). region, tenure_days and account_id are clean.",
+  "planted_issues": [
+   "email: 92 empty strings (6.1%), null_pct shows 0",
+   "annual_income: 98 'N/A' (6.5%) and numbers as text with commas",
+   "age: sentinel 999 (~4%) and -1 (~1%)",
+   "signup_date: ~3% in 2031",
+   "country: 'US'/'US '/' us', 'GB'/'GB '",
+   "monthly_fee: values 1900/4900/9900 alongside 19/49/99"
+  ]
+ },
+ "score": {
+  "min": 20,
+  "max": 70,
+  "note": "Six real problems, several of them affecting 3-20% of rows. A score above 70 means the skill missed most of them."
+ },
+ "required_findings": [
+  {
+   "id": "email_placeholder_nulls",
+   "column_hint": "email",
+   "issue_types": [
+    "null_rate",
+    "inconsistent_format",
+    "schema_issue"
+   ],
+   "min_severity": "info",
+   "note": "'' in 92 rows (6.1%): missing values that null_pct reports as 0. The test is detecting them; info is acceptable because the skill's policy allows info for peripheral columns at 5-8% and email is PII that isn't used for modelling."
+  },
+  {
+   "id": "income_text_and_na",
+   "column_hint": "annual_income",
+   "issue_types": [
+    "type_mismatch",
+    "null_rate",
+    "inconsistent_format",
+    "schema_issue"
+   ],
+   "min_severity": "warning",
+   "note": "Numeric values stored as '52,000' strings, plus 'N/A' placeholders."
+  },
+  {
+   "id": "age_sentinels",
+   "column_hint": "age",
+   "issue_types": [
+    "outlier",
+    "schema_issue",
+    "inconsistent_format",
+    "null_rate"
+   ],
+   "min_severity": "warning",
+   "note": "999 and -1 are sentinel codes, not ages."
+  },
+  {
+   "id": "future_signups",
+   "column_hint": "signup_date",
+   "issue_types": [
+    "outlier",
+    "schema_issue",
+    "inconsistent_format",
+    "type_mismatch"
+   ],
+   "min_severity": "warning",
+   "note": "Sign-up dates in 2031 are impossible."
+  },
+  {
+   "id": "country_whitespace",
+   "column_hint": "country",
+   "issue_types": [
+    "inconsistent_format"
+   ],
+   "min_severity": "warning",
+   "note": "Stray whitespace and case split one code into several categories."
+  },
+  {
+   "id": "fee_unit_mix",
+   "column_hint": "monthly_fee",
+   "issue_types": [
+    "outlier",
+    "inconsistent_format",
+    "schema_issue"
+   ],
+   "min_severity": "warning",
+   "note": "1900/4900/9900 are the 19/49/99 plans recorded in cents."
+  }
+ ],
+ "forbidden_findings": [
+  {
+   "id": "region_clean",
+   "column_hint": "region",
+   "max_severity": "info",
+   "note": "Consistent Title Case, no nulls."
+  },
+  {
+   "id": "account_id_clean",
+   "column_hint": "account_id",
+   "max_severity": "info",
+   "note": "Unique, no nulls."
+  },
+  {
+   "id": "tenure_plausible",
+   "column_hint": "tenure_days",
+   "max_severity": "info",
+   "note": "Right-skewed but plausible; 7 values past the 3xIQR fence."
+  }
+ ]
+}

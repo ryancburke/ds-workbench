@@ -158,6 +158,12 @@ def _match_required_finding(output_finding: dict, spec: dict) -> bool:
         if issue != spec["issue_type"]:
             return False
 
+    # Some problems are fairly reported under more than one type (an 'N/A' placeholder is
+    # a null_rate or an inconsistent_format finding)
+    if "issue_types" in spec:
+        if issue not in spec["issue_types"]:
+            return False
+
     if "min_severity" in spec:
         if not _at_least_as_severe(sev, spec["min_severity"]):
             return False
@@ -176,6 +182,11 @@ def _check_forbidden_finding(output_finding: dict, spec: dict) -> bool:
 
     if "column_hint" in spec:
         if spec["column_hint"].lower() not in col:
+            return False
+
+    # Optional: findings up to max_severity are allowed (e.g. an info note on a clean column)
+    if "max_severity" in spec:
+        if not _more_severe_than(output_finding.get("severity", "info"), spec["max_severity"]):
             return False
 
     return True

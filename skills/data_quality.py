@@ -42,6 +42,10 @@ _TOOL = {
 }
 
 
+# Strings that mean "missing" but aren't counted by isnull()
+_PLACEHOLDERS = {"", "n/a", "na", "null", "none", "nan", "-", "--", "?", "unknown", "#n/a", "missing"}
+
+
 def build_profile(df: pd.DataFrame) -> dict:
     profile: dict = {
         "shape": {"rows": len(df), "columns": len(df.columns)},
@@ -73,9 +77,26 @@ def build_profile(df: pd.DataFrame) -> dict:
                         ((non_null < q1 - 3 * iqr) | (non_null > q3 + 3 * iqr)).sum()
                     ),
                 }
+        elif pd.api.types.is_datetime64_any_dtype(s):
+            non_null = s.dropna()
+            if len(non_null):
+                now = pd.Timestamp.now(tz=non_null.dt.tz) if non_null.dt.tz else pd.Timestamp.now()
+                info["date_range"] = {
+                    "min": str(non_null.min()), "max": str(non_null.max()),
+                    "future_count": int((non_null > now).sum()),
+                }
         else:
             vc = s.value_counts(dropna=False).head(10)
             info["top_values"] = {str(k): int(v) for k, v in vc.items()}
+            text = s.dropna().astype(str)
+            placeholders = int(text.str.strip().str.lower().isin(_PLACEHOLDERS).sum())
+            if placeholders:
+                info["placeholder_count"] = placeholders
+                info["effective_null_pct"] = round(
+                    (int(s.isnull().sum()) + placeholders) / max(len(df), 1) * 100, 2)
+            padded = int((text != text.str.strip()).sum())
+            if padded:
+                info["whitespace_padded_count"] = padded
         profile["columns"][col] = info
     return profile
 
@@ -110,7 +131,9 @@ Work through each step below. For every candidate you find, reason about whether
 quality problem — don't just list it. Think through the domain implications.
 
 STEP 1 — NULL RATES
-Check null_pct for every column. For each column where null_pct > 5.0:
+Check null_pct for every column, and effective_null_pct where present: it also counts
+placeholder strings ('', 'N/A', 'null', ...) that mean missing but aren't stored as null.
+For each column where either rate > 5.0:
   • State the exact rate.
   • Reason: is this on a critical column (identifier, join key, widely-used feature) or peripheral?
   • Severity: >20% on a key column → critical; 5–20% → usually warning;
@@ -130,6 +153,8 @@ Flag columns where:
       several conventions in one column).
 Do NOT flag: all-lowercase different words ("air", "sea", "rail"),
 all-Title-Case sets, datetime/numeric/boolean columns.
+Also flag columns with whitespace_padded_count > 0: values like 'X' and 'X ' become separate
+categories even though they look identical.
 For each flagged column, reason: will this cause downstream encoding inconsistency?
 
 STEP 4 — NUMERIC OUTLIERS
@@ -147,7 +172,13 @@ STEP 5 — IDENTIFIER INTEGRITY
 Find columns whose name suggests an identifier (contains 'id', 'key', 'code', 'ref', 'uuid').
 Flag any where unique_pct < 95% — duplicate identifiers indicate referential integrity problems.
 
-STEP 6 — TYPE MISMATCHES
+STEP 6 — DATES AND SENTINELS
+For datetime columns, check date_range: future dates (future_count > 0) or dates before the
+system could have existed are impossible values. For numeric columns, a min or max that is a
+round code (-1, 0, 999, 9999) far outside the rest of the distribution is usually a sentinel
+for "unknown", not a measurement. Flag either as a warning when it affects more than ~1% of rows.
+
+STEP 7 — TYPE MISMATCHES
 Find object/string columns where ALL top_values consist only of digits (no letters).
 These may be numeric columns stored as strings. Reason: identifier stored as text (acceptable)
 or numeric feature that will cause errors unless cast?
@@ -174,7 +205,7 @@ OUTLIERS:
     → Q2 triggers (52 ≥ 10). Q3 triggers (a $0 fare on a paid route is suspicious). warning.
 
 FINAL ASSESSMENT
-After all six steps:
+After all seven steps:
 1. Write a 1–2 sentence overall verdict.
 2. List confirmed findings in this format:
    column | issue_type | severity | brief justification

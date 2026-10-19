@@ -42,7 +42,7 @@ def _get_benchmarks() -> list[dict]:
     from databricks_client import (
         _gen_orders_dirty, _gen_sales_clean, _gen_hr_attrition,
         _gen_ecommerce, _gen_transactions_fraud, _gen_sales_forecasting,
-        _gen_ecommerce_leakage, _gen_subscription_churn,
+        _gen_ecommerce_leakage, _gen_subscription_churn, _gen_customer_accounts,
     )
     return [
         # ── Data Quality ──────────────────────────────────────────────────────
@@ -99,6 +99,15 @@ def _get_benchmarks() -> list[dict]:
             "df_fn":     _gen_sales_forecasting,
             "run_fn":    _run_dq,
             "run_kwargs": {"table_name": "sales_forecasting"},
+        },
+        {
+            "id":        "customer_accounts/data_quality",
+            "dataset":   "customer_accounts",
+            "benchmark": "data_quality",
+            "skill":     "data_quality",
+            "df_fn":     _gen_customer_accounts,
+            "run_fn":    _run_dq,
+            "run_kwargs": {"table_name": "customer_accounts"},
         },
         # ── Feature Engineering ───────────────────────────────────────────────
         {

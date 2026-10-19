@@ -88,3 +88,19 @@ def test_split_before_learning_heuristic():
     assert not split_before_learning(leaky)[0]
     assert "never holds data out" in split_before_learning(no_holdout)[1]
     assert split_before_learning("pipeline = Pipeline(stages=[a, b])")[0]  # nothing fitted yet
+
+
+def test_hard_dq_case_separates_thorough_from_naive_reviews():
+    from benchmarks.scoring import score
+    f = lambda c, t, s="warning": {"column": c, "issue_type": t, "severity": s}
+    thorough = {"overall_score": 45, "findings": [
+        f("email", "null_rate"), f("annual_income", "type_mismatch"), f("age", "outlier"),
+        f("signup_date", "schema_issue"), f("country", "inconsistent_format"), f("monthly_fee", "outlier"),
+        f("region", "inconsistent_format", "info")]}          # info note on a clean column is allowed
+    naive = {"overall_score": 80, "findings": [               # only what null counts and IQR fences show
+        f("age", "outlier"), f("monthly_fee", "outlier"), f("country", "inconsistent_format"),
+        f("tenure_days", "outlier")]}
+    assert score(thorough, "customer_accounts", "data_quality").overall == 100.0
+    naive_result = score(naive, "customer_accounts", "data_quality")
+    assert naive_result.overall < 50
+    assert {"email_placeholder_nulls", "income_text_and_na", "future_signups"} <= set(naive_result.missed_findings)
