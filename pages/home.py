@@ -16,6 +16,7 @@ import plotly.graph_objects as go
 from dash import Input, Output, State, callback, dcc, html
 from dash.exceptions import PreventUpdate
 
+from skills.dtypes import is_text
 dash.register_page(__name__, path="/", name="Workbench", order=0)
 
 # ── Constants ──────────────────────────────────────────────────────────────────
@@ -885,7 +886,7 @@ def _eda_temporal_charts(df: pd.DataFrame) -> dbc.Card | None:
     for col in df.columns:
         if pd.api.types.is_datetime64_any_dtype(df[col]):
             parsed.append((col, df[col]))
-        elif df[col].dtype == object and any(k in col.lower() for k in ("date", "time", "month", "year")):
+        elif is_text(df[col]) and any(k in col.lower() for k in ("date", "time", "month", "year")):
             try:
                 s = pd.to_datetime(df[col], errors="raise")
                 parsed.append((col, s))
@@ -928,7 +929,7 @@ def _eda_stratified_charts(df: pd.DataFrame, target_col: str | None = None) -> d
         strat_col = target_col
     else:
         cat_cols = [c for c in df.columns
-                    if df[c].dtype == object and 2 <= df[c].nunique() <= 10
+                    if is_text(df[c]) and 2 <= df[c].nunique() <= 10
                     and df[c].isnull().mean() < 0.3]
         if cat_cols:
             strat_col = sorted(cat_cols, key=lambda c: df[c].isnull().mean())[0]
@@ -1690,6 +1691,8 @@ _FE_ACTION_COLOR = {
     "drop":             "secondary",
     "cast_to_int":      "warning",
     "keep_as_is":       "success",
+    "log_then_scale":   "info",
+    "encode_frequency": "info",
 }
 
 
@@ -1733,8 +1736,18 @@ def _fe_render(result: dict, leakage_warning: str | None = None,
             html.Td(f.get("rationale", ""), className="small text-muted"),
         ]))
 
+    model_family = result.get("model_family", "")
+    imbalance = result.get("imbalance_handling", "")
+    design_line = html.Div([
+        dbc.Badge(f"Designed for: {model_family.replace('_', '-')} models", color="info",
+                  className="me-2", style={"fontSize": "0.7rem"}) if model_family else None,
+        html.Span([html.Strong("Imbalance: "), imbalance], className="small text-muted")
+        if imbalance else None,
+    ], className="mb-2") if (model_family or imbalance) else html.Div()
+
     return html.Div([
         leakage_alert,
+        design_line,
         dbc.Alert([
             html.Strong("Warnings: "),
             html.Ul([html.Li(w, className="small") for w in warnings], className="mb-0 mt-1"),

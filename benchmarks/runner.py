@@ -119,6 +119,15 @@ def _get_benchmarks() -> list[dict]:
             "run_fn":    _run_fe,
             "run_kwargs": {"target_col": "attrition"},
         },
+        {
+            "id":        "transactions_fraud/feature_engineering_fraud",
+            "dataset":   "transactions_fraud",
+            "benchmark": "feature_engineering_fraud",
+            "skill":     "feature_engineering",
+            "df_fn":     _gen_transactions_fraud,
+            "run_fn":    _run_fe,
+            "run_kwargs": {"target_col": "is_fraud"},
+        },
         # ── Leakage Detector ──────────────────────────────────────────────────
         {
             "id":        "ecommerce_leakage/leakage_detector_converted",

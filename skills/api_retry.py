@@ -89,9 +89,20 @@ class ModelRefusal(RuntimeError):
         super().__init__(f"{model} declined the request{detail}: {explanation or 'no explanation'}")
 
 
+class TruncatedResponse(RuntimeError):
+    """The reply hit max_tokens, so its text or tool input is incomplete."""
+
+
 def check_response(resp, request: dict | None = None):
-    """Log and raise on a refusal, so callers don't fail later on a missing
-    tool_use/text block. Pass the request kwargs to include a prompt summary."""
+    """Raise on a refusal or a reply cut off at max_tokens, so callers never parse a
+    partial tool input or analysis. Pass the request kwargs to include a prompt summary
+    in the refusal log."""
+    if getattr(resp, "stop_reason", None) == "max_tokens":
+        model = getattr(resp, "model", None) or (request or {}).get("model", "model")
+        limit = (request or {}).get("max_tokens")
+        raise TruncatedResponse(
+            f"{model} reply was cut off at max_tokens{f'={limit}' if limit else ''}; "
+            "raise max_tokens or lower effort")
     if getattr(resp, "stop_reason", None) == "refusal":
         details = getattr(resp, "stop_details", None)
         model = getattr(resp, "model", None) or (request or {}).get("model", "model")

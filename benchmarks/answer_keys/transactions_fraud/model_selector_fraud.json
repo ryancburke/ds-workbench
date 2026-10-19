@@ -1,79 +1,81 @@
 {
-  "_meta": {
-    "dataset": "transactions_fraud",
-    "skill": "model_selector",
-    "schema_version": "1.0",
-    "target_col": "is_fraud",
-    "known_characteristics": [
-      "Binary target: is_fraud True/False",
-      "Class balance: 30 True / 970 False = 32.33:1 EXTREME imbalance",
-      "1000 rows \u2014 the 30 positive cases are a very small absolute number",
-      "amount: extreme outlier values injected as fraud signal",
-      "country: mixed-case variants (data quality issue that affects feature usability)",
-      "user_id: 8.4% null \u2014 some transactions cannot be attributed to users",
-      "This is an anomaly detection scenario as much as a classification one"
-    ]
+ "_meta": {
+  "dataset": "transactions_fraud",
+  "skill": "model_selector",
+  "schema_version": "1.0",
+  "target_col": "is_fraud",
+  "known_characteristics": [
+   "Binary target: is_fraud True/False",
+   "Class balance: 30 True / 970 False = 32.33:1 EXTREME imbalance",
+   "1000 rows — the 30 positive cases are a very small absolute number",
+   "amount: extreme outlier values injected as fraud signal",
+   "country: mixed-case variants (data quality issue that affects feature usability)",
+   "user_id: 8.4% null — some transactions cannot be attributed to users",
+   "This is an anomaly detection scenario as much as a classification one"
+  ]
+ },
+ "required_fields": {
+  "task_type": {
+   "acceptable_values": [
+    "binary_classification",
+    "anomaly_detection"
+   ],
+   "note": "Both are valid framings. binary_classification is more common. anomaly_detection is also correct at 32:1 imbalance and 30 positive cases — some practitioners would use isolation forest or one-class SVM instead of a classifier."
   },
-  "required_fields": {
-    "task_type": {
-      "acceptable_values": [
-        "binary_classification",
-        "anomaly_detection"
-      ],
-      "note": "Both are valid framings. binary_classification is more common. anomaly_detection is also correct at 32:1 imbalance and 30 positive cases \u2014 some practitioners would use isolation forest or one-class SVM instead of a classifier."
-    },
-    "class_balance_issue": {
-      "expected_value": true,
-      "note": "32.33:1 is extreme. Only 30 positive cases out of 1000. Standard accuracy would be 97% by predicting all negatives. The skill must flag this prominently."
-    },
-    "data_readiness": {
-      "acceptable_values": [
-        "needs_prep",
-        "ready"
-      ],
-      "preferred_value": "needs_prep",
-      "note": "'needs_prep' is strongly preferred \u2014 country needs encoding/normalisation, user_id has 8.4% nulls. 'ready' is marginally acceptable but misses the prep needed."
-    }
+  "class_balance_issue": {
+   "expected_value": true,
+   "note": "32.33:1 is extreme. Only 30 positive cases out of 1000. Standard accuracy would be 97% by predicting all negatives. The skill must flag this prominently."
   },
-  "target_analysis": {
-    "class_balance_issue_required": true,
-    "imbalance_ratio": {
-      "min": 28.0,
-      "max": 37.0,
-      "note": "Exact ratio is 32.33. Any report in this range is correct."
-    }
-  },
-  "recommendations": {
-    "min_count": 2,
-    "max_count": 5,
-    "top_1_acceptable_families": [
-      "gradient_boosting",
-      "xgboost",
-      "lightgbm",
-      "catboost",
-      "random_forest",
-      "isolation_forest"
-    ],
-    "acceptable_families": [
-      "gradient_boosting",
-      "xgboost",
-      "lightgbm",
-      "catboost",
-      "random_forest",
-      "isolation_forest",
-      "logistic_regression",
-      "svm",
-      "one_class_svm"
-    ],
-    "forbidden_families": [
-      "clustering",
-      "k-means",
-      "dbscan",
-      "time_series",
-      "arima",
-      "prophet"
-    ],
-    "imbalance_handling_required": true,
-    "imbalance_handling_note": "At 32.33:1, imbalance handling is CRITICAL. The skill must mention at least one of: scale_pos_weight (XGBoost), class_weight='balanced', SMOTE, precision-recall AUC as the primary metric, F-beta score. A recommendation that ignores this imbalance entirely fails the benchmark. Removed 'linear_regression' and 'regression' \u2014 logistic regression variants are valid for fraud classification."
+  "data_readiness": {
+   "acceptable_values": [
+    "needs_prep",
+    "ready"
+   ],
+   "preferred_value": "needs_prep",
+   "note": "'needs_prep' is strongly preferred — country needs encoding/normalisation, user_id has 8.4% nulls. 'ready' is marginally acceptable but misses the prep needed."
   }
+ },
+ "target_analysis": {
+  "class_balance_issue_required": true,
+  "imbalance_ratio": {
+   "min": 28.0,
+   "max": 37.0,
+   "note": "Exact ratio is 32.33. Any report in this range is correct."
+  }
+ },
+ "recommendations": {
+  "min_count": 2,
+  "max_count": 5,
+  "top_1_acceptable_families": [
+   "gradient_boosting",
+   "xgboost",
+   "lightgbm",
+   "catboost",
+   "random_forest",
+   "isolation_forest",
+   "logistic_regression"
+  ],
+  "acceptable_families": [
+   "gradient_boosting",
+   "xgboost",
+   "lightgbm",
+   "catboost",
+   "random_forest",
+   "isolation_forest",
+   "logistic_regression",
+   "svm",
+   "one_class_svm"
+  ],
+  "forbidden_families": [
+   "clustering",
+   "k-means",
+   "dbscan",
+   "time_series",
+   "arima",
+   "prophet"
+  ],
+  "imbalance_handling_required": true,
+  "imbalance_handling_note": "At 32.33:1, imbalance handling is CRITICAL. The skill must mention at least one of: scale_pos_weight (XGBoost), class_weight='balanced', SMOTE, precision-recall AUC as the primary metric, F-beta score. A recommendation that ignores this imbalance entirely fails the benchmark. Removed 'linear_regression' and 'regression' — logistic regression variants are valid for fraud classification.",
+  "top_1_note": "With only 30 positives, a class-weighted, regularised logistic regression is a defensible first model (lower variance than boosting, calibrated scores). It was penalised before, costing Opus 5.5 and Fable 5.1 20 points in the 2026-10-18 model comparison."
+ }
 }

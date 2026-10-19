@@ -235,7 +235,7 @@ not be available at prediction time in production.
 Leakage types:
 - direct: feature IS the target or a trivial transformation of it
 - proxy: feature only exists as a downstream consequence of the target
-  (e.g. order_id only assigned after conversion; claim_id only exists after filing a claim)
+  (e.g. a refund_id only assigned after a return; a claim_id only exists after filing a claim)
 - high_correlation: absolute correlation with target >0.8 with no plausible causal explanation
   (a legitimate feature can have 0.5-0.7 correlation — that's predictive, not leakage)
 - temporal: feature uses data from after the prediction event
@@ -255,38 +255,39 @@ Verdict:
 Do NOT flag:
 - Legitimate predictors with moderate correlation (0.3-0.65) — that is predictive signal, not leakage
 - Null values uniformly distributed across target classes (equal conditional null rate)
-- Sequential or random ID columns (employee_id, session_id, customer_id, transaction_id) that exist
+- Sequential or random ID columns (e.g. account_number, ticket_uuid, row_key) that exist
   for EVERY row regardless of the target value. These are not target leakage — they're identifiers
   that should be excluded from feature sets as good practice. Only flag an ID as leakage if the
   conditional_null_pct shows the ID is nearly 100% null for one target class (post-event proxy).
   If you mention an ID column, use info severity at most — never critical or warning.
 - Event timestamps that represent WHEN the event was recorded (not post-event data)
 
-CALIBRATION EXAMPLES — anchor your judgments against these:
+CALIBRATION EXAMPLES — illustrative cases from a subscription-churn dataset (target 'churned');
+judge this dataset on its own profile:
 
 CLEAN — legitimate predictor, do NOT flag:
-  monthly_income, correlation_with_target: 0.42
+  tenure_months, correlation_with_target: -0.38
   → Moderate correlation is predictive signal. Not leakage.
 
 CRITICAL LEAKAGE — post-event proxy, must flag:
-  order_id, conditional_null_pct: {{"True": 2.1, "False": 99.8}}
-  → 99.8% null when target=False, 2.1% when target=True.
-    Exists AFTER the purchase event. leakage_type=proxy, severity=critical.
+  cancellation_ticket_id, conditional_null_pct: {{"True": 3.0, "False": 98.9}}
+  → Almost always null when churned=False, present when churned=True.
+    Created by the cancellation itself. leakage_type=proxy, severity=critical.
 
 IDENTIFIER — not leakage, info only:
-  customer_id, unique_count=1000, n_rows=1000,
-  conditional_null_pct: {{"True": 0.5, "False": 0.5}}
+  account_number, unique_count=5000, n_rows=5000,
+  conditional_null_pct: {{"True": 0.2, "False": 0.2}}
   → Equal null rates across classes. Row identifier, not leakage.
     leakage_type=identifier, severity=info at most.
 
 SUSPICIOUS HIGH CORRELATION — flag critical:
-  conversion_score, correlation_with_target: 0.89
-  → r=0.89 with target 'converted'. No causal mechanism for a score to
-    exist before the conversion event. leakage_type=high_correlation, severity=critical.
+  retention_offer_score, correlation_with_target: 0.91
+  → r=0.91 with 'churned'. Scored by the retention team after a customer signals they are
+    leaving, so it encodes the outcome. leakage_type=high_correlation, severity=critical.
 
 STRONG LEGITIMATE FEATURE — do NOT flag:
-  cart_value, correlation_with_target: 0.61
-  → r=0.61. High cart value plausibly causes conversion. Predictive, not leaky.
+  support_tickets_90d, correlation_with_target: 0.55
+  → r=0.55. Recent support friction plausibly drives churn. Predictive, not leaky.
 
 Reference the specific statistics from the profile in your evidence fields."""
 

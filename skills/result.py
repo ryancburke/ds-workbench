@@ -332,6 +332,7 @@ def _render_feature_engineering(r: dict) -> str:
         "scale":"info","encode_ohe":"info","encode_index":"info",
         "extract_datetime":"success","drop":"secondary",
         "cast_to_int":"warning","keep_as_is":"success",
+        "log_then_scale":"info","encode_frequency":"info",
     }
 
     rows = ""
@@ -367,6 +368,14 @@ def _render_feature_engineering(r: dict) -> str:
         warn_html += "".join(f"⚠ {w}<br>" for w in warnings)
         warn_html += "</div>"
 
+    design_bits = []
+    if r.get("model_family"):
+        design_bits.append(f'<b>Designed for:</b> {r["model_family"].replace("_", "-")} models')
+    if r.get("imbalance_handling"):
+        design_bits.append(f'<b>Imbalance:</b> {r["imbalance_handling"]}')
+    design_html = (f'<div class="wr-muted" style="margin-bottom:8px">{" · ".join(design_bits)}</div>'
+                   if design_bits else "")
+
     code_html = ""
     if code:
         truncated = "\n".join(code.splitlines()[:40])
@@ -380,7 +389,7 @@ def _render_feature_engineering(r: dict) -> str:
         f'{_badge(f"{len(dropped)} dropped", "secondary")}'
         f'</div>'
         f'<div class="wr-body">'
-        f'{warn_html}'
+        f'{design_html}{warn_html}'
         f'{feat_tbl}'
         f'<div style="margin-top:8px"><span class="wr-muted">Dropped: </span>{dropped_str}</div>'
         f'{code_html}'

@@ -1,0 +1,71 @@
+{
+  "_meta": {
+    "dataset": "transactions_fraud",
+    "skill": "feature_engineering",
+    "schema_version": "1.1",
+    "target_col": "is_fraud",
+    "generator": "databricks_client._gen_transactions_fraud(n=1000)",
+    "description": "Hard case built from the 2026-10-19 simulation critique (issue #3). 30 fraud / 970 legit (32:1). transaction_id is unique per row. user_id (~290 levels, 8.4% null) and merchant_id (~100 levels) are high-cardinality keys: a StringIndexer index on them is a meaningless magnitude for linear models. amount is heavily right-skewed (skew ~8) with injected extremes. country has mixed-case variants of the same codes. created_at is a timestamp.",
+    "columns": {
+      "transaction_id": "unique identifier — drop",
+      "user_id": "high-cardinality key, 8.4% null — drop or frequency-encode; never a raw index for linear models",
+      "merchant_id": "high-cardinality key — drop or frequency-encode; never a raw index for linear models",
+      "amount": "skewed numeric (skew ~8) — scale, preferably log1p first",
+      "currency": "4 levels — encode",
+      "country": "8 raw values from mixed-case variants of ~5 codes — normalise case, encode",
+      "device_type": "4 levels — encode",
+      "transaction_type": "3 levels — encode",
+      "created_at": "timestamp — extract (hour/day) or drop",
+      "is_fraud": "boolean TARGET — cast to int as 'label'"
+    }
+  },
+
+  "required_transformations": [
+    {"id": "amount_scale", "column_hint": "amount", "acceptable_actions": ["scale", "log_then_scale"],
+     "requires_imputation": false, "note": "amount is clean but skewed"},
+    {"id": "currency_encode", "column_hint": "currency", "acceptable_actions": ["encode_ohe", "encode_index"],
+     "requires_imputation": false, "note": "4 levels"},
+    {"id": "country_encode", "column_hint": "country", "acceptable_actions": ["encode_ohe", "encode_index"],
+     "requires_imputation": false, "note": "low cardinality once case is normalised"},
+    {"id": "device_type_encode", "column_hint": "device_type", "acceptable_actions": ["encode_ohe", "encode_index"],
+     "requires_imputation": false, "note": "4 levels"},
+    {"id": "transaction_type_encode", "column_hint": "transaction_type", "acceptable_actions": ["encode_ohe", "encode_index"],
+     "requires_imputation": false, "note": "3 levels"}
+  ],
+
+  "required_dropped_cols": [
+    {"id": "transaction_id_drop", "column_hint": "transaction_id", "note": "unique per row"}
+  ],
+
+  "required_code_elements": ["Pipeline", "VectorAssembler", "StringIndexer"],
+
+  "forbidden_in_features": [
+    {"id": "is_fraud_not_in_features", "column_hint": "is_fraud", "note": "target must become 'label'"},
+    {"id": "transaction_id_not_in_features", "column_hint": "transaction_id", "note": "row identifier"}
+  ],
+
+  "forbidden_actions": [
+    {"id": "user_id_not_indexed", "column_hint": "user_id", "forbidden": ["encode_index", "scale", "keep_as_is"],
+     "allowed_for_model_families": [],
+     "note": "~290 levels: a raw index or raw value is a fake magnitude; drop or frequency-encode"},
+    {"id": "merchant_id_not_indexed", "column_hint": "merchant_id", "forbidden": ["encode_index", "scale", "keep_as_is"],
+     "allowed_for_model_families": ["tree_based"],
+     "note": "~100 levels: index only works as a categorical in MLlib trees with maxBins >= cardinality"}
+  ],
+
+  "required_concepts": [
+    {"id": "imbalance_handled", "fields": ["imbalance_handling", "pyspark_code"],
+     "any_of": ["weightcol", "class_weight", "classweight", "scale_pos_weight", "oversampl", "undersampl", "smote", "sampleBy"],
+     "note": "32:1 imbalance must be handled in the pipeline, not just mentioned"},
+    {"id": "country_case_normalised", "fields": ["pyspark_code"],
+     "any_of": ["upper(", "lower(", "initcap(", "trim(F.upper", "F.upper", "F.lower"],
+     "note": "mixed-case country codes split one category into several"}
+  ],
+
+  "preferred_actions": [
+    {"id": "amount_log", "column_hint": "amount", "preferred": ["log_then_scale"],
+     "note": "skew ~8 with injected extremes; log1p stabilises it"}
+  ],
+
+  "dropped_cols_consistent": true
+}

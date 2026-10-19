@@ -8,6 +8,7 @@ PySpark code ready to paste into a Databricks notebook.
 import json
 import pandas as pd
 import numpy as np
+from skills.dtypes import is_text
 from skills.result import SkillResult
 from skills.api_retry import api_call, get_client, skill_entry, strict_tool, tool_input
 from skills.models import GENERAL_MODEL, GENERAL_EXTRA
@@ -28,13 +29,19 @@ _TOOL = {
                         "column": {"type": "string"},
                         "feature_type": {
                             "type": "string",
-                            "enum": ["numeric", "categorical", "datetime", "boolean",
-                                     "identifier", "numeric_as_object"],
+                            "enum": ["numeric", "categorical", "high_cardinality", "datetime",
+                                     "boolean", "identifier", "numeric_as_object"],
                         },
                         "action": {
                             "type": "string",
-                            "enum": ["scale", "encode_ohe", "encode_index",
-                                     "extract_datetime", "drop", "cast_to_int", "keep_as_is"],
+                            "description": (
+                                "What the pipeline does to this column. encode_frequency: replace each "
+                                "value with its frequency count. encode_index: StringIndexer only. "
+                                "keep_as_is: the raw value goes into the feature vector unchanged."
+                            ),
+                            "enum": ["scale", "log_then_scale", "encode_ohe", "encode_index",
+                                     "encode_frequency", "extract_datetime", "drop",
+                                     "cast_to_int", "keep_as_is"],
                         },
                         "imputation": {
                             "type": "string",
@@ -66,6 +73,16 @@ _TOOL = {
             "dropped_cols": {
                 "type": "array",
                 "items": {"type": "string"},
+                "description": "Every column the plan drops, including identifiers and leakage columns",
+            },
+            "model_family": {
+                "type": "string",
+                "enum": ["tree_based", "linear", "either"],
+                "description": "Model family the encoding and scaling choices are designed for",
+            },
+            "imbalance_handling": {
+                "type": "string",
+                "description": "How the pipeline handles class imbalance (e.g. a weightCol), or why none is needed",
             },
             "pyspark_code": {
                 "type": "string",
@@ -76,12 +93,13 @@ _TOOL = {
                 "items": {"type": "string"},
             },
         },
-        "required": ["summary", "features", "target_handling",
-                     "dropped_cols", "pyspark_code", "warnings"],
+        "required": ["summary", "features", "target_handling", "dropped_cols",
+                     "model_family", "imbalance_handling", "pyspark_code", "warnings"],
     },
 }
 
 _ID_SUFFIXES = ("_id", "id", "_key", "_ref", "_uuid", "_code")
+HIGH_CARDINALITY = 50
 
 
 def _infer_col_type(col: str, s: pd.Series, n_rows: int) -> str:
@@ -94,8 +112,8 @@ def _infer_col_type(col: str, s: pd.Series, n_rows: int) -> str:
     unique_count = s.nunique()
     unique_pct = unique_count / max(n_rows, 1) * 100
 
-    if s.dtype == object:
-        # Check if it's actually numeric stored as object
+    if is_text(s):
+        # Check if it's actually numeric stored as text
         numeric_try = pd.to_numeric(s.dropna(), errors="coerce")
         if len(numeric_try) > 0 and numeric_try.notna().mean() > 0.9:
             return "numeric_as_object"
@@ -103,6 +121,9 @@ def _infer_col_type(col: str, s: pd.Series, n_rows: int) -> str:
         is_id_name = any(col.lower().endswith(sfx) for sfx in _ID_SUFFIXES)
         if unique_pct > 70 or (is_id_name and unique_pct > 30):
             return "identifier"
+        # Too many levels to one-hot; a StringIndexer index here has no meaningful order
+        if unique_count > HIGH_CARDINALITY:
+            return "high_cardinality"
         return "categorical"
 
     if pd.api.types.is_numeric_dtype(s):
@@ -135,6 +156,11 @@ def build_feature_profile(df: pd.DataFrame, target_col: str) -> dict:
         "n_rows": len(df),
         "features": {},
     }
+    if target.nunique() <= 20:
+        counts = target.value_counts()
+        profile["target_classes"] = {str(k): int(v) for k, v in counts.items()}
+        if len(counts) >= 2:
+            profile["imbalance_ratio"] = round(float(counts.iloc[0] / counts.iloc[-1]), 2)
 
     for col in df.columns:
         if col == target_col:
@@ -178,8 +204,9 @@ def build_feature_profile(df: pd.DataFrame, target_col: str) -> dict:
                     "max": round(float(non_null.max()), 4),
                     "mean": round(float(non_null.mean()), 4),
                     "std": round(float(non_null.std()), 4),
+                    "skew": round(float(non_null.skew()), 2) if len(non_null) > 2 else 0.0,
                 }
-        elif col_type in ("categorical", "identifier"):
+        elif col_type in ("categorical", "high_cardinality", "identifier"):
             vc = s.value_counts(dropna=False).head(8)
             info["sample_values"] = {str(k): int(v) for k, v in vc.items()}
 
@@ -195,11 +222,38 @@ def build_feature_profile(df: pd.DataFrame, target_col: str) -> dict:
             if null_pct > 0:
                 info["suggested_action"] = "impute_then_scale"
         elif col_type == "categorical":
-            info["suggested_action"] = "encode_ohe" if unique_count <= 15 else "encode_index"
+            info["suggested_action"] = "encode_ohe" if unique_count <= 15 else "encode_index_trees_only"
+        elif col_type == "high_cardinality":
+            info["suggested_action"] = "encode_frequency_or_drop"
 
         profile["features"][col] = info
 
     return profile
+
+
+def _reconcile_drops(plan: dict, leakage_findings: list | None) -> dict:
+    """Make dropped_cols agree with the per-column plan, and drop critical leakage columns
+    even if the model kept them."""
+    dropped = list(dict.fromkeys(plan.get("dropped_cols") or []))
+    for f in plan.get("features", []):
+        if f.get("action") == "drop" and f.get("column") not in dropped:
+            dropped.append(f["column"])
+    critical = {f.get("column") for f in (leakage_findings or []) if f.get("severity") == "critical"}
+    kept_leaks = [f["column"] for f in plan.get("features", [])
+                  if f.get("column") in critical and f.get("action") != "drop"]
+    for f in plan.get("features", []):
+        if f.get("column") in critical:
+            f["action"] = "drop"
+            f["rationale"] = "Critical target leakage (from leakage detector)"
+    for col in critical:
+        if col and col not in dropped:
+            dropped.append(col)
+    if kept_leaks:
+        plan.setdefault("warnings", []).insert(0, (
+            f"Leakage columns {kept_leaks} were dropped from the plan; remove them from the "
+            "PySpark code before training."))
+    plan["dropped_cols"] = dropped
+    return plan
 
 
 @skill_entry("feature_engineering")
@@ -260,16 +314,17 @@ def _suggest(
             leakage_block = (
                 f"\nLEAKAGE PRE-SCAN RESULTS ({len(critical_ld)} critical, {len(warning_ld)} warnings):\n"
                 + "\n".join(ld_lines)
-                + "\nCRITICAL leakage columns MUST appear in dropped_cols. "
-                "Do NOT create derived features from them. "
-                "Warning-level columns should also be in dropped_cols unless you have a specific justification.\n"
+                + "\nCritical leakage columns are dropped automatically and must not feed derived "
+                "features. Drop warning-level columns too unless you can justify keeping one.\n"
             )
 
     response = api_call(
         get_client().messages.create,
         model=GENERAL_MODEL,
         **GENERAL_EXTRA,
-        max_tokens=8192,
+        # thinking + a full pipeline script; 8192 truncated the tool input on fraud data.
+        # Kept under ~21k so the SDK still allows a non-streaming request.
+        max_tokens=20000,
         tools=[strict_tool(_TOOL)],
         tool_choice={"type": "auto"},
         messages=[{
@@ -277,46 +332,40 @@ def _suggest(
             "content": f"""You are a senior ML engineer building a PySpark feature engineering pipeline
 for a Databricks notebook. The target column is '{target_col}'.
 {context_line}{leakage_block}
-Feature profile (auto-computed from dataset):
+Feature profile (auto-computed from dataset; suggested_action is a starting heuristic, not a rule):
 {json.dumps(profile, indent=2)}
 
-Produce a complete feature engineering plan AND runnable PySpark MLlib code.
+Produce a feature plan and runnable PySpark MLlib code that a data scientist could train on today.
+Decide which model family the pipeline is for (tree-based, linear, or either) and make the
+encoding and scaling choices consistent with it, because they differ:
+- A StringIndexer index has no real order. Linear models read it as a magnitude, so for them use
+  one-hot for low-cardinality columns and frequency encoding (or drop) for high-cardinality ones.
+  MLlib tree models can treat an indexed column as categorical only if maxBins is at least its
+  cardinality and no scaler or OneHotEncoder sits between them.
+- Identifier columns carry row identity, not signal: drop them. High-cardinality keys such as
+  user or merchant IDs can carry real behaviour; if you keep one, use a frequency count rather
+  than a raw index, and say why.
+- Heavily skewed positive numerics (|skew| > 2) are usually better as log1p before scaling.
+  Trees don't need scaling at all.
+- Hour and day-of-week extracted from timestamps wrap around; encode them as sin/cos pairs for
+  linear models.
+- If the target is imbalanced (see imbalance_ratio), handle it in the pipeline, e.g. a class-weight
+  column passed as weightCol, and say how in imbalance_handling.
+- Impute before encoding or scaling, and fit every stage inside the Pipeline so nothing is learned
+  from validation data.
 
-TRANSFORMATION RULES:
-- identifier columns (unique IDs, sequential keys): drop — they leak row identity, not signal
-- numeric columns: StandardScaler (impute median first if null_pct > 0)
-- numeric_as_object columns (dtype=object but values are numbers): cast to float, then impute + scale
-- categorical columns with unique_count ≤ 15: StringIndexer → OneHotEncoder
-- categorical columns with unique_count > 15: StringIndexer only (OHE would be too sparse)
-- categorical columns with nulls: impute with constant "unknown" or most-frequent before encoding
-- datetime columns: extract day_of_week and hour features, or drop if sessions are independent events
-- boolean non-target columns: cast to integer
-- boolean target: cast to integer as "label" (MLlib convention)
+dropped_cols must list every column the plan or code drops. Cast a boolean target to an integer
+column named "label" (MLlib convention).
 
-PYSPARK CODE REQUIREMENTS:
-The pyspark_code field must be a complete, copy-paste-ready script using these exact APIs:
-  from pyspark.ml import Pipeline
-  from pyspark.ml.feature import Imputer, StandardScaler, VectorAssembler, StringIndexer, OneHotEncoder
-  from pyspark.sql import functions as F
-
-Structure the code in this order:
-  1. Drop identifier columns (df.drop(...))
-  2. Handle target: df.withColumn("label", F.col("{target_col}").cast("integer")).drop("{target_col}")
-  3. Handle object-dtype numeric columns: F.col(...).cast("double")
-  4. Imputer stage (if any nulls exist)
-  5. StringIndexer stages (one per categorical column)
-  6. OneHotEncoder stage (for low-cardinality categoricals)
-  7. VectorAssembler for numeric features → StandardScaler
-  8. Final VectorAssembler combining scaled numeric + encoded categoricals → outputCol="features"
-  9. pipeline = Pipeline(stages=[...])
-
-Use clear variable names. Add one-line comments for each stage group.
+The pyspark_code must be complete and copy-paste ready: imports from pyspark.ml, pyspark.ml.feature
+and pyspark.sql.functions, a Pipeline whose final VectorAssembler writes outputCol="features", and
+one-line comments for each stage group.
 
 Report your results by calling the suggest_feature_engineering tool.""",
         }],
     )
 
-    tool_args = tool_input(response, _TOOL["name"])
+    tool_args = _reconcile_drops(tool_input(response, _TOOL["name"]), leakage_findings)
     result = SkillResult(tool_args, skill="feature_engineering",
                          session_warnings=session_warnings)
     if session is not None:
