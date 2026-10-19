@@ -117,51 +117,77 @@ pages/                    # One file per Dash page (use_pages=True)
   join_auditor.py         # Join Auditor standalone page (/join-auditor)
   nl_to_spark.py          # NL → PySpark standalone page (/nl-to-spark)
   mlops_review.py         # MLOps Review standalone page (/mlops-review)
+  sessions.py             # Team view of every Workbench/notebook session (/sessions)
   agent_sim.py            # Autonomous agent simulation UI (/agent-sim)
-  feedback.py             # Feedback loop dashboard (/feedback)
-  benchmarks.py           # Skill quality benchmark dashboard (/benchmarks)
+  feedback.py             # Feedback loop dashboard (/feedback) — pending/drafted/exported/stale
+  benchmarks.py           # Ground-truth suite + simulation scores (/benchmarks)
+  costs.py                # Estimated spend by skill, user, model (/costs)
+
+ds_workbench/              # Notebook import surface: `from ds_workbench import <skill>` (loaded lazily)
+  core/                   # Deterministic functions, no API key/config/SDK (a test enforces it):
+    leakage.py            #   leakage_profile(df, target) — AUC, null/zero patterns, single-class values
+    joins.py              #   join_stats(left, right, keys, how) — exact rows, fan-out, data loss, verdict
+    causal_stats.py       #   SRM, balance, IPW, CUPED, DiD, event study, pre-trend, E-value
 
 skills/                   # Pure Python — no Dash dependency. Called by pages, agents,
                           # AND importable directly from Databricks notebooks.
-  data_quality.py         # assess(df, table_name) → findings, score, summary
+  data_quality.py         # assess(df, table_name) → findings, computed score, profile
   eda.py                  # analyze(df, table_name) → insights, charts, targets
-  join_auditor.py         # audit(left_df, right_df, key) → verdict, findings, stats
+  join_auditor.py         # audit(left_df, right_df, keys) → verdict (from core.joins), findings
   nl_to_spark.py          # generate(question, tables) → sql, pyspark, explanation
   mlops_reviewer.py       # review(code) → feasibility, findings, score
-  model_selector.py       # select(df, target_col, context) → task_type, recommendations
+  model_selector.py       # select(df, target_col) → decision, task_type, recommendations
+  leakage_detector.py     # check(df, target_col) → verdict, findings, drop_columns
+  feature_engineering.py  # suggest(df, target_col) → plan, pyspark_code, model_family, imbalance
+  experiment_tracker.py   # interpret(metrics) → verdict, findings, next steps
+  causal_inference.py     # analyze(df, treatment, outcome) / did(...) → verdict, estimate, findings
+  api_retry.py            # shared client, api_call/check_response, strict_tool, tool_input, call_context
+  models.py               # role() → model + effort per role; override_roles() for sweeps
+  usage.py                # usage ledger (every call: user, skill, run, tokens, cost); Delta export
+  team_sessions.py        # persistent sessions + verdict/gates/blockers summary for /sessions
+  session.py              # WorkflowSession (saves to team_sessions) and build_digest
 
 benchmarks/               # Skill quality testing infrastructure
   answer_keys/            # Ground truth expected outputs per dataset per skill (JSON)
   scoring.py              # Compare skill output vs answer key → precision/recall metrics
   runner.py               # Run full benchmark suite, write results to benchmark_history.json
-  benchmark_history.json  # Time-series of benchmark scores (gitignored or tracked)
+  model_compare.py        # Model/effort sweeps on the real skills (--arms, --efforts, --trials)
+  history.py              # Suite history summary for the Benchmarks page
+  benchmark_history.json  # Time-series of benchmark scores (gitignored)
 
 agents/
   simulation.py           # Personas, scenarios, think/interpret/debrief/reflect steps
-  scheduler.py            # RecommendationStore, BackgroundScheduler, draft/apply code changes
+  scheduler.py            # Recommendation store (stale/revive), scheduler, edit drafts → patches
 
 workbench/                # Workbench page internals (imported by pages/home.py)
-  renderers/<skill>.py    # result dict → Dash components (dq, eda, ja, nl, ml, et, ms, ld, fe)
+  renderers/<skill>.py    # result dict → Dash components (dq, eda, ja, nl, ml, et, ms, ld, fe, ci);
+                          # wrapped in safe_render so a stale stored run can't break a section
   callbacks/<skill>.py    # run/render callbacks per skill section; importing the package registers them
   session_panels.py       # readiness strip, pipeline health, guided workflow, synthesis, timeline
   constants.py            # dataset/join options, SKILL_META, colour maps
 
 components/
-  sidebar.py              # Sidebar: 4 nav links (Workbench, Feedback, Benchmarks, Agent Sim)
+  sidebar.py              # Sidebar: Workbench, Sessions, Feedback, Benchmarks, Agent Sim, Costs
                           # SKILLS list preserved for app.py SKILL_KEYS (run-count badges)
   run_card.py             # Reusable run history card component
   dq_gate.py              # find_dq_run(), dq_gate_banner() — DQ status in skill pages
   session_context.py      # session_banner() — active session strip in skill pages
 
 assets/style.css          # Global dark-theme CSS overrides
-feedback/                 # Persisted JSON files (gitignored)
-  recommendations.json
+feedback/                 # Persisted local data (gitignored)
+  recommendations.json    # simulation suggestions (pending/drafted/implemented/stale/dismissed)
   sim_history.json
+  sessions.json           # team sessions
+  usage.jsonl             # usage ledger
+  patches/                # exported feedback drafts
+runs/                     # live-check outputs (gitignored)
 ```
 
 ## Workbench canvas (home.py)
 
-`home.py` is a single-page workbench with all skills as `dbc.Accordion(always_open=True)`:
+`home.py` holds the layout and session-level callbacks; each section's renderer and callbacks
+live in `workbench/renderers/<key>.py` and `workbench/callbacks/<key>.py`. All skills are
+`dbc.Accordion(always_open=True)` sections:
 - **dq** — Data Quality (wb-dq-*)
 - **eda** — EDA (wb-eda-*)
 - **ms** — Model Selector (wb-ms-*)
@@ -171,8 +197,11 @@ feedback/                 # Persisted JSON files (gitignored)
 - **nl** — NL → PySpark (wb-nl-*)
 - **ml** — MLOps Review (wb-ml-*)
 - **et** — Experiment Tracker (wb-et-*)
+- **ci** — Causal Inference (wb-ci-*): A/B, observational, or difference-in-differences
 
 Session setup card at the top: problem statement + dataset checklist → "Start Session" button.
+Each session gets an id and is saved to the team session store whenever a run is added
+(`workbench/callbacks/session_sync.py`), so it appears on /sessions.
 On start: runs DQ on all selected datasets automatically, writes session to runs-store, hides
 setup card and shows active session card. `dcc.Loading` wraps the start button so spinner is
 visible during the 20-60s DQ run.
@@ -218,22 +247,35 @@ Start session → data_quality (auto-run on all datasets)
 ```
 
 ### Planned (next)
-See `ROADMAP.md`: causal inference (in progress), then recommenders, then optimisation;
-plus a real-data pilot and benchmark cases for the untested archetypes. Keep it updated as
-skills land.
+See `ROADMAP.md`: causal inference has shipped (A/B, observational, DiD); next are
+recommenders, then optimisation, plus a real-data pilot and benchmark cases for the untested
+archetypes. Keep it updated as skills land.
 
 ## Benchmark suite architecture
 
 Ground truth answer keys live in `benchmarks/answer_keys/<dataset>/<skill>.json`. Each key
 specifies the expected findings, scores, and recommendations for a given (dataset, skill) pair.
 
-Benchmark datasets and what they test:
-- `sales_clean` — clean data; DQ should score high, no critical findings
-- `orders_dirty` — planted issues: nulls, duplicates, mixed-case IDs, type errors; DQ must catch all
-- `hr_attrition` — binary classification with known class imbalance; Model Selector must flag imbalance
-- `ecommerce` — conversion prediction baseline; EDA, Model Selector
-- `ecommerce_leakage` — same as ecommerce with two planted leakage features; Leakage Detector must flag both
-- `transactions_fraud` — 3% fraud rate (32:1 imbalance), mixed-case country, user_id nulls, ID columns as leakage risk
+Benchmark cases (30, all synthetic; `.venv/bin/python benchmarks/runner.py --list`):
+
+| Dataset | Skills | What it tests |
+|---|---|---|
+| `orders_dirty` | DQ | nulls, mixed-case categories |
+| `sales_clean` | DQ | precision: clean data, no false alarms |
+| `hr_attrition` | DQ, FE, leakage, model | 4.7:1 imbalance; leakage precision case |
+| `ecommerce` | DQ, FE, model | conversion baseline |
+| `transactions_fraud` | DQ, FE, leakage, model | 32:1 imbalance, high-cardinality IDs, split-before-fit; leakage precision (amount) |
+| `sales_forecasting` | DQ, model | regression / time series |
+| `customer_accounts` | DQ | hidden issues: '' / 'N/A' placeholders, sentinels, future dates, padded codes, units |
+| `ecommerce_leakage` | leakage | two planted leaks |
+| `subscription_churn` | leakage | disguised leaks: neutral-named status code, non-linear index (r=0.11, AUC=1.0), zero-for-one-class credit |
+| `clinical_small_wide` | model | n/p ≈ 3.4: regularised model + CV, not boosting + holdout |
+| `experiment_metrics` (×4) | experiment tracker | leakage, overfitting, imbalance, healthy (no false alarms) |
+| `ab_test_clean`, `ab_test_srm`, `ab_test_bad_control`, `ab_test_underpowered` | causal | clean, sample-ratio mismatch, post-treatment control, underpowered — known true effects |
+| `observational_coupon` | causal | confounded targeting; naive gap ~9× the truth |
+| `did_store_rollout`, `did_pretrend` | causal (DiD) | clean rollout; pre-trend trap (true effect 0) |
+
+Answer keys must never appear in skill prompts (`tests/test_benchmark_integrity.py`).
 
 Scoring (`benchmarks/scoring.py`):
 - **Precision**: findings Claude reported that match ground truth / all findings Claude reported
@@ -279,7 +321,7 @@ before any code-level findings.
 
 ## Simulation system
 
-Three personas run autonomous simulations against five scenarios. Each persona gets up to
+Three personas run autonomous simulations against six scenarios. Each persona gets up to
 `MAX_SKILL_STEPS = 2` skill runs, then gives a final debrief. After all personas complete,
 each runs `reflect_step` to produce 2-3 structured improvement suggestions.
 
@@ -288,12 +330,13 @@ each runs `reflect_step` to produce 2-3 structured improvement suggestions.
 - **Priya Sharma** — ML Engineer; production-minded, owns reproducibility and pipeline integrity
 - **Jordan Kim** — Data Analyst; business-first, translates findings to executive language
 
-**Scenarios** (5 total, each with `focus_skills` that bias Claude's skill selection)
+**Scenarios** (6 total, each with `focus_skills` that bias Claude's skill selection)
 - `q3_revenue` — Revenue shortfall; focus: data_quality, join_auditor, nl_to_spark, mlops_review
 - `churn_risk` — Retention drop; focus: eda, model_selector, leakage_detector, data_quality
 - `model_readiness` — Pre-flight model check; focus: leakage_detector, feature_engineering, model_selector, data_quality
 - `pipeline_handoff` — New pipeline acceptance; focus: data_quality, join_auditor, mlops_review, nl_to_spark
 - `fraud_detection` — Fraud model pre-flight; focus: leakage_detector, model_selector, feature_engineering, data_quality
+- `launch_impact` — Did the launch work? Two A/B runs (one broken logging pipeline), an onboarding test with a post-treatment metric, an un-randomised coupon campaign; focus: causal_inference, data_quality
 
 **Coverage-weighted scheduler** (`agents/scheduler.py`): instead of round-robin, `_coverage_weighted_scenario()`
 counts benchmark runs per skill and picks whichever scenario's `focus_skills` have the fewest runs.

@@ -33,6 +33,43 @@ With `LOCAL_DEV_MODE=true` (the default) the app uses built-in synthetic dataset
 runs without Databricks. Set it to `false` and fill in the `DATABRICKS_*` values to read
 real tables.
 
+## Try it without an API key
+
+`ds_workbench.core` holds the deterministic checks the skills are built on. It needs no API
+key, network or Databricks connection, so you can try it straight after installing:
+
+```python
+import pandas as pd
+import databricks_client as dc                      # synthetic datasets, no Databricks needed
+from ds_workbench.core import join_stats, leakage_profile
+from ds_workbench.core import causal_stats as cs
+
+# 1. Leakage scan: which columns separate the target too well to be true?
+df = dc._gen_subscription_churn()
+profile = leakage_profile(df, target_col="churned")["features"]
+suspects = {col: f for col, f in profile.items()
+            if f.get("single_feature_auc", 0) >= 0.97 or f.get("single_class_values")}
+for col, f in suspects.items():
+    print(col, "AUC", f.get("single_feature_auc"), f.get("single_class_values", ""))
+
+# 2. Join check: exact rows, fan-out and data loss, without running the join
+orders, customers, key = dc.load_join_scenario("orders_customers_fanout")
+s = join_stats(orders, customers, [key])
+print(s["verdict"], s["verdict_reasons"], s["result_rows"], "rows")
+
+# 3. A/B test: sample-ratio check and a CUPED estimate
+ab = dc._gen_ab_test_clean()
+t = (ab["variant"] == "B").astype(int).to_numpy()
+print(cs.srm(t.sum(), len(t) - t.sum()))
+est = cs.cuped(ab["revenue_30d"].to_numpy(), t, ab["revenue_prev_30d"].to_numpy())
+print(f"effect {est['effect']:+.2f}  95% CI [{est['ci_low']:.2f}, {est['ci_high']:.2f}]")
+```
+
+That finds the two disguised leaks in the churn data, flags the orders/customers join as
+dangerous (×1.12 fan-out, 25% of orders dropped) without building it, and confirms the A/B
+test's split before estimating its effect. The skills add a model's judgement on top of
+these numbers.
+
 ## Using the skills in a notebook
 
 The skills take pandas DataFrames. Put the repo on `sys.path` (for example as a

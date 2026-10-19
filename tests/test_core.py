@@ -85,3 +85,17 @@ def test_importing_core_does_not_load_the_sdk_or_config():
 def test_skills_still_import_from_the_package():
     from ds_workbench import WorkflowSession, causal_inference, data_quality  # noqa: F401
     assert callable(data_quality.assess) and callable(causal_inference.did)
+
+
+def test_readme_quick_start_runs_without_an_api_key():
+    """The README's no-key example, executed as written."""
+    import pathlib
+    import re
+    readme = (pathlib.Path(__file__).parent.parent / "README.md").read_text()
+    section = readme.split("## Try it without an API key", 1)[1]
+    code = re.search(r"```python\n(.*?)```", section, re.S).group(1)
+    env = {**__import__("os").environ, "ANTHROPIC_API_KEY": ""}
+    out = subprocess.run([sys.executable, "-c", code + "\nimport sys; assert 'anthropic' not in sys.modules"],
+                         cwd=str(pathlib.Path(__file__).parent.parent), env=env, capture_output=True, text=True)
+    assert out.returncode == 0, out.stderr[-500:]
+    assert "dangerous" in out.stdout and "engagement_index_v2" in out.stdout

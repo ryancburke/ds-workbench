@@ -24,9 +24,9 @@ def srm(n_treated: int, n_control: int, expected_treated_share: float = 0.5) -> 
     exp_t, exp_c = n * expected_treated_share, n * (1 - expected_treated_share)
     chi2 = (n_treated - exp_t) ** 2 / exp_t + (n_control - exp_c) ** 2 / exp_c
     return {"n_treated": int(n_treated), "n_control": int(n_control),
-            "observed_treated_share": round(n_treated / n, 4),
+            "observed_treated_share": round(float(n_treated / n), 4),
             "expected_treated_share": expected_treated_share,
-            "chi2": round(chi2, 3), "p_value": float(f"{math.erfc(math.sqrt(chi2 / 2)):.3g}")}
+            "chi2": round(float(chi2), 3), "p_value": float(f"{math.erfc(math.sqrt(chi2 / 2)):.3g}")}
 
 
 def _estimate(effect: float, se: float, method: str, **extra) -> dict:
