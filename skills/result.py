@@ -941,6 +941,55 @@ def _render_error(r: dict) -> str:
     )
 
 
+def _render_causal_inference(r: dict) -> str:
+    verdict = r.get("verdict", "caution")
+    est = r.get("estimate", {})
+    style, label = {"valid": ("success", "VALID"), "caution": ("warning", "CAUTION"),
+                    "not_identified": ("danger", "NOT IDENTIFIED")}.get(verdict, ("secondary", verdict.upper()))
+    blockers = [f.get("evidence", "")[:90] for f in r.get("findings", []) if f.get("severity") == "critical"]
+    hero = _verdict_hero("Causal effect", label, style, items=blockers[:3] or None,
+                         subtitle=r.get("design", "").replace("_", " "))
+
+    effect_html = ""
+    if est.get("effect") is not None:
+        excluded = est.get("excluded_covariates") or []
+        # With no identified effect, the number is context, not an answer
+        lead = ("<b>Not a causal estimate</b> (for reference only): " if verdict == "not_identified"
+                else "<b>Effect: ")
+        effect_html = (
+            '<div style="font-size:14px;margin:6px 0 10px">'
+            + lead + f'{est["effect"]:+.4g}' + ("" if verdict == "not_identified" else "</b>") + ' '
+            f'<span class="wr-muted">(95% CI {est["ci_low"]:.4g} to {est["ci_high"]:.4g}, '
+            f'p = {est["p_value"]:.3g}) · {est.get("method", "").replace("_", " ")}'
+            + (f' · not adjusting for {", ".join(excluded)}' if excluded else "")
+            + "</span></div>")
+
+    rows = ""
+    for f in _sort_findings(r.get("findings", [])):
+        sev = f.get("severity", "info")
+        rows += (f'<tr class="{_sev_row_cls(sev)}"><td>{_badge(sev.upper(), _sev_style(sev))}</td>'
+                 f'<td>{f.get("check", "").replace("_", " ")}</td>'
+                 f'<td><span class="wr-mono">{f.get("column") or "—"}</span></td>'
+                 f'<td>{f.get("evidence", "")}<br><span class="wr-muted">{f.get("recommendation", "")}</span></td></tr>')
+    findings_tbl = (f'<table class="wr-tbl"><thead><tr><th>Sev</th><th>Check</th><th>Column</th>'
+                    f'<th>Evidence / what to do</th></tr></thead><tbody>{rows}</tbody></table>') if rows else ""
+
+    assumptions = "".join(f"<li>{a}</li>" for a in r.get("assumptions", []))
+    steps = "".join(f"<li>{s}</li>" for s in r.get("next_steps", []))
+    return (
+        hero
+        + '<div class="wr-header"><span>⚖ Causal Inference</span>'
+        + _badge(r.get("identification_strategy", "").replace("_", " "), "info") + '</div>'
+        + '<div class="wr-body">'
+        + effect_html
+        + f'<p style="margin:0 0 8px">{r.get("summary", "")}</p>'
+        + findings_tbl
+        + (f'<div style="margin-top:8px"><b>Relies on:</b><ul style="margin:2px 0">{assumptions}</ul></div>' if assumptions else "")
+        + (f'<div><b>Next steps:</b><ul style="margin:2px 0">{steps}</ul></div>' if steps else "")
+        + '</div>'
+    )
+
+
 _RENDERERS = {
     "data_quality":        _render_data_quality,
     "leakage_detector":    _render_leakage_detector,
@@ -952,6 +1001,7 @@ _RENDERERS = {
     "mlops_reviewer":      _render_mlops_reviewer,
     "preflight":           _render_preflight,
     "session_digest":      _render_session_digest,
+    "causal_inference":    _render_causal_inference,
 }
 
 

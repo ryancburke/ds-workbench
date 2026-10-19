@@ -198,7 +198,8 @@ the go/no-go decision is always front and center before charts or tables.
 | `leakage_detector` | Leakage Detector | `skills/leakage_detector.check()` | ✓ |
 | `feature_engineering` | Feature Engineering Assistant | `skills/feature_engineering.suggest()` | ✓ |
 | `notebook_generator` | Starter Notebook Generator | `skills/notebook_generator.generate()` | — |
-| `experiment_tracker` | Experiment Tracker | `skills/experiment_tracker.interpret()` | — |
+| `experiment_tracker` | Experiment Tracker | `skills/experiment_tracker.interpret()` | ✓ |
+| `causal_inference` | Causal Inference (A/B + observational) | `skills/causal_inference.analyze()` | ✓ |
 
 The first 8 skills plus `experiment_tracker` (training metrics come from the notebook) and
 `preflight` are importable via `from ds_workbench import <skill>` (see `ds_workbench/__init__.py`).

@@ -1,0 +1,32 @@
+{
+ "_meta": {
+  "dataset": "ab_test_underpowered",
+  "skill": "causal_inference",
+  "schema_version": "1.0",
+  "generator": "databricks_client._gen_ab_test_underpowered()",
+  "description": "600 users, true effect +0.5, outcome SD ~10: MDE ~2.3. The estimate is not significant, which must be reported as inconclusive, not as 'no effect'."
+ },
+ "input": {
+  "treatment_col": "variant",
+  "outcome_col": "revenue_30d",
+  "randomized": true,
+  "treated_value": "B"
+ },
+ "true_effect": 0.5,
+ "acceptable_verdicts": [
+  "caution"
+ ],
+ "required_findings": [
+  {
+   "id": "underpowered",
+   "checks": [
+    "underpowered"
+   ],
+   "min_severity": "warning"
+  }
+ ],
+ "forbidden_critical_checks": [
+  "sample_ratio_mismatch",
+  "bad_control"
+ ]
+}

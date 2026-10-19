@@ -1,0 +1,27 @@
+{
+ "_meta": {
+  "dataset": "ab_test_clean",
+  "skill": "causal_inference",
+  "schema_version": "1.0",
+  "generator": "databricks_client._gen_ab_test_clean()",
+  "description": "Clean randomised 50/50 test, true effect +1.50. Balanced covariates, correct split, pre-period revenue for CUPED. Precision case: the skill should say valid without inventing problems."
+ },
+ "input": {
+  "treatment_col": "variant",
+  "outcome_col": "revenue_30d",
+  "randomized": true,
+  "pre_outcome_col": "revenue_prev_30d",
+  "treated_value": "B"
+ },
+ "true_effect": 1.5,
+ "acceptable_verdicts": [
+  "valid"
+ ],
+ "required_findings": [],
+ "forbidden_critical_checks": [
+  "sample_ratio_mismatch",
+  "covariate_imbalance",
+  "bad_control",
+  "confounding"
+ ]
+}

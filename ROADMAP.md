@@ -16,7 +16,7 @@ critiqued by agent simulations.
 | Training-result review | **Covered, tested** | 4 experiment-tracker cases incl. a no-false-alarm case |
 | Regression | Weakly tested | one case (sales forecasting) |
 | Time-series forecasting, multiclass, clustering, anomaly detection | Advertised by the model selector, **untested** | no benchmark cases |
-| Causal inference and A/B tests | **In progress** | see Phase 1 |
+| Causal inference and A/B tests | **Covered in notebooks, tested** | 5 cases with known true effects (SRM, bad control, confounding, underpowered, clean); Workbench section pending |
 | Recommendation and ranking | Not covered | Phase 2 |
 | Optimisation (pricing, scheduling, allocation) | Not covered | Phase 3 |
 | Text, images, geospatial | Not covered | not planned |
@@ -29,7 +29,7 @@ Known limits:
 
 ## Where we're going
 
-### Phase 1 — Causal inference (in progress)
+### Phase 1 — Causal inference (first version shipped)
 A `causal_inference` skill for randomised experiments (A/B tests) and observational data. It
 leads with a verdict (VALID / CAUTION / NOT IDENTIFIED), then the estimate.
 - **Computed in code:** sample-ratio mismatch, covariate balance and propensity overlap, power
@@ -39,8 +39,10 @@ leads with a verdict (VALID / CAUTION / NOT IDENTIFIED), then the estimate.
   controls (covariates measured after treatment, the causal cousin of target leakage).
 - **Benchmarks:** synthetic data with a known true effect, so estimates are graded exactly:
   sample-ratio mismatch, confounding, a bad control, an underpowered test, a clean test.
-- Later: difference-in-differences with pre-period trend checks, a Workbench section and a
-  simulation scenario.
+- **Shipped:** `causal_inference.analyze()` in notebooks; 5 benchmark cases, all passing live.
+- **Next:** a Workbench section, a simulation scenario so personas exercise it, and
+  difference-in-differences with pre-period trend checks for staggered or non-randomised
+  rollouts.
 
 ### Phase 2 — Recommenders
 A skill for interaction logs (user, item, time, rating or click). Computes sparsity, long-tail

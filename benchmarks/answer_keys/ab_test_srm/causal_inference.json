@@ -1,0 +1,31 @@
+{
+ "_meta": {
+  "dataset": "ab_test_srm",
+  "skill": "causal_inference",
+  "schema_version": "1.0",
+  "generator": "databricks_client._gen_ab_test_srm()",
+  "description": "A logging bug dropped ~8% of treatment users (the least engaged): treated share ~48%, SRM p ≈ 5e-7. The naive effect (3.1) is inflated; true effect +1.50."
+ },
+ "input": {
+  "treatment_col": "variant",
+  "outcome_col": "revenue_30d",
+  "randomized": true,
+  "pre_outcome_col": "revenue_prev_30d",
+  "treated_value": "B"
+ },
+ "acceptable_verdicts": [
+  "not_identified",
+  "caution"
+ ],
+ "required_findings": [
+  {
+   "id": "srm",
+   "checks": [
+    "sample_ratio_mismatch"
+   ],
+   "min_severity": "critical"
+  }
+ ],
+ "forbidden_critical_checks": [],
+ "estimate_note": "Not graded: with a sample-ratio mismatch no estimate is trustworthy, so the right answer is the verdict and the SRM finding. CUPED happens to land near +1.5 only because the logging bug selected on pre-period revenue — rewarding it would reward luck."
+}
