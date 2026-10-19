@@ -4,7 +4,7 @@ import math
 import numpy as np
 import pytest
 
-from skills import causal_stats as cs
+from ds_workbench.core import causal_stats as cs
 
 RNG = np.random.default_rng(7)
 

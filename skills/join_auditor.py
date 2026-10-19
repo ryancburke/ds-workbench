@@ -1,5 +1,6 @@
 import json
 import pandas as pd
+from ds_workbench.core.joins import join_stats
 from skills.api_retry import api_call, get_client, skill_entry, tool_input
 from skills.models import THINKING_ADAPTIVE, role
 
@@ -11,10 +12,6 @@ _TOOL = {
         "type": "object",
         "properties": {
             "summary": {"type": "string"},
-            "overall_verdict": {
-                "type": "string",
-                "enum": ["safe", "review_needed", "dangerous"],
-            },
             "findings": {
                 "type": "array",
                 "items": {
@@ -35,7 +32,7 @@ _TOOL = {
                 },
             },
         },
-        "required": ["summary", "overall_verdict", "findings"],
+        "required": ["summary", "findings"],
     },
 }
 
@@ -66,43 +63,27 @@ def _audit(
     right_name: str = "right",
     session=None,
 ) -> dict:
-    try:
-        result_df = left_df.merge(right_df, on=join_keys, how=join_type)
-        result_rows = len(result_df)
-    except Exception:
-        result_rows = -1
-
-    left_keys_set = set(map(tuple, left_df[join_keys].dropna().values.tolist()))
-    right_keys_set = set(map(tuple, right_df[join_keys].dropna().values.tolist()))
-
-    stats = {
-        "left_name": left_name,
-        "right_name": right_name,
-        "join_type": join_type,
-        "join_keys": join_keys,
-        "left_rows": len(left_df),
-        "right_rows": len(right_df),
-        "result_rows": result_rows,
-        "left_key_null_rows": int(left_df[join_keys].isnull().any(axis=1).sum()),
-        "right_key_null_rows": int(right_df[join_keys].isnull().any(axis=1).sum()),
-        "left_key_duplicates": int(left_df.duplicated(subset=join_keys).sum()),
-        "right_key_duplicates": int(right_df.duplicated(subset=join_keys).sum()),
-        "unmatched_keys_in_left": len(left_keys_set - right_keys_set),
-        "unmatched_keys_in_right": len(right_keys_set - left_keys_set),
-    }
+    # Exact counts from per-key counts; the join itself is never built (a many-to-many join
+    # can be far larger than either table)
+    stats = join_stats(left_df, right_df, join_keys, join_type, left_name, right_name)
+    verdict, reasons = stats.pop("verdict"), stats.pop("verdict_reasons")
 
     _prompt = f"""You are a senior data engineer auditing a join operation.
 
-Join statistics:
+Join statistics (exact; null keys never match, as in SQL/Spark):
 {json.dumps(stats, indent=2)}
 
-Assess for:
-1. Fan-out (result rows >> left rows — indicates many-to-many or duplicate keys on right)
-2. Silent data loss (many unmatched keys, especially in left/right joins)
-3. Null keys that will be silently dropped
-4. Many-to-many relationships that inflate aggregations
+Verdict (set from the statistics): {verdict}{" — " + "; ".join(reasons) if reasons else ""}
 
-Be precise. A fan-out factor above 1.1 is a warning; above 2.0 is critical.
+The verdict is fixed by the numbers above. Your job is to explain what is wrong and how to
+fix it. Report each problem the statistics show:
+1. Fan-out: fan_out_factor is rows produced per matched left row; above 1 means duplicate keys
+   on the right multiply rows (max_rows_from_one_key shows the worst key)
+2. Silent data loss: left_rows_dropped / unmatched keys, especially in inner and right joins
+3. Null keys, which never match and are dropped by inner joins
+4. Many-to-many keys, which inflate any aggregation done after the join
+Make severities consistent with the verdict: critical for what makes it dangerous, warning for
+what makes it need review.
 
 For every finding, the `recommendation` field must contain a concrete, copy-paste-ready fix —
 not generic advice. Examples of good recommendations:
@@ -138,12 +119,11 @@ Reference the actual table names ({left_name}, {right_name}) and key columns ({j
         ],
     )
     result = tool_input(response, _TOOL["name"])
-    result["row_count_change"] = {
-        "left_rows": len(left_df),
-        "right_rows": len(right_df),
-        "result_rows": result_rows,
-        "fan_out_factor": round(result_rows / len(left_df), 2) if len(left_df) > 0 and result_rows > 0 else 1.0,
-    }
+    result["overall_verdict"] = verdict
+    result["verdict_reasons"] = reasons
+    result["row_count_change"] = {k: stats[k] for k in (
+        "left_rows", "right_rows", "result_rows", "fan_out_factor", "row_ratio",
+        "left_rows_dropped", "left_rows_dropped_pct", "many_to_many_keys")}
     from skills.result import SkillResult
     sr = SkillResult(result, skill="join_auditor")
     if session is not None:
