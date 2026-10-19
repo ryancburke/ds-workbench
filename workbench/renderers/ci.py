@@ -2,6 +2,7 @@
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 from dash import dcc, html
+from workbench.renderers._safe import safe_render
 
 _VERDICT = {
     "valid":          ("success", "bi-check-circle-fill",         "VALID — the estimate can be acted on"),
@@ -47,6 +48,7 @@ def _event_study_chart(event_study: list) -> dcc.Graph:
     return dcc.Graph(figure=fig, config={"displayModeBar": False})
 
 
+@safe_render
 def _ci_render(result: dict) -> html.Div:
     if result.get("error"):
         return dbc.Alert(result["error"], color="danger", className="py-2")

@@ -6,6 +6,7 @@ from dash import dcc, html
 from workbench.constants import (
     DQ_SEV_COLOR, ML_CAT_ICON, ML_FEAS_COLOR, ML_FEAS_ICON, ML_SEV_COLOR,
 )
+from workbench.renderers._safe import safe_render
 
 
 # ── MLOps helpers ─────────────────────────────────────────────────────────────
@@ -111,6 +112,7 @@ def _ml_verdict_hero(result: dict) -> dbc.Alert:
     return dbc.Alert(children, color=color, className="py-2 mb-3")
 
 
+@safe_render
 def _ml_render(result: dict, session_store: dict | None = None) -> html.Div:
     findings    = result.get("findings", [])
     counts      = {s: sum(1 for f in findings if f.get("severity") == s)

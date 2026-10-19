@@ -1,6 +1,7 @@
 """Workbench renderers for Experiment Tracker results (result dict → Dash components)."""
 import dash_bootstrap_components as dbc
 from dash import html
+from workbench.renderers._safe import safe_render
 
 
 # ── Experiment Tracker renderer ──────────────────────────────────────────────
@@ -17,6 +18,7 @@ _ET_DIM_ICON      = {
 }
 
 
+@safe_render
 def _et_render(result: dict) -> html.Div:
     verdict    = result.get("verdict", "needs_work")
     interp     = result.get("interpretation", "")

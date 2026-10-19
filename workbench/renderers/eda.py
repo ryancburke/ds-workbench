@@ -7,6 +7,7 @@ import plotly.express as px
 from dash import dcc, html
 
 from skills.dtypes import is_text
+from workbench.renderers._safe import safe_render
 
 
 # ── EDA helpers ───────────────────────────────────────────────────────────────
@@ -46,12 +47,13 @@ def _eda_build_chart(rec: dict, df: pd.DataFrame):
         return None
 
 
+@safe_render
 def _eda_render(result: dict, df_json: str) -> html.Div:
     try:
         df = pd.read_json(io.StringIO(df_json), orient="split")
     except Exception:
         df = pd.DataFrame()
-    charts  = [c for rec in result.get("recommended_charts", [])
+    charts  = [c for rec in result.get("recommended_charts", []) if isinstance(rec, dict)
                if (c := _eda_build_chart(rec, df)) is not None]
     targets = result.get("potential_targets", [])
 

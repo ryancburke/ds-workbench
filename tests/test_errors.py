@@ -115,3 +115,11 @@ def test_every_notebook_skill_returns_an_error_dict_instead_of_raising(fake_api)
     }
     for name, call in calls.items():
         assert "declined" in call().get("error", ""), name
+
+
+def test_eda_keeps_only_well_formed_charts():
+    from skills.eda import _valid_charts
+    charts = [{"chart_type": "histogram", "title": "t"}, "a string", {"chart_type": "pie"}, {"title": "no type"}]
+    assert _valid_charts(charts) == [{"chart_type": "histogram", "title": "t"}]
+    assert _valid_charts([{"chart_type": "bar"}] * 20) == [{"chart_type": "bar"}] * 8
+    assert _valid_charts(None) == []

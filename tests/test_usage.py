@@ -100,3 +100,22 @@ def test_summary_by_skill_user_and_success(tmp_path):
     import app  # noqa: F401
     from pages.costs import cost_panel
     assert "leakage_detector" in str(cost_panel(s).to_plotly_json())
+
+
+def test_streams_can_be_iterated_and_are_recorded_once(fake_api):
+    from skills.api_retry import get_client
+
+    reply = _with_usage(NS(model="claude-sonnet-5-5", stop_reason="end_turn", content=[]), 5, 7)
+
+    class Stream:
+        def __enter__(s): return s
+        def __exit__(s, *a): return False
+        def __iter__(s): return iter(["event1", "event2"])
+        def get_final_message(s): return reply
+    fake_api.stream = lambda **kw: Stream()
+
+    with get_client().messages.stream(model="claude-sonnet-5-5", max_tokens=10, messages=[]) as s:
+        assert list(s) == ["event1", "event2"]
+        s.get_final_message()
+    rows = _rows()
+    assert len(rows) == 1 and rows[0]["output_tokens"] == 7

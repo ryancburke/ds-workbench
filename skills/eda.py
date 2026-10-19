@@ -1,6 +1,6 @@
 import json
 import pandas as pd
-from skills.api_retry import api_call, get_client, skill_entry, strict_tool, tool_input
+from skills.api_retry import api_call, get_client, skill_entry, tool_input
 from skills.models import role
 
 
@@ -45,6 +45,17 @@ _TOOL = {
         "required": ["narrative", "key_insights", "recommended_charts"],
     },
 }
+
+
+_CHART_TYPES = set(_TOOL["input_schema"]["properties"]["recommended_charts"]["items"]
+                   ["properties"]["chart_type"]["enum"])
+
+
+def _valid_charts(charts) -> list[dict]:
+    """Keep well-formed chart recommendations (the tool isn't strict), at most 8."""
+    if not isinstance(charts, list):
+        return []
+    return [c for c in charts if isinstance(c, dict) and c.get("chart_type") in _CHART_TYPES][:8]
 
 
 @skill_entry("eda")
@@ -108,8 +119,13 @@ def _analyze(
     response = api_call(
         get_client().messages.create,
         **role("general"),
-        max_tokens=12000,  # headroom for thinking; a cut-off reply is an error
-        tools=[strict_tool(_TOOL)],
+        # thinking on messy tables can be long (12000 cut off on orders_dirty); kept under
+        # ~21k so the SDK allows a non-streaming request
+        max_tokens=20000,
+        # Not strict: with strict decoding this schema (a list of objects with optional fields)
+        # ran away on orders_dirty in 2 of 4 runs — to max_tokens, or a 1,305-item list.
+        # Non-strict was 4/4 clean; the charts are validated below instead.
+        tools=[_TOOL],
         tool_choice={"type": "auto"},
         messages=[{
             "role": "user",
@@ -122,11 +138,13 @@ High correlations (|r| > 0.5):
 {json.dumps(high_correlations, indent=2) if high_correlations else "None detected"}
 
 Identify patterns, anomalies, and relationships. Be precise about which columns to use in chart recommendations.
+Recommend 3-6 charts that would show these patterns.
 
 Report your results by calling the report_eda tool.""",
         }],
     )
     tool_args = tool_input(response, _TOOL["name"])
+    tool_args["recommended_charts"] = _valid_charts(tool_args.get("recommended_charts"))
     from skills.result import SkillResult
     result = SkillResult(tool_args, skill="eda")
     if session is not None:

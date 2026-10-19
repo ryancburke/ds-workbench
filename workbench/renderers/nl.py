@@ -1,10 +1,12 @@
 """Workbench renderers for NL → PySpark results (result dict → Dash components)."""
 import dash_bootstrap_components as dbc
 from dash import html
+from workbench.renderers._safe import safe_render
 
 
 # ── NL → PySpark helpers ──────────────────────────────────────────────────────
 
+@safe_render
 def _nl_render(result: dict, dq_critical: bool = False) -> html.Div:
     assumptions = result.get("assumptions", [])
     perf_notes  = result.get("performance_notes", [])
