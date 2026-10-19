@@ -297,7 +297,11 @@ Falls back to round-robin if benchmark data is unavailable. Interval: `SIM_INTER
 # or
 LOCAL_DEV_MODE=true .venv/bin/python app.py
 
-# Run skill tests (reads .env automatically via config.py)
+# Offline test suite (no API calls; run before every PR)
+.venv/bin/pip install -r requirements-dev.txt
+.venv/bin/python -m pytest
+
+# Live smoke run of 5 skills (calls the API, prints output)
 .venv/bin/python test_skills.py
 
 # Run benchmark suite
