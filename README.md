@@ -114,7 +114,7 @@ Everything is read from `.env` by `config.py`; see `.env.example`.
 | `ANTHROPIC_API_KEY` | required | API access |
 | `LOCAL_DEV_MODE` | `true` | synthetic data instead of Databricks |
 | `SIM_INTERVAL_HOURS` | `0` (manual) | scheduled simulations |
-| `REASONING_MODEL` / `_EFFORT` | Opus 5.5 / medium | data quality |
+| `REASONING_MODEL` / `_EFFORT` | Sonnet 5.5 / high | data quality |
 | `LEAKAGE_MODEL` / `_EFFORT` | Opus 5.5 / medium | leakage detection |
 | `ANALYSIS_MODEL` / `_EFFORT` | Sonnet 5.5 / high | model selection, join auditing |
 | `GENERAL_MODEL` / `_EFFORT` | Sonnet 5.5 / high | EDA, FE, NL → PySpark, MLOps, tracker |

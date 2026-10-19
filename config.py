@@ -27,7 +27,9 @@ class Config:
 
     # ── Models (override any of these in .env) ────────────────────────────────
     # Skills
-    reasoning_model: str = _env("REASONING_MODEL", "claude-opus-5-5")    # DQ Pass 1
+    # DQ Pass 1. Sonnet 5.5 (high) matched Opus 5.5 (medium) on all 7 DQ cases, 2 trials each,
+    # at ~1/3 of the cost and ~1/2 the latency (DQ runs on every dataset at session start).
+    reasoning_model: str = _env("REASONING_MODEL", "claude-sonnet-5-5")
     analysis_model: str = _env("ANALYSIS_MODEL", "claude-sonnet-5-5")    # model_selector, join_auditor Pass 1
     general_model: str = _env("GENERAL_MODEL", "claude-sonnet-5-5")      # EDA, MLOps, NL→Spark, FE, tracker
     # leakage Pass 1. Opus 5.5 matched Fable 5.1 on all four leakage cases (2 trials each,
@@ -42,7 +44,7 @@ class Config:
     # ── Effort per role: low | medium | high | xhigh | max ────────────────────
     # Skill defaults match each model's API default, so behaviour is unchanged
     # until a benchmark run justifies raising one.
-    reasoning_effort: str = _env("REASONING_EFFORT", "medium")
+    reasoning_effort: str = _env("REASONING_EFFORT", "high")
     analysis_effort: str = _env("ANALYSIS_EFFORT", "high")
     general_effort: str = _env("GENERAL_EFFORT", "high")
     leakage_effort: str = _env("LEAKAGE_EFFORT", "medium")
