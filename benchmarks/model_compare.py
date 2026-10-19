@@ -1,8 +1,9 @@
 """
-Model comparison experiment: Opus 4.8 vs Fable 5 on DQ and Leakage benchmarks.
+Model comparison experiment on DQ, Leakage, and Model Selector benchmarks.
 
-Runs each benchmark under three model configs and reports side-by-side scores,
-timing, and key quality signals.
+Runs each benchmark's Pass 1 under three model configs — the configured analysis,
+reasoning, and leakage models (see config.py / .env) — and reports side-by-side
+scores, timing, and key quality signals. Pass 2 always uses STRUCTURED_MODEL.
 
 Usage:
     .venv/bin/python benchmarks/model_compare.py
@@ -23,30 +24,27 @@ from config import config  # triggers load_dotenv
 import anthropic
 import pandas as pd
 
+from skills.api_retry import check_response
+from skills.models import STRUCTURED_MODEL
+
 BENCHMARKS_DIR = Path(__file__).parent
 RESULTS_FILE   = BENCHMARKS_DIR / "model_comparison_results.json"
 
 # ── Model configs under test ──────────────────────────────────────────────────
 
+def _arm(model: str, effort: str) -> dict:
+    return {
+        "name":     f"{model.removeprefix('claude-')}-{effort}",
+        "model":    model,
+        "thinking": {"type": "adaptive"},
+        "extra":    {"output_config": {"effort": effort}},
+    }
+
+
 MODELS = [
-    {
-        "name":     "sonnet-5.5",
-        "model":    "claude-sonnet-5-5",
-        "thinking": {"type": "adaptive"},
-        "extra":    {},
-    },
-    {
-        "name":     "opus-5.5",
-        "model":    "claude-opus-5-5",
-        "thinking": {"type": "adaptive"},
-        "extra":    {},
-    },
-    {
-        "name":     "fable-5.1-medium",
-        "model":    "claude-fable-5-1",
-        "thinking": {"type": "adaptive"},
-        "extra":    {"output_config": {"effort": "medium"}},
-    },
+    _arm(config.analysis_model,  config.analysis_effort),
+    _arm(config.reasoning_model, config.reasoning_effort),
+    _arm(config.leakage_model,   config.leakage_effort),
 ]
 
 # ── Datasets per skill ────────────────────────────────────────────────────────
@@ -87,7 +85,7 @@ def _p1(model_cfg: dict, prompt: str, max_tokens: int) -> str:
         "messages": [{"role": "user", "content": prompt}],
         **model_cfg["extra"],
     }
-    r = _client().messages.create(**kwargs)
+    r = check_response(_client().messages.create(**kwargs))
     return next((b.text for b in r.content if b.type == "text"), "")
 
 
@@ -157,7 +155,7 @@ After all six steps:
 
     from skills.data_quality import _TOOL as DQ_TOOL
     response = _client().messages.create(
-        model="claude-haiku-4-5-20251001",
+        model=STRUCTURED_MODEL,
         max_tokens=4096,
         tools=[DQ_TOOL],
         tool_choice={"type": "tool", "name": "report_data_quality"},
@@ -202,7 +200,7 @@ Overall verdict: leakage_detected (critical found) / suspicious (warnings only) 
         raise RuntimeError("Pass 1 returned no text")
 
     response = _client().messages.create(
-        model="claude-haiku-4-5-20251001",
+        model=STRUCTURED_MODEL,
         max_tokens=4096,
         tools=[LD_TOOL],
         tool_choice={"type": "tool", "name": "report_leakage"},
@@ -218,7 +216,6 @@ Overall verdict: leakage_detected (critical found) / suspicious (warnings only) 
 
 def run_ms(df: pd.DataFrame, target_col: str, model_cfg: dict) -> dict:
     from skills.model_selector import _build_profile, _TOOL as MS_TOOL
-    from skills.models import STRUCTURED_MODEL
     import json as _json
 
     profile = _build_profile(df, target_col)

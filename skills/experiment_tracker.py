@@ -2,7 +2,8 @@ import json
 import anthropic
 from config import config
 from skills.result import SkillResult
-from skills.models import GENERAL_MODEL
+from skills.api_retry import api_call, skill_entry
+from skills.models import GENERAL_MODEL, GENERAL_EXTRA
 
 _client_instance: anthropic.Anthropic | None = None
 
@@ -67,6 +68,7 @@ _TOOL = {
 }
 
 
+@skill_entry("experiment_tracker")
 def interpret(metrics: dict, context: str = "") -> dict:
     """
     Interpret model training metrics and return structured findings + next steps.
@@ -78,8 +80,10 @@ def interpret(metrics: dict, context: str = "") -> dict:
     metrics_block = json.dumps(metrics, indent=2)
     context_block = f"\nBusiness context: {context}\n" if context else ""
 
-    response = _get_client().messages.create(
+    response = api_call(
+        _get_client().messages.create,
         model=GENERAL_MODEL,
+        **GENERAL_EXTRA,
         max_tokens=2048,
         tools=[_TOOL],
         tool_choice={"type": "auto"},

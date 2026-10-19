@@ -74,10 +74,13 @@ shows quality trends per skill over time.
 - **Dash 4.4.1** — `use_pages=True`, pattern-matching callbacks (`MATCH`/`ALL`), `dcc.Store`,
   `allow_duplicate=True` for multiple callbacks writing to the same output
 - **Dash Bootstrap Components** — DARKLY theme throughout; never introduce a different theme
-- **Anthropic SDK** — model IDs are settings in `config.py` (see Project rules #3; as of
-  2026-10-18 they still live as constants in `skills/models.py`, pending migration). Opus 5.5
-  for heavy reasoning (DQ), Fable 5.1 for leakage, Sonnet 5.5 for general analysis, Haiku 5.5
-  for structured extraction (Pass 2). Pass 2 uses forced tool calls
+- **Anthropic SDK** — model IDs and per-role effort levels are settings in `config.py`
+  (overridable in `.env`; see `.env.example`); `skills/models.py` re-exports them as
+  `*_MODEL` / `*_EXTRA` for skills and agents. Opus 5.5 for heavy reasoning (DQ), Fable 5.1
+  for leakage, Sonnet 5.5 for general analysis and simulation personas, Opus 5.5 for
+  simulation judging, Haiku 5.5 for structured extraction (Pass 2). Every call goes through
+  `skills.api_retry.api_call` (or `check_response`), which raises `ModelRefusal` on
+  `stop_reason == "refusal"`. Pass 2 uses forced tool calls
   (`tool_choice={"type":"tool","name":"..."}`) — this is valid **only on Haiku 5.5**; Opus 5.5,
   Sonnet 5.5, and Fable 5.1 return a 400 on forced `tool` / `any`, so on those use
   `tool_choice={"type":"auto"}` + `strict: true` or `output_config.format`. All 5.x models use

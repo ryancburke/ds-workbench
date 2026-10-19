@@ -282,14 +282,16 @@ def render_skill_detail(skill, _, days):
         ql = b.get("qualitative") or {}
         recall_txt = f"{q.get('recall', 0)*100:.0f}%" if q else "—"
         readiness_l, readiness_c = _readiness(b.get("overall"))
-        recent_rows.append(html.Tr([
+        if b.get("status") == "error":
+            readiness_l, readiness_c = "Eval failed", "secondary"
+        recent_rows.append(html.Tr(title=b.get("error") or None, children=[
             html.Td(_time_ago(b.get("timestamp", "")), className="small text-muted"),
             html.Td(b.get("scenario_title", ""), className="small"),
             html.Td(b.get("persona_name",   ""), className="small"),
             html.Td(b.get("dataset",        ""), className="small"),
             html.Td(recall_txt, className="small"),
             html.Td(f"{ql.get('usefulness','—')}/{ql.get('clarity','—')}", className="small"),
-            html.Td(f"{b.get('overall','—')}", className="small fw-bold"),
+            html.Td("—" if b.get("overall") is None else f"{b['overall']}", className="small fw-bold"),
             html.Td(dbc.Badge(readiness_l, color=readiness_c, pill=True,
                               style={"fontSize":"0.65rem"})),
         ]))

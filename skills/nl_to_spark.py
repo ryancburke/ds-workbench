@@ -1,7 +1,8 @@
 import anthropic
 import pandas as pd
 from config import config
-from skills.models import GENERAL_MODEL
+from skills.api_retry import api_call, skill_entry
+from skills.models import GENERAL_MODEL, GENERAL_EXTRA
 
 _client: anthropic.Anthropic | None = None
 
@@ -30,6 +31,7 @@ _TOOL = {
 }
 
 
+@skill_entry("nl_to_spark")
 def generate(question: str, tables: dict[str, pd.DataFrame], context: str = "") -> dict:
     try:
         return _generate(question, tables, context)
@@ -46,8 +48,10 @@ def _generate(question: str, tables: dict[str, pd.DataFrame], context: str = "")
 
     context_block = f"\nBusiness context: {context}\n" if context else ""
 
-    response = _get_client().messages.create(
+    response = api_call(
+        _get_client().messages.create,
         model=GENERAL_MODEL,
+        **GENERAL_EXTRA,
         max_tokens=4096,
         tools=[_TOOL],
         tool_choice={"type": "auto"},

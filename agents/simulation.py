@@ -12,6 +12,8 @@ from datetime import datetime, timezone
 import anthropic
 
 from config import config
+from skills.api_retry import call_context, check_response, response_text
+from skills.models import SIM_EXTRA, SIM_JUDGE_EXTRA, SIM_JUDGE_MODEL, SIM_MODEL
 
 _client_instance: anthropic.Anthropic | None = None
 
@@ -342,20 +344,25 @@ Think about the business question and what the team has already surfaced. What's
 
 If you have enough information to give a solid recommendation, choose give_debrief instead."""
 
+    # 5.x models reject forced tool_choice, so the tool is strict + auto and the
+    # prompt names it. Thinking counts toward max_tokens, hence the headroom.
     resp = _client().messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=1024,
+        model=SIM_MODEL,
+        max_tokens=4096,
+        **SIM_EXTRA,
         system=system,
         messages=[{
             "role": "user",
-            "content": "Choose your next action.",
+            "content": "Choose your next action by calling the decide_action tool.",
         }],
         tools=[{
             "name": "decide_action",
+            "strict": True,
             "description": "Choose your next step",
             "input_schema": {
                 "type": "object",
                 "required": ["reasoning", "action"],
+                "additionalProperties": False,
                 "properties": {
                     "reasoning": {
                         "type": "string",
@@ -382,8 +389,9 @@ If you have enough information to give a solid recommendation, choose give_debri
                 },
             },
         }],
-        tool_choice={"type": "tool", "name": "decide_action"},
+        tool_choice={"type": "auto"},
     )
+    check_response(resp)
 
     for block in resp.content:
         if block.type == "tool_use":
@@ -397,8 +405,9 @@ def interpret_step(persona: dict, skill: str, dataset: str, result: dict) -> str
     summary = _result_summary(skill, result)
 
     resp = _client().messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=280,
+        model=SIM_MODEL,
+        max_tokens=2048,  # length is set by the prompt; headroom is for thinking
+        **SIM_EXTRA,
         system=(
             f"You are {persona['name']}, {persona['role']}. "
             f"Your style: {persona['approach']}"
@@ -408,12 +417,13 @@ def interpret_step(persona: dict, skill: str, dataset: str, result: dict) -> str
             "content": (
                 f"You just ran {skill.replace('_', ' ')} on the {dataset} dataset.\n\n"
                 f"Key findings:\n{summary}\n\n"
-                "In 2-3 sentences in your own voice: what does this tell you? "
-                "What stands out most, and does it change anything about how you see the problem?"
+                "In your own voice: what does this tell you? "
+                "What stands out most, and does it change anything about how you see the problem? "
+                "Answer in at most 3 sentences (under 70 words) of plain prose — no headings or lists."
             ),
         }],
     )
-    return resp.content[0].text.strip()
+    return response_text(check_response(resp))
 
 
 def debrief_step(persona: dict, scenario: dict, my_steps: list) -> str:
@@ -424,8 +434,9 @@ def debrief_step(persona: dict, scenario: dict, my_steps: list) -> str:
     ) or "Worked from my teammates' findings."
 
     resp = _client().messages.create(
-        model="claude-opus-4-8",
-        max_tokens=450,
+        model=SIM_JUDGE_MODEL,
+        max_tokens=4096,  # length is set by the prompt; headroom is for thinking
+        **SIM_JUDGE_EXTRA,
         system=(
             f"You are {persona['name']}, {persona['role']}. "
             f"Your style: {persona['approach']}"
@@ -437,17 +448,25 @@ def debrief_step(persona: dict, scenario: dict, my_steps: list) -> str:
                 f"What you investigated:\n{history}\n\n"
                 "Give your final recommendation in your own voice. Be specific and direct. "
                 "What's the bottom line? What should the business actually do? "
-                "What are the key risks or caveats they need to know?"
+                "What are the key risks or caveats they need to know? "
+                "Keep it under 200 words: a bottom-line sentence, then at most 3 short bullets "
+                "for actions and risks. No headings."
             ),
         }],
     )
-    return resp.content[0].text.strip()
+    return response_text(check_response(resp))
 
 
 # ── Skill execution ────────────────────────────────────────────────────────────
 
 def _execute_skill(skill: str, dataset: str, decision: dict, scenario: dict) -> tuple[dict, dict]:
     """Run a skill and return (result_dict, run_record_for_store)."""
+    # Tags any refusal-log entry with the dataset and scenario behind it
+    with call_context(dataset=dataset, scenario=scenario["id"]):
+        return _run_skill(skill, dataset, decision, scenario)
+
+
+def _run_skill(skill: str, dataset: str, decision: dict, scenario: dict) -> tuple[dict, dict]:
     run_id = f"{skill}_{int(time.time() * 1000)}"
     ts = datetime.now().strftime("%H:%M")
 
@@ -728,8 +747,9 @@ def evaluate_output_step(
 
     try:
         qual_resp = _client().messages.create(
-            model="claude-opus-4-8",
-            max_tokens=512,
+            model=SIM_JUDGE_MODEL,
+            max_tokens=2048,
+            **SIM_JUDGE_EXTRA,
             system=(
                 f"You are {persona['name']}, {persona['role']}. "
                 f"You just used the {skill} skill while working on this question: "
@@ -743,38 +763,53 @@ def evaluate_output_step(
                     "Rate the output on two dimensions:\n"
                     "- usefulness (1-5): Did it help you answer the business question?\n"
                     "- clarity (1-5): How easy was it to extract the key insight at a glance?\n"
-                    "- brief_note: One sentence on what you'd improve (or 'none')."
+                    "- brief_note: One sentence on what you'd improve (or 'none').\n\n"
+                    "Submit your rating by calling the rate_output tool."
                 ),
             }],
+            # strict mode doesn't support minimum/maximum, so the 1-5 range is an enum
             tools=[{
                 "name": "rate_output",
+                "strict": True,
                 "input_schema": {
                     "type": "object",
                     "required": ["usefulness", "clarity", "brief_note"],
+                    "additionalProperties": False,
                     "properties": {
-                        "usefulness":  {"type": "integer", "minimum": 1, "maximum": 5},
-                        "clarity":     {"type": "integer", "minimum": 1, "maximum": 5},
+                        "usefulness":  {"type": "integer", "enum": [1, 2, 3, 4, 5]},
+                        "clarity":     {"type": "integer", "enum": [1, 2, 3, 4, 5]},
                         "brief_note":  {"type": "string"},
                     },
                 },
             }],
-            tool_choice={"type": "tool", "name": "rate_output"},
+            tool_choice={"type": "auto"},
         )
-        qual_block = next(b for b in qual_resp.content if b.type == "tool_use")
+        check_response(qual_resp)
+        qual_block = next((b for b in qual_resp.content
+                           if b.type == "tool_use" and b.name == "rate_output"), None)
+        if qual_block is None:
+            raise RuntimeError(f"persona did not call rate_output (stop_reason={qual_resp.stop_reason})")
         qual = qual_block.input
-    except Exception:
-        qual = {"usefulness": 3, "clarity": 3, "brief_note": "evaluation unavailable"}
+        error = None
+    except Exception as exc:
+        # Record the failure rather than a made-up rating; overall=None keeps it
+        # out of every aggregate (all readers filter on overall is not None).
+        qual, error = None, f"{type(exc).__name__}: {exc}"
 
     # ── Combine ───────────────────────────────────────────────────────────────
-    qual_avg = (qual["usefulness"] + qual["clarity"]) / 2.0
-    if quant is not None:
+    if error:
+        overall, score_type = None, "error"
+    elif quant is not None:
+        qual_avg = (qual["usefulness"] + qual["clarity"]) / 2.0
         overall = round(0.6 * quant["score"] + 0.4 * qual_avg, 2)
         score_type = "quantitative+qualitative"
     else:
-        overall = round(qual_avg, 2)
+        overall = round((qual["usefulness"] + qual["clarity"]) / 2.0, 2)
         score_type = "qualitative"
 
     return {
+        "status":        "error" if error else "ok",
+        "error":         error,
         "id":            f"bench_{int(time.time() * 1000)}",
         "timestamp":     datetime.now(timezone.utc).isoformat(),
         "skill":         skill,
@@ -926,8 +961,9 @@ When these skill results appear in the team dashboard — do the findings surfac
 Be specific and honest. Reference what you actually ran and what you saw in the outputs."""
 
     resp = _client().messages.create(
-        model="claude-opus-4-8",
-        max_tokens=2048,
+        model=SIM_JUDGE_MODEL,
+        max_tokens=8192,  # 2-3 tool calls plus thinking
+        **SIM_JUDGE_EXTRA,
         system=system,
         messages=[{
             "role": "user",

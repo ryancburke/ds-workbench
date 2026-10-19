@@ -4,8 +4,8 @@ import pandas as pd
 import numpy as np
 from config import config
 from skills.result import SkillResult
-from skills.api_retry import api_call
-from skills.models import REASONING_MODEL, STRUCTURED_MODEL, THINKING_ADAPTIVE
+from skills.api_retry import api_call, skill_entry
+from skills.models import REASONING_MODEL, STRUCTURED_MODEL, THINKING_ADAPTIVE, REASONING_EXTRA
 
 _client: anthropic.Anthropic | None = None
 
@@ -98,6 +98,7 @@ def _maybe_sample(df: pd.DataFrame, n: int = 50_000) -> tuple[pd.DataFrame, str 
     return sampled, f"Sampled {n:,} of {len(df):,} rows for analysis"
 
 
+@skill_entry("data_quality")
 def assess(df: pd.DataFrame, table_name: str = "dataset", session=None) -> dict:
     try:
         return _assess(df, table_name, session)
@@ -197,6 +198,7 @@ After all six steps:
         model=REASONING_MODEL,
         max_tokens=14000,
         thinking=THINKING_ADAPTIVE,
+        **REASONING_EXTRA,
         messages=[{"role": "user", "content": _prompt}],
     )
     analysis = next((b.text for b in pass1.content if b.type == "text"), "")

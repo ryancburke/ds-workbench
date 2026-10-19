@@ -2,8 +2,8 @@ import anthropic
 import pandas as pd
 from config import config
 from skills.result import SkillResult
-from skills.api_retry import api_call
-from skills.models import ANALYSIS_MODEL, STRUCTURED_MODEL, THINKING_ADAPTIVE
+from skills.api_retry import api_call, skill_entry
+from skills.models import ANALYSIS_MODEL, STRUCTURED_MODEL, THINKING_ADAPTIVE, ANALYSIS_EXTRA
 
 _client: anthropic.Anthropic | None = None
 
@@ -182,6 +182,7 @@ def _build_profile(df: pd.DataFrame, target_col: str) -> str:
     return "\n".join(lines)
 
 
+@skill_entry("model_selector")
 def select(
     df: pd.DataFrame,
     target_col: str,
@@ -291,6 +292,7 @@ Ground all reasoning in the actual numbers above, not generic ML advice."""
         model=ANALYSIS_MODEL,
         max_tokens=12000,
         thinking=THINKING_ADAPTIVE,
+        **ANALYSIS_EXTRA,
         messages=[{"role": "user", "content": _prompt}],
     )
     _analysis = next((b.text for b in _r1.content if b.type == "text"), "")
