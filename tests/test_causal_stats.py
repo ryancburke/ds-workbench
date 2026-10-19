@@ -67,3 +67,44 @@ def test_smd_and_mde():
     x = np.concatenate([RNG.normal(0.5, 1, 500), RNG.normal(0, 1, 500)])
     assert cs.smd(x, t) == pytest.approx(0.5, abs=0.15)
     assert cs.mde(1.0) == pytest.approx(2.8016, abs=1e-3)
+
+
+def _panel(effect=3.0, pre_slope_gap=0.0, n_units=60, n_periods=12, start=7, seed=1):
+    rng = np.random.default_rng(seed)
+    unit = np.repeat(np.arange(n_units), n_periods)
+    period = np.tile(np.arange(1, n_periods + 1), n_units)
+    treated = (unit < n_units // 2).astype(int)
+    unit_fe = rng.normal(0, 5, n_units)[unit]
+    y = (20 + unit_fe + 0.5 * period + pre_slope_gap * treated * period
+         + effect * treated * (period >= start) + rng.normal(0, 1, len(unit)))
+    return y, treated, period, (period >= start).astype(int), unit
+
+
+def test_did_recovers_the_effect_with_cluster_robust_se():
+    y, tr, period, post, unit = _panel()
+    est = cs.did(y, tr, post, unit)
+    assert near(est, 3.0)
+
+
+def test_event_study_pre_gaps_are_flat_under_parallel_trends():
+    y, tr, period, post, unit = _panel()
+    gaps = cs.event_study(y, tr, period, ref_period=6, clusters=unit)
+    pre = [g for g in gaps if g["period"] < 6]
+    assert all(abs(g["gap_vs_ref"]) < 4 * g["se"] + 0.5 for g in pre)
+    assert np.mean([g["gap_vs_ref"] for g in gaps if g["period"] >= 7]) == pytest.approx(3.0, abs=0.6)
+
+
+def test_pre_trend_test_detects_diverging_groups():
+    y, tr, period, post, unit = _panel(effect=0.0, pre_slope_gap=0.6)
+    flat = cs.pre_trend(*_panel()[:2], _panel()[2], 1 - _panel()[3], _panel()[4])
+    diverging = cs.pre_trend(y, tr, period, 1 - post, unit)
+    assert diverging["p_value"] < 0.001 and abs(diverging["differential_slope_per_period"] - 0.6) < 0.2
+    assert flat["p_value"] > 0.001
+    assert cs.did(y, tr, post, unit)["effect"] > 2      # naive DiD mistakes the trend for an effect
+
+
+def test_e_value():
+    ev = cs.e_value(effect=5.0, ci_low=4.5, ci_high=5.5, outcome_sd=50.0)   # d = 0.1
+    rr = math.exp(0.091)
+    assert ev["e_value"] == pytest.approx(rr + math.sqrt(rr * (rr - 1)), abs=1e-3)
+    assert cs.e_value(1.0, -0.5, 2.5, 10.0)["e_value_ci"] == 1.0           # CI includes zero

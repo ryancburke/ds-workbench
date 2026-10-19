@@ -34,6 +34,14 @@ CAUSAL_PRESETS = {
     "ab_test_underpowered": {"label": "A/B test — pricing page (600 users)",
                              "treatment": "variant", "outcome": "revenue_30d", "pre": None,
                              "design": "randomized"},
+    "did_store_rollout":    {"label": "Store rollout — promotion in 20 of 40 stores (DiD)",
+                             "treatment": "promo_group", "outcome": "units_sold", "pre": None,
+                             "design": "did", "time": "week_start", "unit": "store_id",
+                             "start": "2026-05-25"},
+    "did_pretrend":         {"label": "Store rollout — promo stores already growing faster (DiD)",
+                             "treatment": "promo_group", "outcome": "units_sold", "pre": None,
+                             "design": "did", "time": "week_start", "unit": "store_id",
+                             "start": "2026-05-25"},
 }
 CAUSAL_DATASET_OPTIONS = [{"label": v["label"], "value": k} for k, v in CAUSAL_PRESETS.items()]
 

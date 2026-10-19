@@ -1,6 +1,7 @@
 """Workbench renderers for Causal Inference results (result dict → Dash components)."""
 import dash_bootstrap_components as dbc
-from dash import html
+import plotly.graph_objects as go
+from dash import dcc, html
 
 _VERDICT = {
     "valid":          ("success", "bi-check-circle-fill",         "VALID — the estimate can be acted on"),
@@ -24,6 +25,26 @@ def _effect_line(result: dict) -> html.Div:
     else:
         head = html.Strong(f"Effect: {est['effect']:+.4g}", style={"fontSize": "1.05rem"})
     return html.Div([head, html.Span(f"  ({detail})", className="small text-muted")], className="mb-2")
+
+
+def _event_study_chart(event_study: list) -> dcc.Graph:
+    """Treated-vs-control gap per period (relative to the last pre-period) with 95% bars.
+    Flat before zero = parallel trends; a step at zero = the effect."""
+    x = [e["relative_period"] for e in event_study] + [-1]
+    y = [e["gap_vs_last_pre"] for e in event_study] + [0.0]
+    err = [1.96 * e["se"] for e in event_study] + [0.0]
+    order = sorted(range(len(x)), key=lambda i: x[i])
+    fig = go.Figure(go.Scatter(x=[x[i] for i in order], y=[y[i] for i in order],
+                               error_y={"array": [err[i] for i in order], "thickness": 1},
+                               mode="markers+lines", line={"color": "#20c997"}))
+    fig.add_vline(x=-0.5, line_dash="dash", line_color="#888")
+    fig.add_hline(y=0, line_color="#555")
+    fig.update_layout(height=220, margin={"l": 40, "r": 10, "t": 10, "b": 30},
+                      paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                      font={"color": "#aaa", "size": 10},
+                      xaxis={"title": "periods relative to the change", "gridcolor": "#252545"},
+                      yaxis={"title": "treated − control gap", "gridcolor": "#252545"})
+    return dcc.Graph(figure=fig, config={"displayModeBar": False})
 
 
 def _ci_render(result: dict) -> html.Div:
@@ -71,10 +92,13 @@ def _ci_render(result: dict) -> html.Div:
         lists.append(html.Div([html.Strong("Next steps: ", className="small"),
                                html.Ul([html.Li(s, className="small") for s in result["next_steps"]], className="mb-1")]))
 
+    event_study = (result.get("evidence") or {}).get("event_study")
+
     return html.Div([
         hero,
         _effect_line(result),
         html.P(result.get("summary", ""), className="small mb-2"),
+        _event_study_chart(event_study) if event_study else html.Div(),
         findings_table,
         *lists,
         dbc.Accordion([dbc.AccordionItem(balance_table, title="Covariate balance")],

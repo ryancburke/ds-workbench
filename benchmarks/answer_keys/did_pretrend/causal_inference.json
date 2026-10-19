@@ -1,0 +1,35 @@
+{
+ "_meta": {
+  "dataset": "did_pretrend",
+  "skill": "causal_inference",
+  "schema_version": "1.0",
+  "generator": "databricks_client._gen_did_pretrend()",
+  "description": "Same rollout, but promo stores were already growing 1.2 units/week faster and the promotion did nothing (true effect 0). Naive DiD reports ~+15; the pre-trend test (slope gap 1.25, p ≈ 0) and drifting event-study gaps show parallel trends fail."
+ },
+ "input": {
+  "entry": "did",
+  "outcome_col": "units_sold",
+  "group_col": "promo_group",
+  "time_col": "week_start",
+  "treatment_start": "2026-05-25",
+  "unit_col": "store_id",
+  "treated_value": "promo"
+ },
+ "acceptable_verdicts": [
+  "not_identified",
+  "caution"
+ ],
+ "required_findings": [
+  {
+   "id": "pre_trend",
+   "checks": [
+    "pre_trend"
+   ],
+   "min_severity": "warning"
+  }
+ ],
+ "forbidden_critical_checks": [
+  "sample_ratio_mismatch"
+ ],
+ "estimate_note": "Not graded: with clearly diverging pre-trends no DiD estimate is trustworthy; the right answer is the verdict and the pre-trend finding."
+}

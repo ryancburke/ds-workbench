@@ -29,8 +29,10 @@ from skills.result import SkillResult
 
 _CHECKS = ["sample_ratio_mismatch", "covariate_imbalance", "confounding", "bad_control",
            "low_overlap", "underpowered", "time_trend_or_novelty", "multiple_comparisons",
-           "interference", "other"]
-_ESTIMATES = ["difference_in_means", "regression_adjustment", "cuped", "inverse_propensity_weighting"]
+           "interference", "pre_trend", "anticipation", "composition_change", "staggered_adoption",
+           "other"]
+_ESTIMATES = ["difference_in_means", "regression_adjustment", "cuped", "inverse_propensity_weighting",
+              "difference_in_differences"]
 
 _TOOL = {
     "name": "report_causal_analysis",
@@ -174,6 +176,11 @@ def compute_evidence(df: pd.DataFrame, treatment_col: str, outcome_col: str,
         ev["propensity_overlap"] = cs.overlap(ps, t)
     ev["estimates"] = {k: _fmt(v) for k, v in estimates.items()}
     ev["mde_80pct_power"] = round(cs.mde(estimates["difference_in_means"]["se"]), 6)
+    if randomized is not True:
+        # How strong would an unmeasured confounder have to be to explain the adjusted estimate away?
+        best = estimates.get("regression_adjustment") or estimates["difference_in_means"]
+        ev["sensitivity_e_value"] = {"for_estimate": best["method"],
+                                     **cs.e_value(best["effect"], best["ci_low"], best["ci_high"], float(y.std()))}
 
     # Balance, outcome correlation, and how much the adjusted estimate moves without each
     # covariate — a covariate that shifts it a lot and is imbalanced in a randomised test is
@@ -294,6 +301,9 @@ estimate to report. What to weigh:
   mde_80pct_power, say what effect the test could and could not have detected.
 - Prefer CUPED or regression adjustment on pre-treatment covariates in a clean randomised test
   (same target, smaller interval); prefer regression adjustment or IPW for observational data.
+- Sensitivity (observational): sensitivity_e_value is the risk ratio an unmeasured confounder
+  would need with both treatment and outcome to explain the estimate away (e_value_ci: to make
+  the interval include zero). Near 1 means fragile; say how plausible such a confounder is.
 
 Your verdict and findings must agree with the evidence. Report your results by calling the
 report_causal_analysis tool.""",
@@ -303,6 +313,142 @@ report_causal_analysis tool.""",
     out = tool_input(response, _TOOL["name"])
     choice = out["recommended_estimate"]
     out["estimate"] = _final_estimate(ev, choice["method"], choice.get("exclude_covariates") or [])
+    out["evidence"] = shown
+    result = SkillResult(out, skill="causal_inference")
+    if session is not None:
+        session.register("causal_inference", result)
+    return result
+
+
+# ── Difference-in-differences ─────────────────────────────────────────────────
+
+_EVENT_STUDY_MAX_PERIODS = 30
+
+
+@skill_entry("causal_inference")
+def did(
+    df: pd.DataFrame,
+    outcome_col: str,
+    group_col: str,
+    time_col: str,
+    treatment_start,
+    unit_col: str | None = None,
+    treated_value=None,
+    context: str = "",
+    session=None,
+) -> dict:
+    """Difference-in-differences for a change rolled out to one group at a known time.
+
+    Args:
+        df: One row per unit per period (panel) or per observation per period.
+        outcome_col: Numeric outcome.
+        group_col: Which group got the change (2 values).
+        time_col: Period column (dates or ordered numbers).
+        treatment_start: First period the change was live (same type as time_col).
+        unit_col: Unit identifier (store, user...) for cluster-robust standard errors.
+        treated_value: Which group_col value is the treated group.
+        context: What decision the estimate informs.
+    """
+    try:
+        return _did(df, outcome_col, group_col, time_col, treatment_start, unit_col, treated_value,
+                    context, session)
+    except Exception as exc:
+        return SkillResult({"error": str(exc)}, skill="causal_inference")
+
+
+def compute_did_evidence(df, outcome_col, group_col, time_col, treatment_start, unit_col=None,
+                         treated_value=None) -> dict:
+    cols = [outcome_col, group_col, time_col] + ([unit_col] if unit_col else [])
+    for col in cols:
+        if col not in df.columns:
+            raise ValueError(f"Column '{col}' not found")
+    data = df.dropna(subset=cols).reset_index(drop=True)
+    treated = _binary_treatment(data[group_col], treated_value)
+    y = data[outcome_col].astype(float).to_numpy()
+    time = data[time_col]
+    start = pd.Timestamp(treatment_start) if pd.api.types.is_datetime64_any_dtype(time) else treatment_start
+    post = (time >= start).astype(int).to_numpy()
+    periods = np.sort(time.unique())
+    if not (time < start).any() or not post.any():
+        raise ValueError("Need periods both before and after treatment_start")
+    index = {p: i + 1 for i, p in enumerate(periods)}
+    time_index = time.map(index).to_numpy()
+    clusters = data[unit_col].to_numpy() if unit_col else None
+
+    ev: dict = {
+        "n_rows": int(len(data)), "n_periods": int(len(periods)),
+        "n_pre_periods": int(sum(1 for p in time.unique() if p < start)),
+        "treatment_start": str(treatment_start),
+        "n_units": int(data[unit_col].nunique()) if unit_col else None,
+        "n_treated_units": int(data.loc[treated == 1, unit_col].nunique()) if unit_col else int(treated.sum()),
+        "n_control_units": int(data.loc[treated == 0, unit_col].nunique()) if unit_col else int((1 - treated).sum()),
+        "standard_errors": "clustered by unit" if unit_col else "heteroskedasticity-robust (no unit column)",
+    }
+    means = {}
+    for g, gname in ((1, "treated"), (0, "control")):
+        for p_, pname in ((0, "pre"), (1, "post")):
+            m = (treated == g) & (post == p_)
+            means[f"{gname}_{pname}"] = round(float(y[m].mean()), 6) if m.any() else None
+    ev["group_means"] = means
+    ev["estimates"] = {"difference_in_differences": _fmt(cs.did(y, treated, post, clusters))}
+    ev["pre_trend_test"] = {k: (round(v, 6) if isinstance(v, float) else v)
+                            for k, v in cs.pre_trend(y, treated, time_index, 1 - post, clusters).items()}
+    if len(periods) <= _EVENT_STUDY_MAX_PERIODS:
+        ref = min(i for p, i in index.items() if not p < start) - 1   # last pre-period
+        ev["event_study"] = [
+            {"period": str(periods[g["period"] - 1]), "relative_period": int(g["period"] - ref),
+             "gap_vs_last_pre": round(g["gap_vs_ref"], 6), "se": round(g["se"], 6),
+             "p_value": float(f"{g['p_value']:.3g}")}
+            for g in cs.event_study(y, treated, time_index, ref, clusters)]
+    if unit_col:
+        switches = data.groupby(unit_col)[group_col].nunique()
+        ev["units_switching_group"] = int((switches > 1).sum())
+    ev["_recompute"] = {"y": y, "treated": treated, "post": post, "clusters": clusters}
+    return ev
+
+
+def _did(df, outcome_col, group_col, time_col, treatment_start, unit_col, treated_value, context, session):
+    if session is not None and not context:
+        context = getattr(session, "context", "")
+    ev = compute_did_evidence(df, outcome_col, group_col, time_col, treatment_start, unit_col, treated_value)
+    shown = {k: v for k, v in ev.items() if not k.startswith("_")}
+    context_line = f"\nDecision this informs: {context}\n" if context else ""
+
+    response = api_call(
+        get_client().messages.create,
+        **role("analysis"),
+        max_tokens=16000,
+        tools=[strict_tool(_TOOL)],
+        tool_choice={"type": "auto"},
+        messages=[{
+            "role": "user",
+            "content": f"""You are a senior data scientist reviewing a difference-in-differences analysis before anyone acts on it.
+A change went live for the '{group_col}' treated group at {treatment_start}; outcome '{outcome_col}' over '{time_col}'.{context_line}
+Evidence (computed from the data; every number below is exact):
+{json.dumps(shown, indent=1, default=str)}
+
+Difference-in-differences is only causal if, without the change, the treated group's outcome would
+have moved in parallel with the control group's. Judge whether that holds:
+- Pre-trends: in event_study, gaps before the change (relative_period < 0) should hover around
+  zero; pre_trend_test.differential_slope_per_period far from zero (small p_value) means the
+  groups were already diverging and the estimate mixes that trend with the effect.
+- Anticipation: gaps that move just before the start suggest people reacted early.
+- Composition: units switching group (units_switching_group) or entering/leaving around the
+  change break the comparison.
+- Inference: with few clusters (treated or control units), standard errors are unreliable;
+  say so.
+Use design 'observational', identification_strategy 'difference_in_differences' (or
+'none_credible' if parallel trends clearly fail), and method 'difference_in_differences'.
+
+Your verdict and findings must agree with the evidence. Report your results by calling the
+report_causal_analysis tool.""",
+        }],
+    )
+    out = tool_input(response, _TOOL["name"])
+    r = ev["_recompute"]
+    est = _fmt(cs.did(r["y"], r["treated"], r["post"], r["clusters"]))
+    est["excluded_covariates"] = []
+    out["estimate"] = est
     out["evidence"] = shown
     result = SkillResult(out, skill="causal_inference")
     if session is not None:
