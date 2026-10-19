@@ -111,8 +111,8 @@ databricks_client.py      # Databricks connector; LOCAL_DEV_MODE=true uses synth
 requirements.txt
 
 pages/                    # One file per Dash page (use_pages=True)
-  home.py                 # Workbench canvas — single-page, all 6 skills as dbc.Accordion
-                          # Route: /, sidebar link: "Workbench"
+  home.py                 # Workbench canvas — layout + session callbacks; every skill is a
+                          # dbc.Accordion section. Route: /, sidebar link: "Workbench"
   data_quality.py         # Data Quality standalone page (/data-quality)
   eda.py                  # EDA standalone page (/eda)
   join_auditor.py         # Join Auditor standalone page (/join-auditor)
@@ -140,6 +140,12 @@ benchmarks/               # Skill quality testing infrastructure
 agents/
   simulation.py           # Personas, scenarios, think/interpret/debrief/reflect steps
   scheduler.py            # RecommendationStore, BackgroundScheduler, draft/apply code changes
+
+workbench/                # Workbench page internals (imported by pages/home.py)
+  renderers/<skill>.py    # result dict → Dash components (dq, eda, ja, nl, ml, et, ms, ld, fe)
+  callbacks/<skill>.py    # run/render callbacks per skill section; importing the package registers them
+  session_panels.py       # readiness strip, pipeline health, guided workflow, synthesis, timeline
+  constants.py            # dataset/join options, SKILL_META, colour maps
 
 components/
   sidebar.py              # Sidebar: 4 nav links (Workbench, Feedback, Benchmarks, Agent Sim)
