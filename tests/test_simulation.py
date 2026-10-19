@@ -62,3 +62,16 @@ def test_scheduler_is_manual_by_default(monkeypatch):
     monkeypatch.setattr(config, "sim_interval_hours", 0.0)
     monkeypatch.setenv("WERKZEUG_RUN_MAIN", "true")
     assert scheduler.start_scheduler() is None
+
+
+def test_judge_rates_the_full_output_not_the_summary(fake_api):
+    fake_api.responder = lambda kw: tool_reply(kw["model"], "rate_output",
+                                               {"usefulness": 4, "clarity": 4, "brief_note": "none"})
+    long_evidence = "x" * 500 + " END-OF-EVIDENCE"
+    result = {"verdict": "suspicious", "profile": {"huge": "profiling data"},
+              "findings": [{"column": f"c{i}", "severity": "info", "evidence": long_evidence}
+                           for i in range(6)]}
+    simulation.evaluate_output_step(PERSONA, "leakage_detector", "ecommerce", result, SCENARIO)
+    prompt = fake_api.calls[0]["messages"][0]["content"]
+    assert prompt.count("END-OF-EVIDENCE") == 6      # every finding, untruncated
+    assert "profiling data" not in prompt             # internal profile omitted

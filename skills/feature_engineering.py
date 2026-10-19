@@ -9,7 +9,7 @@ import json
 import pandas as pd
 import numpy as np
 from skills.dtypes import is_text
-from skills.result import SkillResult
+from skills.result import SkillResult, findings_of
 from skills.api_retry import api_call, get_client, skill_entry, strict_tool, tool_input
 from skills.models import role
 
@@ -297,6 +297,7 @@ def _suggest(
         if not context:
             context = getattr(session, "context", "")
 
+    leakage_findings = findings_of(leakage_findings)  # accepts a prior result or its findings list
     session_warnings = session.prerequisite_warnings("feature_engineering") if session else []
 
     profile = build_feature_profile(df, target_col)

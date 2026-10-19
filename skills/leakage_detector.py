@@ -8,7 +8,7 @@ LLM analysis to flag features that would inflate training accuracy but fail in p
 import json
 import pandas as pd
 import numpy as np
-from skills.result import SkillResult
+from skills.result import SkillResult, findings_of
 from skills.api_retry import api_call, get_client, skill_entry, tool_input
 from skills.models import THINKING_ADAPTIVE, role
 
@@ -237,6 +237,7 @@ def _check(
         if not context:
             context = getattr(session, "context", "")
 
+    dq_findings = findings_of(dq_findings)  # accepts a prior result or its findings list
     session_warnings = session.prerequisite_warnings("leakage_detector") if session else []
 
     if session is not None and session.has_run("feature_engineering"):
@@ -382,6 +383,10 @@ Reference the specific statistics from the profile in your evidence fields."""
     tool_args = tool_input(response, _TOOL["name"])
     result = SkillResult(tool_args, skill="leakage_detector",
                          session_warnings=session_warnings)
+    # Ready for the next cell: df.drop(columns=result["drop_columns"])
+    result["drop_columns"] = list(dict.fromkeys(
+        f["column"] for f in result.get("findings", [])
+        if f.get("severity") == "critical" and f.get("column")))
     if sample_note:
         result["sample_note"] = sample_note
 

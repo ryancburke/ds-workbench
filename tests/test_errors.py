@@ -68,3 +68,28 @@ def test_truncated_tool_call_is_an_error_not_a_partial_result(fake_api):
         NS(type="tool_use", name="report_eda", input={"key_insights": []})])
     out = eda.analyze(dc._gen_ecommerce(100), "ecommerce")
     assert "cut off at max_tokens" in out["error"]
+
+
+def test_skills_accept_a_prior_result_object(fake_api):
+    """The notebook flow: ld = leakage.check(...); fe.suggest(df, y, leakage_findings=ld)."""
+    from skills import feature_engineering
+    from skills.result import SkillResult
+    ld = SkillResult({"verdict": "leakage_detected", "findings": [
+        {"column": "conversion_score", "severity": "critical", "leakage_type": "direct",
+         "description": "derived from target"}]}, skill="leakage_detector")
+    feature_engineering.suggest(dc._gen_ecommerce_leakage(100), "converted", leakage_findings=ld)
+    prompt = fake_api.calls[0]["messages"][0]["content"]
+    assert "conversion_score [direct]" in prompt
+
+
+def test_leakage_result_lists_columns_to_drop(fake_api):
+    from tests.conftest import tool_reply
+    def respond(kw):
+        if kw.get("tool_choice", {}).get("type") == "tool":
+            return tool_reply(kw["model"], "report_leakage", {"verdict": "leakage_detected", "findings": [
+                {"column": "conversion_score", "severity": "critical"},
+                {"column": "user_id", "severity": "info"}]})
+        return text_reply(kw["model"], "analysis")
+    fake_api.responder = respond
+    out = leakage_detector.check(dc._gen_ecommerce_leakage(100), "converted")
+    assert out["drop_columns"] == ["conversion_score"]

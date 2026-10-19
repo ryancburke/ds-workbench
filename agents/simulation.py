@@ -609,6 +609,29 @@ def _run_skill(skill: str, dataset: str, decision: dict, scenario: dict) -> tupl
     return result, run_record
 
 
+# Profiling data the skill computed for its prompt; the data scientist doesn't read it
+_JUDGE_OMIT = {"profile"}
+_JUDGE_MAX_FIELD = 6000
+
+
+def _judge_view(result: dict) -> str:
+    """The skill's full output as JSON, which is what the data scientist sees in the
+    notebook. The rating must judge the skill, not _result_summary's truncation."""
+    import json
+
+    def clip(v):
+        if isinstance(v, str) and len(v) > _JUDGE_MAX_FIELD:
+            return v[:_JUDGE_MAX_FIELD] + " …[shortened by the simulation, not the skill]"
+        if isinstance(v, list):
+            return [clip(x) for x in v]
+        if isinstance(v, dict):
+            return {k: clip(x) for k, x in v.items()}
+        return v
+
+    return json.dumps({k: clip(v) for k, v in dict(result).items() if k not in _JUDGE_OMIT},
+                      indent=1, default=str)
+
+
 def _result_summary(skill: str, result: dict) -> str:
     """Build a brief text summary of skill results for the interpret prompt."""
     if skill == "data_quality":
@@ -726,7 +749,7 @@ def evaluate_output_step(
     quant = auto_score(skill, result, dataset, scenario["id"], join_scenario)
 
     # ── Qualitative (persona rates the output) ────────────────────────────────
-    result_summary = _result_summary(skill, result)
+    result_view = _judge_view(result)
 
     try:
         qual_resp = _client().messages.create(
@@ -740,8 +763,9 @@ def evaluate_output_step(
             messages=[{
                 "role": "user",
                 "content": (
-                    f"You got this output from the {skill} skill on dataset '{dataset}':\n\n"
-                    f"{result_summary}\n\n"
+                    f"This is the complete output the {skill} skill returned on dataset "
+                    f"'{dataset}' (what you'd see in your notebook):\n\n"
+                    f"{result_view}\n\n"
                     "Rate the output on two dimensions:\n"
                     "- usefulness (1-5): Did it help you answer the business question?\n"
                     "- clarity (1-5): How easy was it to extract the key insight at a glance?\n"
