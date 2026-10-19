@@ -109,6 +109,20 @@ On the Feedback page, **Approve & Draft** asks Claude for a small, checked edit 
 right file. **Export Patch** writes it to `feedback/patches/` so you can apply it on a
 branch. The app never edits its own source.
 
+## Costs
+
+Every Claude call is recorded in a usage ledger (`skills/usage.py`, `feedback/usage.jsonl`):
+user, skill, run, model, effort, tokens (including cache), latency, outcome and estimated cost.
+Only metadata is recorded, never prompts or data. The **Costs** page shows spend by day,
+skill, user and model, cost per successful run, and what failures cost. Costs are list-price
+estimates; the platform team can reconcile them with the Anthropic Usage & Cost Admin API.
+
+- **User attribution:** the signed-in user from the app's request headers (Databricks Apps
+  forwards `X-Forwarded-Email`), else `WORKBENCH_USER` / `DATABRICKS_USER`, else the OS user.
+  In a notebook, `with call_context(user=...)` sets it explicitly.
+- **On Databricks:** schedule `skills.usage.export_to_delta(spark, "main.ds_workbench.usage")`
+  to load the ledger into a Delta table for platform dashboards.
+
 ## Configuration
 
 Everything is read from `.env` by `config.py`; see `.env.example`.

@@ -65,6 +65,8 @@ def fake_api(monkeypatch, tmp_path):
     api = FakeAPI()
     monkeypatch.setattr(Messages, "create", lambda _self, **kw: api.create(**kw))
     monkeypatch.setattr(Messages, "stream", lambda _self, **kw: api.stream(**kw))
-    # never touch the real refusal log
+    # never touch the real refusal log or usage ledger
     monkeypatch.setattr(api_retry, "REFUSAL_LOG", tmp_path / "refusals.jsonl")
+    from skills import usage
+    monkeypatch.setattr(usage, "LEDGER_FILE", tmp_path / "usage.jsonl")
     return api
