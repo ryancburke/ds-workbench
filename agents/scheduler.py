@@ -449,7 +449,7 @@ def draft_code_change(rec_id: str) -> tuple[str, str]:
     Raises on failure.
     """
     from skills.api_retry import check_response, get_client, response_text
-    from skills.models import CODE_EXTRA, CODE_MODEL
+    from skills.models import role
 
     rec = get_rec(rec_id)
     if not rec:
@@ -464,9 +464,8 @@ def draft_code_change(rec_id: str) -> tuple[str, str]:
     # A whole-file rewrite can be tens of thousands of tokens (pages/home.py is ~3.3k
     # lines), so stream with a large max_tokens rather than truncating at 8k.
     with get_client().messages.stream(
-        model=CODE_MODEL,
+        **role("code"),
         max_tokens=64000,
-        **CODE_EXTRA,
         system=(
             "You are an expert Plotly Dash developer implementing a UX improvement for a "
             "data science workbench. The app uses Dash 4.4, dash-bootstrap-components with "

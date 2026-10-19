@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 
 from skills.api_retry import (call_context, check_response, get_client as _client,
                               response_text, strict_tool, tool_input)
-from skills.models import SIM_EXTRA, SIM_JUDGE_EXTRA, SIM_JUDGE_MODEL, SIM_MODEL
+from skills.models import role
 
 log = logging.getLogger(__name__)
 
@@ -339,9 +339,8 @@ If you have enough information to give a solid recommendation, choose give_debri
     # 5.x models reject forced tool_choice, so the tool is strict + auto and the
     # prompt names it. Thinking counts toward max_tokens, hence the headroom.
     resp = _client().messages.create(
-        model=SIM_MODEL,
+        **role("sim"),
         max_tokens=4096,
-        **SIM_EXTRA,
         system=system,
         messages=[{
             "role": "user",
@@ -391,9 +390,8 @@ def interpret_step(persona: dict, skill: str, dataset: str, result: dict) -> str
     summary = _result_summary(skill, result)
 
     resp = _client().messages.create(
-        model=SIM_MODEL,
+        **role("sim"),
         max_tokens=2048,  # length is set by the prompt; headroom is for thinking
-        **SIM_EXTRA,
         system=(
             f"You are {persona['name']}, {persona['role']}. "
             f"Your style: {persona['approach']}"
@@ -420,9 +418,8 @@ def debrief_step(persona: dict, scenario: dict, my_steps: list) -> str:
     ) or "Worked from my teammates' findings."
 
     resp = _client().messages.create(
-        model=SIM_JUDGE_MODEL,
+        **role("sim_judge"),
         max_tokens=4096,  # length is set by the prompt; headroom is for thinking
-        **SIM_JUDGE_EXTRA,
         system=(
             f"You are {persona['name']}, {persona['role']}. "
             f"Your style: {persona['approach']}"
@@ -733,9 +730,8 @@ def evaluate_output_step(
 
     try:
         qual_resp = _client().messages.create(
-            model=SIM_JUDGE_MODEL,
+            **role("sim_judge"),
             max_tokens=2048,
-            **SIM_JUDGE_EXTRA,
             system=(
                 f"You are {persona['name']}, {persona['role']}. "
                 f"You just used the {skill} skill while working on this question: "
@@ -952,9 +948,8 @@ When these skill results appear in the team dashboard — do the findings surfac
 Be specific and honest. Reference what you actually ran and what you saw in the outputs."""
 
     resp = _client().messages.create(
-        model=SIM_JUDGE_MODEL,
+        **role("sim_judge"),
         max_tokens=8192,  # 2-3 tool calls plus thinking
-        **SIM_JUDGE_EXTRA,
         system=system,
         messages=[{
             "role": "user",

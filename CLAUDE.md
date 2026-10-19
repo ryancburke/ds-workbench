@@ -75,8 +75,9 @@ shows quality trends per skill over time.
   `allow_duplicate=True` for multiple callbacks writing to the same output
 - **Dash Bootstrap Components** — DARKLY theme throughout; never introduce a different theme
 - **Anthropic SDK** — model IDs and per-role effort levels are settings in `config.py`
-  (overridable in `.env`; see `.env.example`); `skills/models.py` re-exports them as
-  `*_MODEL` / `*_EXTRA` for skills and agents. Opus 5.5 for heavy reasoning (DQ), Fable 5.1
+  (overridable in `.env`; see `.env.example`). Calls use `**role("<role>")` from
+  `skills/models.py` (model + effort, read at call time); `override_roles()` swaps a role
+  for sweeps. Opus 5.5 for heavy reasoning (DQ), Fable 5.1
   for leakage, Sonnet 5.5 for general analysis and simulation personas, Opus 5.5 for
   simulation judging, Haiku 5.5 for structured extraction (Pass 2). Every call uses the
   shared client `skills.api_retry.get_client()` (the SDK owns retries) and goes through
@@ -306,6 +307,9 @@ LOCAL_DEV_MODE=true .venv/bin/python app.py
 
 # Run benchmark suite
 .venv/bin/python benchmarks/runner.py
+
+# Compare models/effort on the real skills (scores, spread, $/run)
+.venv/bin/python benchmarks/model_compare.py --filter leakage --arms claude-opus-5-5:medium claude-sonnet-5-5:high --trials 3
 ```
 
 `LOCAL_DEV_MODE=true` bypasses Databricks and uses synthetic dataset generators in

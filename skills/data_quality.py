@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 from skills.result import SkillResult
 from skills.api_retry import api_call, get_client, skill_entry, tool_input
-from skills.models import REASONING_MODEL, STRUCTURED_MODEL, THINKING_ADAPTIVE, REASONING_EXTRA
+from skills.models import THINKING_ADAPTIVE, role
 
 
 _TOOL = {
@@ -185,10 +185,9 @@ After all six steps:
     # Pass 1: systematic sweep + domain reasoning with extended thinking
     pass1 = api_call(
         get_client().messages.create,
-        model=REASONING_MODEL,
+        **role("reasoning"),
         max_tokens=14000,
         thinking=THINKING_ADAPTIVE,
-        **REASONING_EXTRA,
         messages=[{"role": "user", "content": _prompt}],
     )
     analysis = next((b.text for b in pass1.content if b.type == "text"), "")
@@ -198,7 +197,7 @@ After all six steps:
     # Pass 2: extract and format the reasoned analysis into structured output
     response = api_call(
         get_client().messages.create,
-        model=STRUCTURED_MODEL,
+        **role("structured"),
         max_tokens=4096,
         tools=[_TOOL],
         tool_choice={"type": "tool", "name": "report_data_quality"},

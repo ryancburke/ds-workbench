@@ -1,7 +1,7 @@
 import json
 import pandas as pd
 from skills.api_retry import api_call, get_client, skill_entry, tool_input
-from skills.models import ANALYSIS_MODEL, STRUCTURED_MODEL, THINKING_ADAPTIVE, ANALYSIS_EXTRA
+from skills.models import THINKING_ADAPTIVE, role
 
 
 _TOOL = {
@@ -115,10 +115,9 @@ Reference the actual table names ({left_name}, {right_name}) and key columns ({j
     # Pass 1: reason with extended thinking
     _r1 = api_call(
         get_client().messages.create,
-        model=ANALYSIS_MODEL,
+        **role("analysis"),
         max_tokens=12000,
         thinking=THINKING_ADAPTIVE,
-        **ANALYSIS_EXTRA,
         messages=[{"role": "user", "content": _prompt}],
     )
     _analysis = next((b.text for b in _r1.content if b.type == "text"), "")
@@ -128,7 +127,7 @@ Reference the actual table names ({left_name}, {right_name}) and key columns ({j
     # Pass 2: format into structured output
     response = api_call(
         get_client().messages.create,
-        model=STRUCTURED_MODEL,
+        **role("structured"),
         max_tokens=2048,
         tools=[_TOOL],
         tool_choice={"type": "tool", "name": "report_join_audit"},

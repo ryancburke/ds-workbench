@@ -11,7 +11,7 @@ import numpy as np
 from skills.dtypes import is_text
 from skills.result import SkillResult
 from skills.api_retry import api_call, get_client, skill_entry, strict_tool, tool_input
-from skills.models import GENERAL_MODEL, GENERAL_EXTRA
+from skills.models import role
 
 
 _TOOL = {
@@ -320,8 +320,7 @@ def _suggest(
 
     response = api_call(
         get_client().messages.create,
-        model=GENERAL_MODEL,
-        **GENERAL_EXTRA,
+        **role("general"),
         # thinking + a full pipeline script; 8192 truncated the tool input on fraud data.
         # Kept under ~21k so the SDK still allows a non-streaming request.
         max_tokens=20000,
