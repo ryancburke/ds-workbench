@@ -43,3 +43,21 @@ def test_spark_class_names_map_to_model_families():
     assert _normalise_family("LogisticRegression") == "logistic_regression"
     assert _normalise_family("LinearSVC") == "svm"
     assert _normalise_family("logistic_regression") == "logistic_regression"  # unchanged
+
+
+def test_small_wide_case_rewards_regularised_cv_and_penalises_boosting_holdout():
+    key = load_answer_key("clinical_small_wide", "model_selector_responder")
+    def output(family, model, validation, readiness="needs_prep"):
+        return {"task_type": "binary_classification", "data_readiness": readiness,
+                "target_analysis": {"summary": "s", "class_balance_issue": False},
+                "decision": {"model": model, "imbalance_strategy": "not needed", "primary_metric": "ROC-AUC",
+                             "validation": validation},
+                "recommendations": [{"rank": 1, "model_family": family, "display_name": model,
+                                     "suitability": "strong", "rationale": "r"},
+                                    {"rank": 2, "model_family": "random_forest", "display_name": "RF",
+                                     "suitability": "moderate", "rationale": "r"}]}
+    sound = score_model_selector(output("logistic_regression", "Elastic-net logistic regression",
+                                        "repeated stratified 5-fold CV"), key)
+    trap = score_model_selector(output("gradient_boosting", "GBTClassifier", "80/20 holdout", "ready"), key)
+    assert sound.overall == 100.0
+    assert trap.overall < 60
