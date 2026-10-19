@@ -47,7 +47,7 @@ _TOOL = {
                     "type": "object",
                     "properties": {
                         "rank":         {"type": "integer"},
-                        "model_family": {"type": "string"},
+                        "model_family": {"type": "string", "description": "Family name in snake_case, e.g. gradient_boosting, random_forest, logistic_regression"},
                         "display_name": {"type": "string"},
                         "suitability":  {"type": "string", "enum": ["strong", "moderate", "weak"]},
                         "rationale":    {"type": "string"},
@@ -57,12 +57,23 @@ _TOOL = {
                     "required": ["rank", "model_family", "display_name", "suitability", "rationale"],
                 },
             },
+            "decision": {
+                "type": "object",
+                "description": "The four choices the data scientist needs for their next cell",
+                "properties": {
+                    "model":              {"type": "string", "description": "Rank-1 model, e.g. 'GBTClassifier'"},
+                    "imbalance_strategy": {"type": "string", "description": "e.g. 'weightCol, positive weight ≈ 32' or 'not needed (balanced)'"},
+                    "primary_metric":     {"type": "string", "description": "The metric to optimise and report, e.g. 'PR-AUC; recall at 90% precision'"},
+                    "validation":         {"type": "string", "description": "How to split/validate, e.g. 'time-based holdout on created_at, last 20%'"},
+                },
+                "required": ["model", "imbalance_strategy", "primary_metric", "validation"],
+            },
             "data_readiness":  {"type": "string", "enum": ["ready", "needs_prep", "insufficient"]},
             "readiness_notes": {"type": "array",  "items": {"type": "string"}},
             "summary":         {"type": "string"},
         },
         "required": [
-            "task_type", "target_analysis", "assumption_checks",
+            "task_type", "decision", "target_analysis", "assumption_checks",
             "recommendations", "data_readiness", "summary",
         ],
     },
@@ -280,6 +291,11 @@ Data profile:
 
 4. **Assess data readiness**: ready (train immediately), needs_prep (specific transforms
    required first), or insufficient (fundamental gaps).
+
+5. **State the decision** the data scientist will act on, consistent with everything above:
+   the rank-1 model, the imbalance strategy (or why none is needed), the primary metric to
+   optimise and report (with a heavily imbalanced target, accuracy is misleading because
+   predicting the majority class scores high), and how to split and validate.
 
 Ground all reasoning in the actual numbers above, not generic ML advice."""
 

@@ -29,7 +29,7 @@ def _more_severe_than(output_sev: str, max_sev: str) -> bool:
 # ── Model family keyword matching ─────────────────────────────────────────────
 
 _FAMILY_KEYWORDS: dict[str, list[str]] = {
-    "gradient_boosting": ["gradient_boost", "gbm", "xgboost", "xgb", "lightgbm", "lgbm", "catboost"],
+    "gradient_boosting": ["gradient_boost", "gbm", "gbt", "xgboost", "xgb", "lightgbm", "lgbm", "catboost"],
     "xgboost":           ["xgboost", "xgb"],
     "lightgbm":          ["lightgbm", "lgbm"],
     "catboost":          ["catboost"],
@@ -39,7 +39,7 @@ _FAMILY_KEYWORDS: dict[str, list[str]] = {
     "ridge":             ["ridge"],
     "lasso":             ["lasso"],
     "decision_tree":     ["decision_tree", "decision tree"],
-    "svm":               ["svm", "support vector"],
+    "svm":               ["svm", "svc", "support vector"],
     "neural_network":    ["neural_network", "neural network", "deep learning", "mlp", "ann"],
     "naive_bayes":       ["naive_bayes", "naive bayes", "bayes"],
     "isolation_forest":  ["isolation_forest", "isolation forest"],
@@ -58,6 +58,8 @@ def _normalise_family(name: str) -> str:
     """Normalise a model family string to a canonical key (or return as-is lowercase).
     Uses one-directional matching: keyword must appear IN the name, not the reverse.
     This prevents 'regression' from matching 'logistic_regression'."""
+    # Spark MLlib class names (GBTClassifier, RandomForestClassifier) → gbt_classifier, ...
+    name = re.sub(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])", "_", name)
     name_lower = name.lower().replace("-", "_").replace(" ", "_")
     for canonical, keywords in _FAMILY_KEYWORDS.items():
         if any(kw.replace(" ", "_") in name_lower for kw in keywords):
@@ -506,6 +508,19 @@ def score_model_selector(output: dict, answer_key: dict, benchmark_id: str | Non
             )
             missed.append("imbalance_handling")
 
+    # The decision's primary metric must suit the target (optional per key), e.g. not
+    # plain accuracy at 32:1, where predicting the majority class scores 97%
+    metric_spec = answer_key.get("decision_primary_metric")
+    if metric_spec:
+        metric = str((output.get("decision") or {}).get("primary_metric", "")).lower()
+        ok = any(term in metric for term in metric_spec["any_of"])
+        max_pts += 10
+        if ok:
+            total_pts += 10; matched.append("decision_primary_metric")
+        else:
+            missed.append("decision_primary_metric")
+            notes.append(f"DECISION METRIC: {metric!r} — expected one of {metric_spec['any_of']}")
+
     # Starter code must not learn from the evaluation rows (optional per key)
     if answer_key.get("split_before_learning"):
         code = "\n".join(r.get("starter_code") or "" for r in output.get("recommendations", []))
@@ -517,7 +532,8 @@ def score_model_selector(output: dict, answer_key: dict, benchmark_id: str | Non
             missed.append("split_before_learning"); notes.append(f"LEAKY STARTER CODE: {why}")
 
     # ── Composite score ───────────────────────────────────────────────────────
-    recall = len([m for m in matched if m not in ("imbalance_handling", "split_before_learning")]) \
+    recall = len([m for m in matched if m not in ("imbalance_handling", "split_before_learning",
+                                                  "decision_primary_metric")]) \
         / max(len(required_fields), 1)
     overall = (total_pts / max_pts * 100) if max_pts > 0 else 0.0
 

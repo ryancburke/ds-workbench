@@ -142,5 +142,17 @@ def _ms_render(result: dict) -> html.Div:
         html.Ul([html.Li(n, className="small") for n in rdy_notes], className="mb-0 mt-1"),
     ], color="warning", className="py-2") if rdy_notes else html.Div()
 
-    return html.Div([verdict_hero, header, target_card, assumption_card, recs_section, notes_section])
+    # ── Decision: the four choices for the next cell, before any reasoning ────
+    decision = result.get("decision") or {}
+    decision_rows = [
+        html.Tr([html.Td(html.Strong(label), style={"width": "110px"}), html.Td(decision[key])])
+        for label, key in (("Model", "model"), ("Imbalance", "imbalance_strategy"),
+                           ("Metric", "primary_metric"), ("Validation", "validation"))
+        if decision.get(key)
+    ]
+    decision_table = dbc.Table(html.Tbody(decision_rows), size="sm", bordered=False,
+                               className="mb-3") if decision_rows else html.Div()
+
+    return html.Div([verdict_hero, decision_table, header, target_card, assumption_card,
+                     recs_section, notes_section])
 

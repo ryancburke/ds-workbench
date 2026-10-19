@@ -105,6 +105,17 @@ def _critical_callout(
     )
 
 
+def _decision_table(decision: dict) -> str:
+    """The four choices for the next cell, shown before any reasoning."""
+    rows = [("Model", "model"), ("Imbalance", "imbalance_strategy"),
+            ("Metric", "primary_metric"), ("Validation", "validation")]
+    cells = "".join(
+        f'<tr><td style="font-weight:600;width:90px">{label}</td><td>{decision.get(key, "—")}</td></tr>'
+        for label, key in rows if decision.get(key))
+    return (f'<table class="wr-tbl" style="margin:4px 0 10px"><tbody>{cells}</tbody></table>'
+            if cells else "")
+
+
 def _imbalance_callout(target_analysis: dict) -> str:
     """Amber callout when the target has a class balance issue."""
     if not target_analysis.get("class_balance_issue"):
@@ -472,6 +483,7 @@ def _render_model_selector(r: dict) -> str:
         f'{_badge(readiness.replace("_"," ").title(), rc)}'
         f'</div>'
         f'<div class="wr-body">'
+        + _decision_table(r.get("decision") or {})
         + insufficient_html
         + _imbalance_callout(target_analysis)
         + f'{recs_tbl}'
