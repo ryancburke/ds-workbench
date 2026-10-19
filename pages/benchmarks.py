@@ -58,16 +58,28 @@ def layout():
                 html.H4([html.I(className="bi bi-speedometer2 me-2"), "Skill Benchmarks"],
                         className="mb-1"),
                 html.P(
-                    "Each time agents run a skill on synthetic data, the output is scored against "
-                    "a known answer key (quantitative recall) and rated by the persona for "
-                    "usefulness and clarity (qualitative). Trend over time shows whether skills "
-                    "are improving. Readiness = 4.0+ overall.",
+                    "Two sources: the ground-truth suite scores each skill against answer keys "
+                    "(run it before shipping a skill change), and simulations score the runs the "
+                    "agent personas make, combining answer-key recall with the persona's rating "
+                    "of usefulness and clarity. Simulation readiness = 4.0+ overall.",
                     className="text-muted mb-0 small",
                 ),
             ]),
             dbc.Col(html.Div(id="bench-header-stats"), width="auto",
                     className="d-flex align-items-center"),
         ], className="mb-4 align-items-start"),
+
+        # ── Ground-truth suite (benchmarks/runner.py) ─────────────────────────
+        dbc.Card([
+            dbc.CardHeader([
+                html.Span("Ground-truth suite", className="fw-semibold"),
+                html.Span("  answer-key scores from benchmarks/runner.py · Δ vs the previous run "
+                          "that scored each case", className="text-muted small"),
+            ]),
+            dbc.CardBody(html.Div(id="bench-suite")),
+        ], className="mb-4", style={"backgroundColor": "#16162a", "border": "1px solid #252545"}),
+
+        html.H5("Simulation scores", className="mb-2"),
 
         # ── Per-skill health grid ─────────────────────────────────────────────
         html.Div([
@@ -219,6 +231,75 @@ def render_dashboard(_, days):
     ])
 
     return cards, fig, stats
+
+
+# ── Ground-truth suite ────────────────────────────────────────────────────────
+
+@callback(
+    Output("bench-suite", "children"),
+    Input("bench-refresh-trigger", "data"),
+    prevent_initial_call=True,
+)
+def render_suite(_):
+    from benchmarks.history import load_runs, suite_summary
+
+    summary = suite_summary(load_runs())
+    if not summary:
+        return html.P(["No suite runs yet. Run ", html.Code(".venv/bin/python benchmarks/runner.py"),
+                       " (about $1.20 and 10 minutes for the full suite)."],
+                      className="text-muted mb-0 small")
+    return _suite_panel(summary)
+
+
+def _suite_panel(summary: dict) -> html.Div:
+    s, ts = summary["summary"], summary["timestamp"]
+    when = f"{ts[:4]}-{ts[4:6]}-{ts[6:8]} {ts[9:11]}:{ts[11:13]} UTC" if len(ts) >= 13 else ts
+    head = html.Div([
+        dbc.Badge(f"{s.get('n_pass', 0)}/{s.get('n_total', 0)} passing", className="me-1",
+                  color="success" if s.get("n_pass") == s.get("n_total") else "warning"),
+        dbc.Badge(f"mean {s.get('mean_score', 0):.1f}", color="info", className="me-2"),
+        html.Span(f"latest run {when}" + (" (re-scored from cache)" if summary["score_only"] else ""),
+                  className="small text-muted"),
+    ], className="mb-2")
+
+    rows = []
+    for r in summary["rows"]:
+        if r["error"]:
+            score_cell = dbc.Badge("error", color="danger", title=r["error"][:300])
+        else:
+            score_cell = html.Span(f"{r['score']:.1f}", className="fw-semibold" if r["passed"] else "text-danger fw-semibold")
+        delta = r["delta"]
+        delta_cell = ("—" if delta is None or delta == 0 else
+                      html.Span(f"{delta:+.1f}", style={"color": "#7ee787" if delta > 0 else "#ffa198"}))
+        issues = r["missed"] or [n for n in r["notes"] if not n.startswith("GOOD")]
+        rows.append(html.Tr([
+            html.Td(html.Code(r["id"], style={"fontSize": "0.75rem"})),
+            html.Td(score_cell),
+            html.Td(delta_cell),
+            html.Td(", ".join(map(str, issues))[:160] or "—", className="small text-muted",
+                    title="\n".join(r["notes"])),
+        ]))
+    table = dbc.Table([html.Thead(html.Tr([html.Th("Case"), html.Th("Score"), html.Th("Δ"),
+                                           html.Th("Missed / notes")])),
+                       html.Tbody(rows)], size="sm", hover=True, responsive=True, className="mb-2")
+
+    models = summary.get("models") or {}
+    models_line = html.Div(
+        "Models: " + " · ".join(f"{k} {v.removeprefix('claude-')}" for k, v in models.items()
+                                if k in ("reasoning", "analysis", "general", "leakage", "structured")),
+        className="small text-muted mb-2") if models else html.Div()
+
+    trend = [t for t in summary["trend"] if t["mean"] is not None]
+    fig = go.Figure(go.Scatter(
+        x=list(range(1, len(trend) + 1)), y=[t["mean"] for t in trend], mode="lines+markers",
+        line={"color": "#6478ff"}, hovertext=[t["timestamp"] for t in trend],
+        hovertemplate="%{hovertext}<br>mean %{y:.1f}<extra></extra>"))
+    fig.update_layout(height=140, margin={"l": 30, "r": 10, "t": 10, "b": 20},
+                      paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                      font={"color": "#aaa", "size": 10}, xaxis={"showticklabels": False},
+                      yaxis={"range": [0, 101], "gridcolor": "#252545"})
+    return html.Div([head, models_line, table,
+                     dcc.Graph(figure=fig, config={"displayModeBar": False}) if len(trend) > 1 else html.Div()])
 
 
 # ── Skill detail tab ──────────────────────────────────────────────────────────
