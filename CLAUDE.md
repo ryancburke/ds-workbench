@@ -217,7 +217,9 @@ Start session → data_quality (auto-run on all datasets)
 ```
 
 ### Planned (next)
-Nothing currently planned — the core workflow is complete.
+See `ROADMAP.md`: causal inference (in progress), then recommenders, then optimisation;
+plus a real-data pilot and benchmark cases for the untested archetypes. Keep it updated as
+skills land.
 
 ## Benchmark suite architecture
 
