@@ -1,0 +1,29 @@
+{
+ "_meta": {
+  "dataset": "experiment_metrics",
+  "skill": "experiment_tracker",
+  "schema_version": "1.0",
+  "description": "Near-perfect held-out AUC with one dominant post-event-sounding feature: leakage."
+ },
+ "input": {
+  "metrics": {
+   "train_auc": 0.9995,
+   "val_auc": 0.998,
+   "val_f1": 0.97,
+   "n_features": 42,
+   "top_features": {
+    "days_since_refund": 0.61,
+    "amount": 0.08,
+    "tenure": 0.05
+   }
+  },
+  "context": "Predicting which orders will be refunded"
+ },
+ "acceptable_verdicts": [
+  "red_flags"
+ ],
+ "required_dimensions": [
+  "data_leakage"
+ ],
+ "forbidden_critical_dimensions": []
+}

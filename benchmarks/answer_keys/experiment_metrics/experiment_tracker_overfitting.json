@@ -1,0 +1,29 @@
+{
+ "_meta": {
+  "dataset": "experiment_metrics",
+  "skill": "experiment_tracker",
+  "schema_version": "1.0",
+  "description": "0.20 train/held-out gap with a deep tree on 4k rows: overfitting, not leakage."
+ },
+ "input": {
+  "metrics": {
+   "train_auc": 0.98,
+   "val_auc": 0.78,
+   "test_auc": 0.77,
+   "model": "gbt",
+   "max_depth": 12,
+   "n_rows": 4000
+  },
+  "context": "Churn prediction"
+ },
+ "acceptable_verdicts": [
+  "needs_work",
+  "red_flags"
+ ],
+ "required_dimensions": [
+  "overfitting"
+ ],
+ "forbidden_critical_dimensions": [
+  "data_leakage"
+ ]
+}

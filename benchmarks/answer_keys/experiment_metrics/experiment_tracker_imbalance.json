@@ -1,0 +1,30 @@
+{
+ "_meta": {
+  "dataset": "experiment_metrics",
+  "skill": "experiment_tracker",
+  "schema_version": "1.0",
+  "description": "High accuracy carried by the 97% majority; recall 0.08 means the model barely finds fraud."
+ },
+ "input": {
+  "metrics": {
+   "train_accuracy": 0.975,
+   "val_accuracy": 0.97,
+   "val_f1": 0.12,
+   "val_recall": 0.08,
+   "val_precision": 0.4,
+   "positive_rate": 0.03
+  },
+  "context": "Fraud detection"
+ },
+ "acceptable_verdicts": [
+  "needs_work",
+  "red_flags"
+ ],
+ "required_dimensions": [
+  "class_imbalance"
+ ],
+ "forbidden_critical_dimensions": [
+  "data_leakage",
+  "overfitting"
+ ]
+}
