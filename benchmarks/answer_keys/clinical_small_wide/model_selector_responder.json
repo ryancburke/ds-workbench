@@ -1,0 +1,38 @@
+{
+ "_meta": {
+  "dataset": "clinical_small_wide",
+  "skill": "model_selector",
+  "schema_version": "1.1",
+  "target_col": "responder",
+  "generator": "databricks_client._gen_clinical_small_wide(n=160)",
+  "description": "Hard case: 160 patients, 47 numeric features (46 markers + age), only 4 informative and linear; 6 near-duplicate re-run assays (r > 0.95). Target ~41% positive (roughly balanced). The sound recommendation is a regularised linear model (L1/elastic-net logistic regression) with repeated stratified cross-validation; boosting or deep models overfit at n/p ≈ 3.4, and a single 20% holdout is only 32 patients.",
+  "known_characteristics": [
+   "n=160, p=47 numeric features: high-dimensional for the sample size",
+   "4 informative markers with linear signal (|r| 0.2-0.45), the rest noise",
+   "6 *_rerun columns nearly duplicate other markers (multicollinearity)",
+   "Target ~41% positive: no meaningful imbalance"
+  ]
+ },
+ "required_fields": {
+  "task_type": {"acceptable_values": ["binary_classification"],
+                "note": "Boolean responder."},
+  "data_readiness": {"acceptable_values": ["needs_prep", "insufficient"],
+                     "note": "Feature reduction / regularisation and duplicate handling are required first; 'ready' ignores the n/p problem."}
+ },
+ "recommendations": {
+  "min_count": 2,
+  "max_count": 5,
+  "top_1_acceptable_families": ["logistic_regression", "svm", "naive_bayes"],
+  "acceptable_families": ["logistic_regression", "svm", "naive_bayes", "random_forest", "decision_tree", "gradient_boosting"],
+  "forbidden_families": ["neural_network", "clustering", "time_series", "arima", "prophet"],
+  "imbalance_handling_required": false
+ },
+ "decision_requirements": [
+  {"id": "decision_cross_validation", "field": "validation",
+   "any_of": ["cross-validation", "cross validation", "cv", "k-fold", "kfold", "fold"],
+   "note": "With 160 rows a single holdout is too noisy; use (repeated, stratified) k-fold CV."},
+  {"id": "decision_regularisation", "field": "model",
+   "any_of": ["l1", "l2", "elastic", "lasso", "ridge", "regulari", "penal"],
+   "note": "The top model should be explicitly regularised for p close to n."}
+ ]
+}

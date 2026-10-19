@@ -523,16 +523,18 @@ def score_model_selector(output: dict, answer_key: dict, benchmark_id: str | Non
 
     # The decision's primary metric must suit the target (optional per key), e.g. not
     # plain accuracy at 32:1, where predicting the majority class scores 97%
-    metric_spec = answer_key.get("decision_primary_metric")
-    if metric_spec:
-        metric = str((output.get("decision") or {}).get("primary_metric", "")).lower()
-        ok = any(term in metric for term in metric_spec["any_of"])
+    decision_specs = list(answer_key.get("decision_requirements", []))
+    if answer_key.get("decision_primary_metric"):
+        decision_specs.append({"id": "decision_primary_metric", "field": "primary_metric",
+                               **answer_key["decision_primary_metric"]})
+    for spec in decision_specs:
+        value = str((output.get("decision") or {}).get(spec["field"], "")).lower()
         max_pts += 10
-        if ok:
-            total_pts += 10; matched.append("decision_primary_metric")
+        if any(term in value for term in spec["any_of"]):
+            total_pts += 10; matched.append(spec["id"])
         else:
-            missed.append("decision_primary_metric")
-            notes.append(f"DECISION METRIC: {metric!r} — expected one of {metric_spec['any_of']}")
+            missed.append(spec["id"])
+            notes.append(f"DECISION {spec['field'].upper()}: {value[:80]!r} — expected one of {spec['any_of']}")
 
     # Starter code must not learn from the evaluation rows (optional per key)
     if answer_key.get("split_before_learning"):
@@ -545,8 +547,8 @@ def score_model_selector(output: dict, answer_key: dict, benchmark_id: str | Non
             missed.append("split_before_learning"); notes.append(f"LEAKY STARTER CODE: {why}")
 
     # ── Composite score ───────────────────────────────────────────────────────
-    recall = len([m for m in matched if m not in ("imbalance_handling", "split_before_learning",
-                                                  "decision_primary_metric")]) \
+    extra_ids = {"imbalance_handling", "split_before_learning"} | {d["id"] for d in decision_specs}
+    recall = len([m for m in matched if m not in extra_ids]) \
         / max(len(required_fields), 1)
     overall = (total_pts / max_pts * 100) if max_pts > 0 else 0.0
 

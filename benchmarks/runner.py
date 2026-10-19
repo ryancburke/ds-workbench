@@ -43,6 +43,7 @@ def _get_benchmarks() -> list[dict]:
         _gen_orders_dirty, _gen_sales_clean, _gen_hr_attrition,
         _gen_ecommerce, _gen_transactions_fraud, _gen_sales_forecasting,
         _gen_ecommerce_leakage, _gen_subscription_churn, _gen_customer_accounts,
+        _gen_clinical_small_wide,
     )
     return [
         # ── Data Quality ──────────────────────────────────────────────────────
@@ -202,6 +203,15 @@ def _get_benchmarks() -> list[dict]:
             "df_fn":     _gen_transactions_fraud,
             "run_fn":    _run_ms,
             "run_kwargs": {"target_col": "is_fraud"},
+        },
+        {
+            "id":        "clinical_small_wide/model_selector_responder",
+            "dataset":   "clinical_small_wide",
+            "benchmark": "model_selector_responder",
+            "skill":     "model_selector",
+            "df_fn":     _gen_clinical_small_wide,
+            "run_fn":    _run_ms,
+            "run_kwargs": {"target_col": "responder"},
         },
         {
             "id":        "sales_forecasting/model_selector_revenue",

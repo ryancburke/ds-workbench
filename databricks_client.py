@@ -14,6 +14,7 @@ SAMPLE_DATASETS = {
     "sales_forecasting":   "Sales Forecasting        (promotions → revenue, seasonal pattern, regression target)",
     "subscription_churn":  "Subscription Churn       (disguised leakage: neutral-named status code, score and balance)",
     "customer_accounts":   "Customer Accounts        (hidden quality issues: placeholder nulls, sentinels, future dates, units)",
+    "clinical_small_wide": "Clinical Small & Wide    (160 patients, 46 markers, few informative — overfitting trap)",
 }
 
 SAMPLE_JOIN_SCENARIOS = {
@@ -49,6 +50,7 @@ def load_sample_dataset(name: str) -> pd.DataFrame:
         "sales_forecasting":  _gen_sales_forecasting,
         "subscription_churn": _gen_subscription_churn,
         "customer_accounts":  _gen_customer_accounts,
+        "clinical_small_wide": _gen_clinical_small_wide,
     }
     if name not in generators:
         raise ValueError(f"Unknown sample dataset: {name}")
@@ -270,6 +272,28 @@ def _gen_sales_forecasting(n: int = 730) -> pd.DataFrame:
         "returns_pct":      rng.uniform(0, 12, n).round(2),
         "new_customers":    rng.integers(5, 200, n),
         "revenue":          revenue,
+    })
+
+
+def _gen_clinical_small_wide(n: int = 160) -> pd.DataFrame:
+    """
+    Treatment response for 160 patients with 46 numeric features, of which only 4 carry
+    (linear) signal; 6 are near-duplicates of others (r > 0.95). Target `responder` ~35%.
+    The trap: with n/p ≈ 3.5, boosting or deep models overfit and a single 20% holdout is
+    32 patients. Regularised linear models with repeated stratified CV are the sound choice.
+    """
+    rng = np.random.default_rng(31)
+    X = rng.normal(0, 1, (n, 40))
+    signal = 1.1 * X[:, 0] - 0.9 * X[:, 1] + 0.8 * X[:, 2] + 0.6 * X[:, 3]
+    responder = (signal + rng.normal(0, 1.0, n)) > 0.45
+    cols = {f"marker_{i + 1:02d}": X[:, i].round(4) for i in range(40)}
+    for j, src in enumerate([0, 1, 4, 7, 9, 12]):   # near-duplicate assays of other markers
+        cols[f"marker_{src + 1:02d}_rerun"] = (X[:, src] + rng.normal(0, 0.2, n)).round(4)
+    return pd.DataFrame({
+        "patient_id": [f"P{i:04d}" for i in range(n)],
+        "age": rng.integers(25, 80, n),
+        **cols,
+        "responder": responder,
     })
 
 
