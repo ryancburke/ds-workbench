@@ -66,6 +66,13 @@ def interpret(metrics: dict, context: str = "") -> dict:
              train_accuracy, val_accuracy, test_accuracy, feature_importances, cv_scores, etc.
     context: optional problem statement from the session for grounding the interpretation.
     """
+    try:
+        return _interpret(metrics, context)
+    except Exception as exc:
+        return SkillResult({"error": str(exc)}, skill="experiment_tracker")
+
+
+def _interpret(metrics: dict, context: str = "") -> dict:
     metrics_block = json.dumps(metrics, indent=2)
     context_block = f"\nBusiness context: {context}\n" if context else ""
 

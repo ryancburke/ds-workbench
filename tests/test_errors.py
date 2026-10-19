@@ -93,3 +93,23 @@ def test_leakage_result_lists_columns_to_drop(fake_api):
     fake_api.responder = respond
     out = leakage_detector.check(dc._gen_ecommerce_leakage(100), "converted")
     assert out["drop_columns"] == ["conversion_score"]
+
+
+def test_every_notebook_skill_returns_an_error_dict_instead_of_raising(fake_api):
+    """Notebook contract: a failed call returns {'error': ...} so the cell still renders."""
+    import ds_workbench as dw
+    fake_api.responder = lambda kw: refusal_reply(kw["model"])
+    df = dc._gen_ecommerce(60)
+    calls = {
+        "data_quality": lambda: dw.data_quality.assess(df, "t"),
+        "eda": lambda: dw.eda.analyze(df, "t"),
+        "leakage_detector": lambda: dw.leakage_detector.check(df, "converted"),
+        "feature_engineering": lambda: dw.feature_engineering.suggest(df, "converted"),
+        "model_selector": lambda: dw.model_selector.select(df, "converted"),
+        "join_auditor": lambda: dw.join_auditor.audit(dc._gen_sales_with_product_id(30), dc._gen_products(), ["product_id"]),
+        "nl_to_spark": lambda: dw.nl_to_spark.generate("q", {"t": df}),
+        "mlops_reviewer": lambda: dw.mlops_reviewer.review("x = 1"),
+        "experiment_tracker": lambda: dw.experiment_tracker.interpret({"val_auc": 0.8}),
+    }
+    for name, call in calls.items():
+        assert "declined" in call().get("error", ""), name
