@@ -75,7 +75,7 @@ def run_sweep(filter_id: str | None, arms: list[tuple[str, str | None]] | None,
         for model, effort in bm_arms:
             name = f"{model.removeprefix('claude-')}:{effort or 'default'}"
             _current["arm"] = (bm["id"], name)
-            scores, secs = [], []
+            scores, secs, missed = [], [], []
             for _ in range(trials):
                 t0 = time.perf_counter()
                 with override_roles(**{role_name: (model, effort)}):
@@ -84,11 +84,14 @@ def run_sweep(filter_id: str | None, arms: list[tuple[str, str | None]] | None,
                 if out.get("error"):
                     print(f"  {name:24s} error: {out['error'][:100]}")
                     continue
-                scores.append(score(dict(out), bm["dataset"], bm["benchmark"]).overall)
+                result = score(dict(out), bm["dataset"], bm["benchmark"])
+                scores.append(result.overall)
+                missed.append(result.missed_findings + [fp["rule_id"] for fp in result.false_positives
+                                                        if isinstance(fp, dict) and "rule_id" in fp])
             cost = _spend[(bm["id"], name)]
             row = {
                 "ts": ts, "benchmark": bm["id"], "role": role_name, "arm": name,
-                "trials": trials, "scores": scores,
+                "trials": trials, "scores": scores, "missed": missed,
                 "mean": round(statistics.mean(scores), 1) if scores else None,
                 "stdev": round(statistics.stdev(scores), 1) if len(scores) > 1 else 0.0,
                 "cost_per_run": round(cost / trials, 4),
@@ -96,7 +99,7 @@ def run_sweep(filter_id: str | None, arms: list[tuple[str, str | None]] | None,
             }
             rows.append(row)
             print(f"  {name:24s} mean={row['mean']}  sd={row['stdev']}  "
-                  f"${row['cost_per_run']:.3f}/run  {row['secs_per_run']:.0f}s/run  {scores}")
+                  f"${row['cost_per_run']:.3f}/run  {row['secs_per_run']:.0f}s/run  {scores}  missed={missed}")
 
     Messages.create = _orig_create
     existing = json.loads(RESULTS_FILE.read_text()) if RESULTS_FILE.exists() else {"runs": []}

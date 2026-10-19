@@ -12,6 +12,7 @@ SAMPLE_DATASETS = {
     "ecommerce_leakage":   "E-commerce w/ Leakage    (same as ecommerce + conversion_score and order_id leakage features)",
     "transactions_fraud":  "Transactions — Fraud     (outlier amounts, mixed-case country, null user IDs, 3% fraud rate)",
     "sales_forecasting":   "Sales Forecasting        (promotions → revenue, seasonal pattern, regression target)",
+    "subscription_churn":  "Subscription Churn       (disguised leakage: neutral-named status code, score and balance)",
 }
 
 SAMPLE_JOIN_SCENARIOS = {
@@ -45,6 +46,7 @@ def load_sample_dataset(name: str) -> pd.DataFrame:
         "ecommerce_leakage":  _gen_ecommerce_leakage,
         "transactions_fraud": _gen_transactions_fraud,
         "sales_forecasting":  _gen_sales_forecasting,
+        "subscription_churn": _gen_subscription_churn,
     }
     if name not in generators:
         raise ValueError(f"Unknown sample dataset: {name}")
@@ -266,6 +268,45 @@ def _gen_sales_forecasting(n: int = 730) -> pd.DataFrame:
         "returns_pct":      rng.uniform(0, 12, n).round(2),
         "new_customers":    rng.integers(5, 200, n),
         "revenue":          revenue,
+    })
+
+
+def _gen_subscription_churn(n: int = 2000) -> pd.DataFrame:
+    """
+    Subscription customers, target `churned` (~20%). Leakage that column names don't give away:
+    - status_code: categorical written by the cancellation flow ('C2' ≈ only churned customers)
+    - engagement_index_v2: recomputed after the churn flag; separates the classes almost
+      perfectly but non-linearly, so Pearson r stays well under 0.8
+    - credit_balance: pro-rata refund credit, > 0 only for churned customers (zero, not null)
+    Legitimate, genuinely predictive features: tenure_months, last_login_days,
+    support_tickets_90d, monthly_spend, plan.
+    """
+    rng = np.random.default_rng(11)
+    churned = rng.random(n) < 0.2
+    tenure = np.where(churned, rng.gamma(2.0, 6.0, n), rng.gamma(3.0, 10.0, n)).round(0) + 1
+    last_login = np.where(churned, rng.exponential(18, n), rng.exponential(6, n)).round(0)
+    tickets = np.where(churned, rng.poisson(2.2, n), rng.poisson(0.9, n))
+    plan = rng.choice(["basic", "pro", "team"], n, p=[0.5, 0.35, 0.15])
+    spend = (np.select([plan == "basic", plan == "pro"], [19.0, 49.0], 99.0)
+             * rng.uniform(0.9, 1.1, n)).round(2)
+    status = np.where(churned, rng.choice(["C2", "A1"], n, p=[0.85, 0.15]),
+                      rng.choice(["A1", "B4"], n, p=[0.97, 0.03]))
+    # churned all below 0.03, retained above it with a heavy tail: near-perfect rank
+    # separation, but the tail keeps Pearson r low
+    engagement = np.where(churned, rng.uniform(0.0, 0.03, n),
+                          0.03 + rng.pareto(1.3, n) * 0.08).round(4)
+    credit = np.where(churned & (rng.random(n) < 0.6), rng.uniform(5, 90, n), 0.0).round(2)
+    return pd.DataFrame({
+        "customer_ref":        [f"CR{i:06d}" for i in rng.permutation(n)],
+        "plan":                plan,
+        "tenure_months":       tenure.astype(int),
+        "monthly_spend":       spend,
+        "last_login_days":     last_login.astype(int),
+        "support_tickets_90d": tickets,
+        "status_code":         status,
+        "engagement_index_v2": engagement,
+        "credit_balance":      credit,
+        "churned":             churned,
     })
 
 

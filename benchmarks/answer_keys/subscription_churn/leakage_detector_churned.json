@@ -1,0 +1,38 @@
+{
+  "_meta": {
+    "dataset": "subscription_churn",
+    "skill": "leakage_detector",
+    "schema_version": "1.0",
+    "target_col": "churned",
+    "generator": "databricks_client._gen_subscription_churn(n=2000)",
+    "description": "Disguised leakage: nothing in the column names says 'after the outcome'. status_code is written by the cancellation flow (C2 → 100% churned). engagement_index_v2 separates the classes perfectly (single-feature AUC 1.0) but non-linearly, so Pearson r is only ~0.11 — a correlation threshold misses it. credit_balance is a pro-rata refund credit, > 0 only for churned customers (zeros, not nulls). tenure, last login, support tickets and spend are legitimately predictive (AUC 0.75-0.84) and must not be called leakage."
+  },
+
+  "expected_verdict": "leakage_detected",
+
+  "required_findings": [
+    {"id": "status_code_proxy", "column_hint": "status_code",
+     "acceptable_leakage_types": ["proxy", "direct", "high_correlation", "temporal"], "min_severity": "critical",
+     "note": "Value C2 occurs only for churned customers: a status written by the cancellation itself."},
+    {"id": "engagement_index_nonlinear", "column_hint": "engagement_index",
+     "acceptable_leakage_types": ["direct", "high_correlation", "proxy", "temporal"], "min_severity": "critical",
+     "note": "Perfect class separation (AUC 1.0) with low Pearson r: a non-linear leak."},
+    {"id": "credit_balance_proxy", "column_hint": "credit_balance",
+     "acceptable_leakage_types": ["proxy", "temporal", "direct", "high_correlation"], "min_severity": "warning",
+     "note": "Non-zero only for churned customers: a refund credit issued after cancellation."}
+  ],
+
+  "forbidden_findings": [
+    {"id": "tenure_not_leakage", "column_hint": "tenure_months", "max_severity": "warning",
+     "note": "Known before churn; a legitimately strong predictor (AUC ~0.84)."},
+    {"id": "last_login_not_leakage", "column_hint": "last_login_days", "max_severity": "warning",
+     "note": "Pre-event engagement signal."},
+    {"id": "tickets_not_leakage", "column_hint": "support_tickets_90d", "max_severity": "warning",
+     "note": "Pre-event friction signal."},
+    {"id": "spend_not_leakage", "column_hint": "monthly_spend", "max_severity": "warning",
+     "note": "Plan price; unrelated to the outcome."}
+  ],
+
+  "max_total_findings": 7,
+  "note_on_max": "Three planted leaks plus an identifier note and a few info notes at most."
+}

@@ -1,64 +1,57 @@
 {
-  "_meta": {
-    "dataset": "transactions_fraud",
-    "skill": "leakage_detector",
-    "schema_version": "1.0",
-    "description": "Financial transactions with is_fraud target (3% rate, 32:1 imbalance). The dataset has two identifier columns (transaction_id, merchant_id) that must not appear as model features, and a user_id column with 8.4% nulls whose null pattern may correlate with the fraud label (missing user attribution is non-random on fraud transactions). No post-event computed proxy features are present, so verdict should not be leakage_detected.",
-    "columns": ["transaction_id", "user_id", "merchant_id", "amount", "country", "transaction_type", "is_fraud"]
-  },
-
-  "verdict": {
-    "expected": "suspicious",
-    "acceptable": ["suspicious", "clean"],
-    "note": "No strong direct leakage features (no post-event proxies) but identifier columns are a concern. 'suspicious' is preferred; 'clean' is acceptable if identifier risk is noted in summary."
-  },
-
-  "risk_level": {
-    "expected": "medium",
-    "acceptable": ["low", "medium"],
-    "note": "No confirmed leakage — identifier columns are a design concern, not confirmed data leakage. High risk would be incorrect."
-  },
-
-  "required_findings": [
-    {
-      "id": "transaction_id_identifier",
-      "column_hint": "transaction_id",
-      "leakage_type_hint": "identifier_encodes_target",
-      "min_severity": "warning",
-      "note": "transaction_id is a unique identifier that should never be a model feature. Sequential IDs can encode temporal ordering which may correlate with when fraud was detected."
-    },
-    {
-      "id": "merchant_id_identifier",
-      "column_hint": "merchant_id",
-      "leakage_type_hint": "identifier_encodes_target",
-      "min_severity": "warning",
-      "note": "merchant_id is an identifier. Using raw merchant IDs as features without proper encoding leaks merchant-level fraud rates from the full dataset into training."
-    }
+ "_meta": {
+  "dataset": "transactions_fraud",
+  "skill": "leakage_detector",
+  "schema_version": "1.1",
+  "description": "Precision case. Financial transactions, is_fraud at 3% (32:1). No post-event features exist. amount separates the classes perfectly (single-feature AUC 1.0, r=0.84) because fraud amounts were injected as extremes, but a transaction's amount is known when it is scored, so it is signal, not leakage. Identifiers (transaction_id, merchant_id) are info-level notes under the skill's policy. user_id's 8.4% nulls may be noted.",
+  "columns": [
+   "transaction_id",
+   "user_id",
+   "merchant_id",
+   "amount",
+   "country",
+   "transaction_type",
+   "is_fraud"
   ],
-
-  "optional_findings": [
-    {
-      "id": "user_id_null_pattern",
-      "column_hint": "user_id",
-      "note": "user_id has 8.4% nulls. If null rate differs between fraud/non-fraud transactions, the null pattern itself is a proxy feature that could leak the label. Worth flagging as a data concern."
-    }
-  ],
-
-  "forbidden_findings": [
-    {
-      "column_hint": "amount",
-      "note": "amount is a legitimate pre-event feature (transaction size at time of transaction). Should NOT be flagged as leakage."
-    },
-    {
-      "column_hint": "country",
-      "note": "country is a legitimate pre-event feature. Should NOT be flagged as leakage."
-    },
-    {
-      "column_hint": "transaction_type",
-      "note": "transaction_type is a legitimate pre-event feature. Should NOT be flagged as leakage."
-    }
-  ],
-
-  "max_total_findings": 5,
-  "note_on_max": "Two required (identifier columns) + one optional (user_id null pattern) = 3 legitimate findings maximum."
+  "target_col": "is_fraud"
+ },
+ "expected_verdicts": [
+  "clean",
+  "suspicious"
+ ],
+ "required_findings": [],
+ "forbidden_findings": [
+  {
+   "id": "amount_not_leakage",
+   "column_hint": "amount",
+   "max_severity": "warning",
+   "note": "Known at scoring time; strong separation is the fraud signal itself. Critical is wrong."
+  },
+  {
+   "id": "country_not_leakage",
+   "column_hint": "country",
+   "max_severity": "warning",
+   "note": "Pre-event attribute."
+  },
+  {
+   "id": "transaction_type_not_leakage",
+   "column_hint": "transaction_type",
+   "max_severity": "warning",
+   "note": "Pre-event attribute."
+  },
+  {
+   "id": "device_type_not_leakage",
+   "column_hint": "device_type",
+   "max_severity": "warning",
+   "note": "Pre-event attribute."
+  },
+  {
+   "id": "transaction_id_info_only",
+   "column_hint": "transaction_id",
+   "max_severity": "info",
+   "note": "Identifier: exclude from features, but it is not target leakage (skill policy)."
+  }
+ ],
+ "max_total_findings": 6,
+ "note_on_max": "Identifier notes, a user_id null-pattern note and perhaps an amount caveat."
 }
