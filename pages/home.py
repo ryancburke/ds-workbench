@@ -35,6 +35,7 @@ def layout():
     return html.Div([
 
         # ── Session area ─────────────────────────────────────────────────────
+        dcc.Store(id="wb-session-sync"),   # written by the team-session sync callback
         html.Div(id="wb-session-active", className="mb-3"),
 
         dbc.Card(dbc.CardBody([
@@ -524,6 +525,7 @@ def start_session(_, problem, datasets, store):
 
     updated["data_quality"] = dq_runs
     updated["session"] = {
+        "id":                f"wb_{int(time.time() * 1000)}",
         "active":            True,
         "problem_statement": problem.strip(),
         "datasets":          datasets,

@@ -45,7 +45,11 @@ def skill_entry(skill: str):
             # a skill called from inside another keeps the outer run
             run_id = _call_ctx.get().get("run_id") or uuid.uuid4().hex[:12]
             with call_context(skill=skill, dataset=dataset, run_id=run_id):
-                return fn(*args, **kwargs)
+                out = fn(*args, **kwargs)
+            # Lets a session find this run's cost in the usage ledger
+            if isinstance(out, dict) and "run_id" not in out:
+                out["run_id"] = run_id
+            return out
         return inner
     return wrap
 
