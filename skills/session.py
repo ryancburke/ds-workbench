@@ -58,15 +58,45 @@ class WorkflowSession:
         eda_result = eda.analyze(df, "customers", session=session)  # focuses on churn drivers
     """
 
-    def __init__(self, context: str = "") -> None:
+    def __init__(self, context: str = "", *, datasets: list[str] | None = None, persist: bool = True) -> None:
+        """
+        Args:
+            context: The business question (shown on the team Sessions page).
+            datasets: Tables this session is about (used to compare with earlier sessions).
+            persist: Save the session for the team Sessions page (best effort; never raises).
+        """
+        import uuid
         self._results: dict[str, object] = {}
         self.context = context
+        self.id = f"nb_{uuid.uuid4().hex[:10]}"
+        self.datasets = list(datasets or [])
+        self.persist = persist
+        self._runs: list[dict] = []
 
     # ── Registration ──────────────────────────────────────────────────────────
 
     def register(self, skill: str, result) -> None:
         """Record a completed skill result. Called automatically by each skill."""
+        from datetime import datetime, timezone
+        from skills.api_retry import _call_ctx
         self._results[skill] = result
+        # Skills register from inside their run, so the run_id is in the call context
+        run_id = result.get("run_id") or _call_ctx.get().get("run_id")
+        self._runs.append({"skill": skill, "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                           "status": "error" if result.get("error") else "complete",
+                           "run_id": run_id, "label": skill})
+        if self.persist:
+            self._save()
+
+    def _save(self) -> None:
+        try:
+            from skills import team_sessions, usage
+            from skills.api_retry import _call_ctx
+            team_sessions.save_session(
+                self.id, owner=usage.current_user(dict(_call_ctx.get())), question=self.context,
+                datasets=self.datasets, results=dict(self._results), runs=self._runs, source="notebook")
+        except Exception:
+            pass  # persistence must never break an analysis
 
     # ── Lookup ────────────────────────────────────────────────────────────────
 

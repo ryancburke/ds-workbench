@@ -15,6 +15,7 @@ SKILLS = [
 
 _NAV = [
     {"label": "Workbench",  "href": "/",          "icon": "bi-grid-1x2-fill"},
+    {"label": "Sessions",   "href": "/sessions",  "icon": "bi-people"},
     {"label": "Feedback",   "href": "/feedback",  "icon": "bi-chat-left-dots",
      "badge_id": "sidebar-feedback-count"},
     {"label": "Benchmarks", "href": "/benchmarks","icon": "bi-speedometer2"},

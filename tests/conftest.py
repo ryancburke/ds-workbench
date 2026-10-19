@@ -60,6 +60,15 @@ class FakeAPI:
         return _Stream()
 
 
+@pytest.fixture(autouse=True)
+def _isolated_stores(monkeypatch, tmp_path):
+    """No test writes to the real refusal log, usage ledger or session store."""
+    from skills import team_sessions, usage
+    monkeypatch.setattr(api_retry, "REFUSAL_LOG", tmp_path / "refusals.jsonl")
+    monkeypatch.setattr(usage, "LEDGER_FILE", tmp_path / "usage.jsonl")
+    monkeypatch.setattr(team_sessions, "SESSIONS_FILE", tmp_path / "sessions.json")
+
+
 @pytest.fixture
 def fake_api(monkeypatch, tmp_path):
     api = FakeAPI()

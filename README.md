@@ -109,6 +109,20 @@ On the Feedback page, **Approve & Draft** asks Claude for a small, checked edit 
 right file. **Export Patch** writes it to `feedback/patches/` so you can apply it on a
 branch. The app never edits its own source.
 
+## Sessions: the team view
+
+Every analysis session is saved automatically, whether it was started on the Workbench or in a
+notebook with `WorkflowSession(context=..., datasets=[...])`. The **Sessions** page lists them
+most-urgent first. For each session it shows:
+
+- **Verdict:** blocked, caution or ready.
+- **Gates:** data quality, leakage, features and model, each passed, warned, blocked or skipped.
+  Modelling without the data-quality and leakage checks counts as a blocker.
+- **Blockers:** the top blocking issues.
+- **Headlines:** one line per step, in the order the steps ran.
+- **Change:** blocker count against the previous session on the same data.
+- **Cost:** taken from the usage ledger.
+
 ## Costs
 
 Every Claude call is recorded in a usage ledger (`skills/usage.py`, `feedback/usage.jsonl`):
