@@ -21,7 +21,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from config import config  # triggers load_dotenv
 
-import anthropic
 import pandas as pd
 
 from skills.api_retry import check_response
@@ -72,8 +71,7 @@ MS_DATASETS = [
 
 # ── Two-pass runners (model-parameterised) ────────────────────────────────────
 
-def _client() -> anthropic.Anthropic:
-    return anthropic.Anthropic(api_key=config.anthropic_api_key)
+from skills.api_retry import get_client as _client, tool_input
 
 
 def _p1(model_cfg: dict, prompt: str, max_tokens: int) -> str:
@@ -90,7 +88,7 @@ def _p1(model_cfg: dict, prompt: str, max_tokens: int) -> str:
 
 
 def run_dq(df: pd.DataFrame, table_name: str, model_cfg: dict) -> dict:
-    from skills.data_quality import build_profile, _TOOL, _get_client as _dq_client
+    from skills.data_quality import build_profile, _TOOL
     import skills.data_quality as dq_mod
 
     profile   = build_profile(df)
@@ -171,8 +169,8 @@ After all six steps:
             f"- Format only what the analysis identified — do not add or remove findings"
         )}],
     )
-    tb = next(b for b in response.content if b.type == "tool_use")
-    return dict(tb.input)
+    tb_input = tool_input(response, DQ_TOOL["name"])
+    return dict(tb_input)
 
 
 def run_ld(df: pd.DataFrame, target_col: str, model_cfg: dict) -> dict:
@@ -210,8 +208,8 @@ Overall verdict: leakage_detected (critical found) / suspicious (warnings only) 
             {"role": "user",      "content": "Now report your findings using the report_leakage tool."},
         ],
     )
-    tb = next(b for b in response.content if b.type == "tool_use")
-    return dict(tb.input)
+    tb_input = tool_input(response, LD_TOOL["name"])
+    return dict(tb_input)
 
 
 def run_ms(df: pd.DataFrame, target_col: str, model_cfg: dict) -> dict:
@@ -263,8 +261,8 @@ Ground all reasoning in the actual numbers above, not generic ML advice."""
             {"role": "user",      "content": "Now report your recommendations using the report_model_selection tool."},
         ],
     )
-    tb = next(b for b in response.content if b.type == "tool_use")
-    return dict(tb.input)
+    tb_input = tool_input(response, MS_TOOL["name"])
+    return dict(tb_input)
 
 
 # ── Scoring ───────────────────────────────────────────────────────────────────

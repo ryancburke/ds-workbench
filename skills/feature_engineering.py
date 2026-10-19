@@ -6,22 +6,11 @@ per-column transformation decisions (imputation, scaling, encoding) plus runnabl
 PySpark code ready to paste into a Databricks notebook.
 """
 import json
-import anthropic
 import pandas as pd
 import numpy as np
-from config import config
 from skills.result import SkillResult
-from skills.api_retry import api_call, skill_entry
+from skills.api_retry import api_call, get_client, skill_entry, strict_tool, tool_input
 from skills.models import GENERAL_MODEL, GENERAL_EXTRA
-
-_client: anthropic.Anthropic | None = None
-
-
-def _get_client() -> anthropic.Anthropic:
-    global _client
-    if _client is None:
-        _client = anthropic.Anthropic(api_key=config.anthropic_api_key)
-    return _client
 
 
 _TOOL = {
@@ -277,11 +266,11 @@ def _suggest(
             )
 
     response = api_call(
-        _get_client().messages.create,
+        get_client().messages.create,
         model=GENERAL_MODEL,
         **GENERAL_EXTRA,
         max_tokens=8192,
-        tools=[_TOOL],
+        tools=[strict_tool(_TOOL)],
         tool_choice={"type": "auto"},
         messages=[{
             "role": "user",
@@ -321,12 +310,14 @@ Structure the code in this order:
   8. Final VectorAssembler combining scaled numeric + encoded categoricals → outputCol="features"
   9. pipeline = Pipeline(stages=[...])
 
-Use clear variable names. Add one-line comments for each stage group.""",
+Use clear variable names. Add one-line comments for each stage group.
+
+Report your results by calling the suggest_feature_engineering tool.""",
         }],
     )
 
-    tool_block = next(b for b in response.content if b.type == "tool_use")
-    result = SkillResult(tool_block.input, skill="feature_engineering",
+    tool_args = tool_input(response, _TOOL["name"])
+    result = SkillResult(tool_args, skill="feature_engineering",
                          session_warnings=session_warnings)
     if session is not None:
         session.register("feature_engineering", result)

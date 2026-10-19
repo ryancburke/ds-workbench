@@ -1,11 +1,10 @@
-"""Shared retry wrapper for Anthropic API calls."""
+"""Shared Anthropic client, request helpers, and refusal logging for skills and agents."""
 import contextvars
+import copy
 import functools
 import inspect
 import json
 import logging
-import random
-import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -109,26 +108,64 @@ def response_text(resp) -> str:
     return "".join(b.text for b in resp.content if b.type == "text").strip()
 
 
-def api_call(fn, *args, max_retries: int = 3, **kwargs):
-    """
-    Call fn(*args, **kwargs) with exponential backoff on transient API errors.
-    Covers timeouts, connection errors, server errors, and rate limits.
-    Raises ModelRefusal if the model declines.
-    """
-    import anthropic
-    _retryable = (
-        anthropic.APITimeoutError,
-        anthropic.APIConnectionError,
-        anthropic.InternalServerError,
-        anthropic.RateLimitError,
+_client = None
+
+# The SDK retries connection errors, 408/409/429 and 5xx with backoff and honours
+# retry-after headers, so retries live there rather than in a second loop on top.
+SDK_MAX_RETRIES = 4
+
+
+def get_client():
+    """Shared Anthropic client (lazy, so importing a skill never needs a key)."""
+    global _client
+    if _client is None:
+        import anthropic
+        from config import config
+        _client = anthropic.Anthropic(api_key=config.anthropic_api_key, max_retries=SDK_MAX_RETRIES)
+    return _client
+
+
+def api_call(fn, *args, **kwargs):
+    """Call fn(*args, **kwargs) and raise ModelRefusal if the model declines."""
+    return check_response(fn(*args, **kwargs), kwargs)
+
+
+# Strict tool schemas reject numeric/length bounds; the range goes into the
+# description instead and callers clamp the value in code.
+_UNSUPPORTED_IN_STRICT = ("minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum",
+                          "minLength", "maxLength", "minItems", "maxItems")
+
+
+def strict_tool(tool: dict) -> dict:
+    """Copy of a tool definition with strict: true, so the input always matches the
+    schema. Used on models where tool_choice can't force the call (Opus/Sonnet/Fable 5.x)."""
+    tool = copy.deepcopy(tool)
+
+    def fix(node):
+        if isinstance(node, dict):
+            bounds = [f"{k}={node.pop(k)}" for k in _UNSUPPORTED_IN_STRICT if k in node]
+            if bounds:
+                node["description"] = (node.get("description", "") + f" ({', '.join(bounds)})").strip()
+            if node.get("type") == "object":
+                node["additionalProperties"] = False
+            for v in node.values():
+                fix(v)
+        elif isinstance(node, list):
+            for v in node:
+                fix(v)
+
+    fix(tool["input_schema"])
+    tool["strict"] = True
+    return tool
+
+
+def tool_input(resp, name: str) -> dict:
+    """Input of the named tool call, or a clear error if the model answered without it."""
+    for block in resp.content:
+        if block.type == "tool_use" and block.name == name:
+            return block.input
+    text = response_text(resp)[:200]
+    raise RuntimeError(
+        f"{getattr(resp, 'model', 'model')} did not call {name} "
+        f"(stop_reason={resp.stop_reason}){': ' + text if text else ''}"
     )
-    last_exc: Exception | None = None
-    for attempt in range(max_retries):
-        try:
-            return check_response(fn(*args, **kwargs), kwargs)
-        except _retryable as exc:
-            last_exc = exc
-            if attempt < max_retries - 1:
-                delay = (2 ** attempt) + random.uniform(0, 1)
-                time.sleep(delay)
-    raise last_exc  # type: ignore[misc]

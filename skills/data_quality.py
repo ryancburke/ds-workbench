@@ -1,20 +1,9 @@
 import json
-import anthropic
 import pandas as pd
 import numpy as np
-from config import config
 from skills.result import SkillResult
-from skills.api_retry import api_call, skill_entry
+from skills.api_retry import api_call, get_client, skill_entry, tool_input
 from skills.models import REASONING_MODEL, STRUCTURED_MODEL, THINKING_ADAPTIVE, REASONING_EXTRA
-
-_client: anthropic.Anthropic | None = None
-
-
-def _get_client() -> anthropic.Anthropic:
-    global _client
-    if _client is None:
-        _client = anthropic.Anthropic(api_key=config.anthropic_api_key)
-    return _client
 
 
 _TOOL = {
@@ -194,7 +183,7 @@ After all six steps:
 
     # Pass 1: systematic sweep + domain reasoning with extended thinking
     pass1 = api_call(
-        _get_client().messages.create,
+        get_client().messages.create,
         model=REASONING_MODEL,
         max_tokens=14000,
         thinking=THINKING_ADAPTIVE,
@@ -207,7 +196,7 @@ After all six steps:
 
     # Pass 2: extract and format the reasoned analysis into structured output
     response = api_call(
-        _get_client().messages.create,
+        get_client().messages.create,
         model=STRUCTURED_MODEL,
         max_tokens=4096,
         tools=[_TOOL],
@@ -227,8 +216,8 @@ After all six steps:
             ),
         }],
     )
-    tool_block = next(b for b in response.content if b.type == "tool_use")
-    result = SkillResult(tool_block.input, skill="data_quality")
+    tool_args = tool_input(response, _TOOL["name"])
+    result = SkillResult(tool_args, skill="data_quality")
     result["profile"] = profile
     if sample_note:
         result["sample_note"] = sample_note

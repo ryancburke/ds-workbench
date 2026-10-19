@@ -1,18 +1,7 @@
-import anthropic
 import pandas as pd
-from config import config
 from skills.result import SkillResult
-from skills.api_retry import api_call, skill_entry
+from skills.api_retry import api_call, get_client, skill_entry, tool_input
 from skills.models import ANALYSIS_MODEL, STRUCTURED_MODEL, THINKING_ADAPTIVE, ANALYSIS_EXTRA
-
-_client: anthropic.Anthropic | None = None
-
-
-def _get_client() -> anthropic.Anthropic:
-    global _client
-    if _client is None:
-        _client = anthropic.Anthropic(api_key=config.anthropic_api_key)
-    return _client
 
 
 _TOOL = {
@@ -288,7 +277,7 @@ Ground all reasoning in the actual numbers above, not generic ML advice."""
 
     # Pass 1: reason with extended thinking
     _r1 = api_call(
-        _get_client().messages.create,
+        get_client().messages.create,
         model=ANALYSIS_MODEL,
         max_tokens=12000,
         thinking=THINKING_ADAPTIVE,
@@ -301,7 +290,7 @@ Ground all reasoning in the actual numbers above, not generic ML advice."""
 
     # Pass 2: format into structured output
     response = api_call(
-        _get_client().messages.create,
+        get_client().messages.create,
         model=STRUCTURED_MODEL,
         max_tokens=8192,
         tools=[_TOOL],
@@ -313,11 +302,11 @@ Ground all reasoning in the actual numbers above, not generic ML advice."""
         ],
     )
 
-    tool_block = next(b for b in response.content if b.type == "tool_use")
+    tool_args = tool_input(response, _TOOL["name"])
     # Validate Pass 2 didn't return empty — retry once with an explicit prompt if so
-    if not tool_block.input.get("recommendations"):
+    if not tool_args.get("recommendations"):
         response = api_call(
-            _get_client().messages.create,
+            get_client().messages.create,
             model=STRUCTURED_MODEL,
             max_tokens=8192,
             tools=[_TOOL],
@@ -333,9 +322,9 @@ Ground all reasoning in the actual numbers above, not generic ML advice."""
                 )},
             ],
         )
-        tool_block = next(b for b in response.content if b.type == "tool_use")
+        tool_args = tool_input(response, _TOOL["name"])
 
-    result = SkillResult(tool_block.input, skill="model_selector",
+    result = SkillResult(tool_args, skill="model_selector",
                          session_warnings=session_warnings)
     if session is not None:
         session.register("model_selector", result)

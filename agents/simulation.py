@@ -6,23 +6,15 @@ independently decide which skills to run, interpret the results,
 and deliver a final recommendation.
 """
 
+import logging
 import time
 from datetime import datetime, timezone
 
-import anthropic
-
-from config import config
-from skills.api_retry import call_context, check_response, response_text
+from skills.api_retry import (call_context, check_response, get_client as _client,
+                              response_text, strict_tool, tool_input)
 from skills.models import SIM_EXTRA, SIM_JUDGE_EXTRA, SIM_JUDGE_MODEL, SIM_MODEL
 
-_client_instance: anthropic.Anthropic | None = None
-
-
-def _client() -> anthropic.Anthropic:
-    global _client_instance
-    if _client_instance is None:
-        _client_instance = anthropic.Anthropic(api_key=config.anthropic_api_key)
-    return _client_instance
+log = logging.getLogger(__name__)
 
 
 # ── Personas ──────────────────────────────────────────────────────────────────
@@ -361,7 +353,7 @@ If you have enough information to give a solid recommendation, choose give_debri
             "description": "Choose your next step",
             "input_schema": {
                 "type": "object",
-                "required": ["reasoning", "action"],
+                "required": ["reasoning", "action", "skill", "dataset"],
                 "additionalProperties": False,
                 "properties": {
                     "reasoning": {
@@ -374,13 +366,13 @@ If you have enough information to give a solid recommendation, choose give_debri
                     },
                     "skill": {
                         "type": "string",
-                        "enum": list(AVAILABLE_SKILLS.keys()),
-                        "description": "Required when action=run_skill",
+                        "enum": list(AVAILABLE_SKILLS.keys()) + ["none"],
+                        "description": "The skill to run, or \"none\" when action=give_debrief",
                     },
                     "dataset": {
                         "type": "string",
-                        "enum": list(AVAILABLE_DATASETS.keys()),
-                        "description": "Required when action=run_skill",
+                        "enum": list(AVAILABLE_DATASETS.keys()) + ["none"],
+                        "description": "The dataset to run it on, or \"none\" when action=give_debrief",
                     },
                     "nl_question": {
                         "type": "string",
@@ -391,13 +383,7 @@ If you have enough information to give a solid recommendation, choose give_debri
         }],
         tool_choice={"type": "auto"},
     )
-    check_response(resp)
-
-    for block in resp.content:
-        if block.type == "tool_use":
-            return block.input
-
-    return {"action": "give_debrief", "reasoning": "Ready to give my final take."}
+    return tool_input(check_response(resp), "decide_action")
 
 
 def interpret_step(persona: dict, skill: str, dataset: str, result: dict) -> str:
@@ -876,9 +862,13 @@ def run_sim_step(sim_state: dict) -> tuple[dict, dict, list[dict]]:
     new_benchmarks: list[dict] = []
 
     if decision.get("action") == "run_skill":
-        skill   = decision.get("skill") or "data_quality"
+        skill   = decision.get("skill")
         dataset = decision.get("dataset")
-        if not dataset or dataset not in AVAILABLE_DATASETS:
+        if skill not in AVAILABLE_SKILLS:
+            raise RuntimeError(f"{persona['name']} chose run_skill without a skill: {decision}")
+        if dataset not in scenario["available_datasets"]:
+            log.warning("%s picked dataset %r outside scenario %s; using %s",
+                        persona["name"], dataset, scenario["id"], scenario["available_datasets"][0])
             dataset = scenario["available_datasets"][0]
         # Fallback: join_auditor needs its own scenario, not a generic dataset
         if skill == "join_auditor":
@@ -892,7 +882,8 @@ def run_sim_step(sim_state: dict) -> tuple[dict, dict, list[dict]]:
             bench = evaluate_output_step(persona, skill, dataset, result, scenario)
             new_benchmarks.append(bench)
         except Exception:
-            pass  # never let evaluation failure break the simulation
+            # never let evaluation failure break the simulation, but leave a trace
+            log.exception("Evaluating %s on %s failed", skill, dataset)
 
         step_record.update({
             "skill":          skill,
@@ -973,10 +964,11 @@ Be specific and honest. Reference what you actually ran and what you saw in the 
                 "Think about: moments where the tool slowed your thinking, outputs that were hard to read "
                 "or interpret, navigation that wasn't obvious, information that was buried when it should "
                 "have been front and center, or steps that felt out of order with how you actually work. "
-                "Each suggestion must be concrete enough that a developer could implement it this week."
+                "Each suggestion must be concrete enough that a developer could implement it this week. "
+                "Submit each one as a separate suggest_improvement tool call."
             ),
         }],
-        tools=[{
+        tools=[strict_tool({
             "name": "suggest_improvement",
             "description": "Suggest a specific, implementable improvement to the workbench",
             "input_schema": {
@@ -1000,7 +992,8 @@ Be specific and honest. Reference what you actually ran and what you saw in the 
                         "type": "string",
                         "enum": ["data_quality", "eda", "join_auditor", "nl_to_spark",
                                  "mlops_review", "model_selector", "leakage_detector",
-                                 "feature_engineering", "agent_sim", "general"],
+                                 "feature_engineering", "experiment_tracker",
+                                 "notebook_generator", "agent_sim", "general"],
                     },
                     "issue_type": {
                         "type": "string",
@@ -1026,7 +1019,7 @@ Be specific and honest. Reference what you actually ran and what you saw in the 
                     },
                 },
             },
-        }],
+        })],
         tool_choice={"type": "auto"},
     )
 
@@ -1067,6 +1060,7 @@ def run_all_personas(scenario_id: str) -> tuple[dict, list[dict], list[dict]]:
                 })
             recommendations.extend(recs)
         except Exception:
-            pass  # don't let a reflection failure abort the whole run
+            # don't let one reflection failure abort the whole run
+            log.exception("Reflection by %s failed", persona["name"])
 
     return state, recommendations, all_benchmarks

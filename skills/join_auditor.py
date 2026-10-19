@@ -1,18 +1,7 @@
 import json
-import anthropic
 import pandas as pd
-from config import config
-from skills.api_retry import api_call, skill_entry
+from skills.api_retry import api_call, get_client, skill_entry, tool_input
 from skills.models import ANALYSIS_MODEL, STRUCTURED_MODEL, THINKING_ADAPTIVE, ANALYSIS_EXTRA
-
-_client: anthropic.Anthropic | None = None
-
-
-def _get_client() -> anthropic.Anthropic:
-    global _client
-    if _client is None:
-        _client = anthropic.Anthropic(api_key=config.anthropic_api_key)
-    return _client
 
 
 _TOOL = {
@@ -125,7 +114,7 @@ Reference the actual table names ({left_name}, {right_name}) and key columns ({j
 
     # Pass 1: reason with extended thinking
     _r1 = api_call(
-        _get_client().messages.create,
+        get_client().messages.create,
         model=ANALYSIS_MODEL,
         max_tokens=12000,
         thinking=THINKING_ADAPTIVE,
@@ -138,7 +127,7 @@ Reference the actual table names ({left_name}, {right_name}) and key columns ({j
 
     # Pass 2: format into structured output
     response = api_call(
-        _get_client().messages.create,
+        get_client().messages.create,
         model=STRUCTURED_MODEL,
         max_tokens=2048,
         tools=[_TOOL],
@@ -149,8 +138,7 @@ Reference the actual table names ({left_name}, {right_name}) and key columns ({j
             {"role": "user", "content": "Now report your findings using the report_join_audit tool."},
         ],
     )
-    tool_block = next(b for b in response.content if b.type == "tool_use")
-    result = tool_block.input
+    result = tool_input(response, _TOOL["name"])
     result["row_count_change"] = {
         "left_rows": len(left_df),
         "right_rows": len(right_df),
