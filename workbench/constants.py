@@ -17,6 +17,26 @@ DATASET_OPTIONS = [
     {"label": "E-commerce Leakage   (planted leakage — for testing)",    "value": "ecommerce_leakage"},
 ]
 
+# Causal inference sample datasets, each with the columns and design that fit it
+CAUSAL_PRESETS = {
+    "ab_test_clean":        {"label": "A/B test — checkout (clean, pre-period revenue)",
+                             "treatment": "variant", "outcome": "revenue_30d", "pre": "revenue_prev_30d",
+                             "design": "randomized"},
+    "ab_test_srm":          {"label": "A/B test — checkout (logging bug: skewed split)",
+                             "treatment": "variant", "outcome": "revenue_30d", "pre": "revenue_prev_30d",
+                             "design": "randomized"},
+    "ab_test_bad_control":  {"label": "A/B test — onboarding (post-treatment metric)",
+                             "treatment": "new_onboarding", "outcome": "orders_30d", "pre": None,
+                             "design": "randomized"},
+    "observational_coupon": {"label": "Observational — targeted coupons",
+                             "treatment": "got_coupon", "outcome": "spend_next_90d", "pre": None,
+                             "design": "observational"},
+    "ab_test_underpowered": {"label": "A/B test — pricing page (600 users)",
+                             "treatment": "variant", "outcome": "revenue_30d", "pre": None,
+                             "design": "randomized"},
+}
+CAUSAL_DATASET_OPTIONS = [{"label": v["label"], "value": k} for k, v in CAUSAL_PRESETS.items()]
+
 JOIN_SCENARIO_OPTIONS = [
     {"label": "Orders ⋈ Customers  (fan-out — duplicate customer IDs)",    "value": "orders_customers_fanout"},
     {"label": "Sales ⋈ Products   (clean — unique keys both sides)",       "value": "sales_products_clean"},
@@ -51,6 +71,7 @@ SKILL_META = {
     "model_selector":      {"label": "Model Selector",      "icon": "bi-cpu",                 "color": "secondary", "bs": "#a78bfa"},
     "leakage_detector":    {"label": "Leakage Detector",    "icon": "bi-exclamation-diamond", "color": "danger",    "bs": "#dc3545"},
     "feature_engineering": {"label": "Feature Engineering", "icon": "bi-wrench-adjustable",   "color": "secondary", "bs": "#6f42c1"},
+    "causal_inference":    {"label": "Causal Inference",    "icon": "bi-diagram-2",           "color": "info",      "bs": "#20c997"},
 }
 
 # MLOps constants

@@ -21,7 +21,7 @@ def test_workbench_registers_all_callbacks():
     import app  # noqa: F401  (creates the Dash app and imports every page)
     from dash._callback import GLOBAL_CALLBACK_MAP
     modules = {cb["callback"].__module__ for cb in GLOBAL_CALLBACK_MAP.values()}
-    for skill in ("dq", "eda", "ja", "nl", "ml", "et", "ms", "ld", "fe"):
+    for skill in ("dq", "eda", "ja", "nl", "ml", "et", "ms", "ld", "fe", "ci"):
         assert f"workbench.callbacks.{skill}" in modules
 
 

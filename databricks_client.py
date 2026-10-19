@@ -51,6 +51,11 @@ def load_sample_dataset(name: str) -> pd.DataFrame:
         "subscription_churn": _gen_subscription_churn,
         "customer_accounts":  _gen_customer_accounts,
         "clinical_small_wide": _gen_clinical_small_wide,
+        "ab_test_clean":        _gen_ab_test_clean,
+        "ab_test_srm":          _gen_ab_test_srm,
+        "ab_test_bad_control":  _gen_ab_test_bad_control,
+        "observational_coupon": _gen_observational_coupon,
+        "ab_test_underpowered": _gen_ab_test_underpowered,
     }
     if name not in generators:
         raise ValueError(f"Unknown sample dataset: {name}")

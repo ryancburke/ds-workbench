@@ -17,8 +17,8 @@ from dash import Input, Output, State, callback, dcc, html
 from dash.exceptions import PreventUpdate
 
 from workbench.constants import (
-    DATASET_OPTIONS, JA_VERDICT_CLR, JOIN_SCENARIO_OPTIONS, ML_PLACEHOLDER, SKILL_KEYS,
-    SKILL_META,
+    CAUSAL_DATASET_OPTIONS, DATASET_OPTIONS, JA_VERDICT_CLR, JOIN_SCENARIO_OPTIONS, ML_PLACEHOLDER,
+    SKILL_KEYS, SKILL_META,
 )
 from workbench.renderers.ld import _LD_VERDICT_COLOR
 from workbench.session_panels import (
@@ -212,6 +212,44 @@ def layout():
                 ],
                     title=html.Span(id="wb-fe-title"),
                     item_id="fe",
+                ),
+
+                # ── Causal Inference ──────────────────────────────────────
+                dbc.AccordionItem([
+                    dbc.Row([
+                        dbc.Col([
+                            dbc.Label("Dataset", size="sm"),
+                            dbc.Select(id="wb-ci-dataset", options=CAUSAL_DATASET_OPTIONS,
+                                       value="ab_test_clean", size="sm"),
+                        ], md=4),
+                        dbc.Col([
+                            dbc.Label("Treatment", size="sm"),
+                            dbc.Select(id="wb-ci-treatment", options=[], value=None, size="sm"),
+                        ], md=2),
+                        dbc.Col([
+                            dbc.Label("Outcome", size="sm"),
+                            dbc.Select(id="wb-ci-outcome", options=[], value=None, size="sm"),
+                        ], md=2),
+                        dbc.Col([
+                            dbc.Label("Pre-period outcome", size="sm"),
+                            dbc.Select(id="wb-ci-pre", options=[], value=None, size="sm"),
+                        ], md=2),
+                        dbc.Col([
+                            dbc.Label("Design", size="sm"),
+                            dbc.Select(id="wb-ci-design", size="sm", value="randomized", options=[
+                                {"label": "Randomised (A/B)", "value": "randomized"},
+                                {"label": "Observational", "value": "observational"},
+                                {"label": "Not sure", "value": "unsure"},
+                            ]),
+                        ], md=2),
+                    ], className="g-2 mb-2"),
+                    dbc.Button([html.I(className="bi bi-diagram-2 me-1"), "Analyze Effect"],
+                               id="wb-ci-run-btn", color="secondary", size="sm", className="mb-3",
+                               style={"borderColor": "#20c997", "color": "#20c997"}),
+                    dcc.Loading(html.Div(id="wb-ci-results"), type="circle", color="#20c997"),
+                ],
+                    title=html.Span(id="wb-ci-title"),
+                    item_id="ci",
                 ),
 
                 # ── Model Selector ────────────────────────────────────────
@@ -490,6 +528,7 @@ def start_session(_, problem, datasets, store):
     Output("wb-ja-title",  "children"),
     Output("wb-nl-title",  "children"),
     Output("wb-ml-title",  "children"),
+    Output("wb-ci-title",  "children"),
     Input("runs-store", "data"),
 )
 def update_skill_titles(store):
@@ -566,6 +605,12 @@ def update_skill_titles(store):
     ja  = store.get("join_auditor",       [])
     nl  = store.get("nl_to_spark",        [])
     ml  = store.get("mlops_review",       [])
+    ci  = store.get("causal_inference",   [])
+
+    def ci_badge(run):
+        verdict = run.get("summary", {}).get("verdict", "")
+        color = {"valid": "success", "caution": "warning", "not_identified": "danger"}.get(verdict, "secondary")
+        return dbc.Badge(verdict.replace("_", " "), color=color, style={"fontSize": "0.65rem"})
 
     return (
         _title("data_quality",       "bi-shield-check",        "primary",   dq,  dq_badge),
@@ -576,6 +621,7 @@ def update_skill_titles(store):
         _title("join_auditor",       "bi-link-45deg",           "warning",   ja,  ja_badge),
         _title("nl_to_spark",        "bi-translate",            "info",      nl,  nl_badge),
         _title("mlops_review",       "bi-gear-fill",            "danger",    ml,  ml_badge),
+        _title("causal_inference",   "bi-diagram-2",            "info",      ci,  ci_badge),
     )
 
 
