@@ -21,6 +21,7 @@ from skills import leakage_detector
 from skills import feature_engineering
 from skills import preflight
 from skills import experiment_tracker
+from skills import causal_inference
 from skills.session import WorkflowSession
 
 __all__ = [
@@ -34,6 +35,7 @@ __all__ = [
     "feature_engineering",
     "preflight",
     "experiment_tracker",
+    "causal_inference",
     "WorkflowSession",
 ]
 

@@ -954,6 +954,58 @@ def score_experiment_tracker(output: dict, answer_key: dict, benchmark_id: str |
     )
 
 
+# ── Causal inference scoring ─────────────────────────────────────────────────
+
+_CAUSAL_SEV_LEVEL = {"info": 0, "warning": 1, "critical": 2}
+
+
+def score_causal_inference(output: dict, answer_key: dict, benchmark_id: str | None = None) -> ScoreResult:
+    """Verdict (25), required findings (35), reported estimate within 3 SE of the known true
+    effect (25), and no critical finding in a check the case rules out (15)."""
+    benchmark_id = benchmark_id or f"{answer_key['_meta']['dataset']}/causal_inference"
+    findings = output.get("findings", [])
+    notes, matched, missed, false_pos = [], [], [], []
+
+    verdict_ok = output.get("verdict") in answer_key["acceptable_verdicts"]
+    if not verdict_ok:
+        notes.append(f"WRONG VERDICT: {output.get('verdict')!r}, expected one of {answer_key['acceptable_verdicts']}")
+
+    required = answer_key.get("required_findings", [])
+    for spec in required:
+        hit = any(f.get("check") in spec["checks"]
+                  and spec.get("column_hint", "").lower() in (f.get("column") or "").lower()
+                  and _CAUSAL_SEV_LEVEL.get(f.get("severity"), 0) >= _CAUSAL_SEV_LEVEL[spec.get("min_severity", "info")]
+                  for f in findings)
+        (matched if hit else missed).append(spec["id"])
+        if not hit:
+            notes.append(f"MISSED: {spec['id']} ({'/'.join(spec['checks'])} ≥ {spec.get('min_severity', 'info')})")
+    recall = len(matched) / len(required) if required else 1.0
+
+    estimate_ok = True
+    truth = answer_key.get("true_effect")
+    if truth is not None:
+        est = output.get("estimate") or {}
+        effect, se = est.get("effect"), est.get("se")
+        estimate_ok = effect is not None and se is not None and abs(effect - truth) <= 3 * se
+        (matched if estimate_ok else missed).append("estimate_near_truth")
+        if not estimate_ok:
+            notes.append(f"ESTIMATE OFF: {est.get('method')} gives {effect} (se {se}), true effect {truth}")
+
+    for f in findings:
+        if f.get("severity") == "critical" and f.get("check") in answer_key.get("forbidden_critical_checks", []):
+            false_pos.append({"rule_id": f["check"], "reason": "critical finding the case rules out"})
+            notes.append(f"FALSE ALARM: critical {f['check']}")
+
+    overall = 25 * verdict_ok + 35 * recall + 25 * estimate_ok + max(0.0, 15 - 7.5 * len(false_pos))
+    return ScoreResult(
+        benchmark_id=benchmark_id, overall=round(overall, 1), passed=overall >= 70,
+        components={"verdict_correct": verdict_ok, "recall": round(recall, 3), "estimate_ok": estimate_ok,
+                    "false_positive_count": len(false_pos)},
+        matched_findings=matched, missed_findings=missed, false_positives=false_pos,
+        severity_violations=[], notes=notes,
+    )
+
+
 # ── Answer key loader ─────────────────────────────────────────────────────────
 
 def load_answer_key(dataset: str, benchmark: str) -> dict:
@@ -979,4 +1031,6 @@ def score(skill_output: dict, dataset: str, benchmark: str) -> ScoreResult:
         return score_feature_engineering(skill_output, key, benchmark_id=canonical_id)
     if skill == "experiment_tracker":
         return score_experiment_tracker(skill_output, key, benchmark_id=canonical_id)
+    if skill == "causal_inference":
+        return score_causal_inference(skill_output, key, benchmark_id=canonical_id)
     raise ValueError(f"No scorer implemented for skill '{skill}'")

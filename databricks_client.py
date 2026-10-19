@@ -275,6 +275,80 @@ def _gen_sales_forecasting(n: int = 730) -> pd.DataFrame:
     })
 
 
+# ── Causal inference benchmarks (true effects are known) ──────────────────────
+
+def _ab_base(n: int, seed: int):
+    rng = np.random.default_rng(seed)
+    country = rng.choice(["US", "GB", "DE", "FR"], n, p=[0.45, 0.25, 0.18, 0.12])
+    device = rng.choice(["mobile", "desktop"], n, p=[0.6, 0.4])
+    tenure = rng.gamma(2.0, 180, n).round(0)
+    pre = (40 + 0.02 * tenure + np.where(device == "desktop", 8, 0) + rng.normal(0, 12, n)).clip(0).round(2)
+    return rng, country, device, tenure, pre
+
+
+def _gen_ab_test_clean(n: int = 20000) -> pd.DataFrame:
+    """Randomised 50/50 checkout test. True effect on revenue_30d: +1.50. Clean: balanced,
+    correct split, pre-period revenue available (CUPED shrinks the interval a lot)."""
+    rng, country, device, tenure, pre = _ab_base(n, 101)
+    variant = rng.random(n) < 0.5
+    revenue = (0.85 * pre + 1.5 * variant + rng.normal(0, 10, n)).round(2)
+    return pd.DataFrame({"user_id": [f"U{i:06d}" for i in range(n)], "variant": np.where(variant, "B", "A"),
+                         "country": country, "device": device, "tenure_days": tenure,
+                         "revenue_prev_30d": pre, "revenue_30d": revenue})
+
+
+def _gen_ab_test_srm(n: int = 20000) -> pd.DataFrame:
+    """Same test, but a logging bug dropped ~8% of treatment users — the least engaged ones.
+    The split is off (~48% treated) and the naive effect is inflated. True effect: +1.50."""
+    rng, country, device, tenure, pre = _ab_base(n, 102)
+    variant = rng.random(n) < 0.5
+    revenue = (0.85 * pre + 1.5 * variant + rng.normal(0, 10, n)).round(2)
+    lost = variant & (pre < np.quantile(pre, 0.16)) & (rng.random(n) < 0.5)
+    keep = ~lost
+    return pd.DataFrame({"user_id": [f"U{i:06d}" for i in range(n)], "variant": np.where(variant, "B", "A"),
+                         "country": country, "device": device, "tenure_days": tenure,
+                         "revenue_prev_30d": pre, "revenue_30d": revenue})[keep].reset_index(drop=True)
+
+
+def _gen_ab_test_bad_control(n: int = 20000) -> pd.DataFrame:
+    """Randomised onboarding test. The treatment raises sessions_first_week by ~2, and
+    sessions drive the outcome. True total effect on orders_30d: +2.0 (1.0 direct + 0.5 × 2
+    via sessions). Adjusting for sessions_first_week (a post-treatment mediator) gives ~1.0."""
+    rng, country, device, tenure, _ = _ab_base(n, 103)
+    treat = rng.random(n) < 0.5
+    sessions = (3 + 0.004 * tenure + 2.0 * treat + rng.normal(0, 1.5, n)).round(1)
+    orders = (1.0 * treat + 0.5 * sessions + rng.normal(0, 2, n)).round(2)
+    return pd.DataFrame({"user_id": [f"U{i:06d}" for i in range(n)], "new_onboarding": treat,
+                         "country": country, "device": device, "tenure_days": tenure,
+                         "sessions_first_week": sessions, "orders_30d": orders})
+
+
+def _gen_observational_coupon(n: int = 15000) -> pd.DataFrame:
+    """Observational: marketing sent coupons mostly to high spenders and loyalty members.
+    True effect of got_coupon on spend_next_90d: +5.0. The naive difference is ~3x that;
+    adjusting for prior_spend_90d, loyalty_member and tenure_days recovers it."""
+    rng = np.random.default_rng(104)
+    prior = rng.gamma(2.0, 60, n).round(2)
+    loyalty = rng.random(n) < 0.3
+    tenure = rng.gamma(2.0, 200, n).round(0)
+    logit = -2.0 + 0.012 * prior + 1.0 * loyalty + 0.0005 * tenure
+    coupon = rng.random(n) < 1 / (1 + np.exp(-logit))
+    spend = (5.0 * coupon + 0.6 * prior + 8.0 * loyalty + 0.01 * tenure + rng.normal(0, 15, n)).round(2)
+    return pd.DataFrame({"customer_id": [f"C{i:06d}" for i in range(n)], "got_coupon": coupon,
+                         "prior_spend_90d": prior, "loyalty_member": loyalty, "tenure_days": tenure,
+                         "spend_next_90d": spend})
+
+
+def _gen_ab_test_underpowered(n: int = 600) -> pd.DataFrame:
+    """Randomised pricing-page test on 600 users. True effect on revenue_30d: +0.5 with outcome
+    SD ~10, so the minimum detectable effect is ~2.3: 'not significant' is not 'no effect'."""
+    rng, country, device, tenure, _ = _ab_base(n, 105)
+    variant = rng.random(n) < 0.5
+    revenue = (45 + 0.5 * variant + rng.normal(0, 10, n)).round(2)
+    return pd.DataFrame({"user_id": [f"U{i:06d}" for i in range(n)], "variant": np.where(variant, "B", "A"),
+                         "country": country, "device": device, "revenue_30d": revenue})
+
+
 def _gen_clinical_small_wide(n: int = 160) -> pd.DataFrame:
     """
     Treatment response for 160 patients with 46 numeric features, of which only 4 carry

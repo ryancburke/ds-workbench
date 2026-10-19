@@ -1,0 +1,33 @@
+{
+ "_meta": {
+  "dataset": "ab_test_bad_control",
+  "skill": "causal_inference",
+  "schema_version": "1.0",
+  "generator": "databricks_client._gen_ab_test_bad_control()",
+  "description": "Randomised; sessions_first_week is raised by the treatment and drives orders (a mediator). True total effect +2.0; adjusting for sessions gives ~1.0. The reported estimate must not adjust for it."
+ },
+ "input": {
+  "treatment_col": "new_onboarding",
+  "outcome_col": "orders_30d",
+  "randomized": true
+ },
+ "true_effect": 2.0,
+ "acceptable_verdicts": [
+  "valid",
+  "caution"
+ ],
+ "required_findings": [
+  {
+   "id": "sessions_bad_control",
+   "checks": [
+    "bad_control",
+    "covariate_imbalance"
+   ],
+   "column_hint": "sessions",
+   "min_severity": "warning"
+  }
+ ],
+ "forbidden_critical_checks": [
+  "sample_ratio_mismatch"
+ ]
+}

@@ -1,0 +1,31 @@
+{
+ "_meta": {
+  "dataset": "observational_coupon",
+  "skill": "causal_inference",
+  "schema_version": "1.0",
+  "generator": "databricks_client._gen_observational_coupon()",
+  "description": "Observational: coupons targeted at high spenders and loyalty members. Naive difference ~46; true effect +5.0, recovered by adjusting for prior spend, loyalty and tenure. 'valid' overclaims: unmeasured confounding can't be ruled out."
+ },
+ "input": {
+  "treatment_col": "got_coupon",
+  "outcome_col": "spend_next_90d",
+  "randomized": false
+ },
+ "true_effect": 5.0,
+ "acceptable_verdicts": [
+  "caution"
+ ],
+ "required_findings": [
+  {
+   "id": "confounding",
+   "checks": [
+    "confounding",
+    "covariate_imbalance"
+   ],
+   "min_severity": "warning"
+  }
+ ],
+ "forbidden_critical_checks": [
+  "sample_ratio_mismatch"
+ ]
+}

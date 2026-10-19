@@ -35,6 +35,7 @@ SKILL_ROLE = {
     "data_quality": "reasoning", "leakage_detector": "leakage", "model_selector": "analysis",
     "join_auditor": "analysis", "feature_engineering": "general", "eda": "general",
     "nl_to_spark": "general", "mlops_review": "general", "experiment_tracker": "general",
+    "causal_inference": "analysis",
 }
 
 _overrides: contextvars.ContextVar[dict] = contextvars.ContextVar("role_overrides", default={})

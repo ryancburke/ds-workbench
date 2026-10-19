@@ -70,6 +70,7 @@ Without a session, pass the earlier results yourself, for example
 | NL → PySpark | `nl_to_spark.generate(question, {"name": df})` | Spark SQL and DataFrame code |
 | MLOps review | `mlops_reviewer.review(code)` | feasibility verdict, findings with fixes |
 | Experiment tracker | `experiment_tracker.interpret(metrics)` | verdict, red flags, next experiments |
+| Causal inference | `causal_inference.analyze(df, treatment_col, outcome_col, randomized=)` | verdict (valid / caution / not identified), effect with CI, threats such as sample-ratio mismatch, bad controls, confounding |
 
 A failed call returns `{"error": "..."}` with the reason (a refusal, a reply cut off at
 `max_tokens`, or a missing tool call) rather than raising.

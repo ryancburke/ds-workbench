@@ -110,6 +110,8 @@ def test_every_notebook_skill_returns_an_error_dict_instead_of_raising(fake_api)
         "nl_to_spark": lambda: dw.nl_to_spark.generate("q", {"t": df}),
         "mlops_reviewer": lambda: dw.mlops_reviewer.review("x = 1"),
         "experiment_tracker": lambda: dw.experiment_tracker.interpret({"val_auc": 0.8}),
+        "causal_inference": lambda: dw.causal_inference.analyze(dc._gen_ab_test_underpowered(), "variant",
+                                                                "revenue_30d", treated_value="B"),
     }
     for name, call in calls.items():
         assert "declined" in call().get("error", ""), name
