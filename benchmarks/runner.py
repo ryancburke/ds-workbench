@@ -241,12 +241,19 @@ def _causal_benchmarks() -> list[dict]:
     import databricks_client as dc
     out = []
     for ds in ("ab_test_clean", "ab_test_srm", "ab_test_bad_control", "observational_coupon",
-               "ab_test_underpowered"):
+               "ab_test_underpowered", "did_store_rollout", "did_pretrend"):
         key = json.loads((BENCHMARKS_DIR / "answer_keys" / ds / "causal_inference.json").read_text())
+        kwargs = {k: v for k, v in key["input"].items() if k != "entry"}
         out.append({"id": f"{ds}/causal_inference", "dataset": ds, "benchmark": "causal_inference",
                     "skill": "causal_inference", "df_fn": getattr(dc, f"_gen_{ds}"),
-                    "run_fn": _run_ci, "run_kwargs": key["input"]})
+                    "run_fn": _run_did if key["input"].get("entry") == "did" else _run_ci,
+                    "run_kwargs": kwargs})
     return out
+
+
+def _run_did(df, **kwargs) -> dict:
+    from skills.causal_inference import did
+    return did(df, **kwargs)
 
 
 def _run_ci(df, **kwargs) -> dict:

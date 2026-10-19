@@ -56,6 +56,8 @@ def load_sample_dataset(name: str) -> pd.DataFrame:
         "ab_test_bad_control":  _gen_ab_test_bad_control,
         "observational_coupon": _gen_observational_coupon,
         "ab_test_underpowered": _gen_ab_test_underpowered,
+        "did_store_rollout":    _gen_did_store_rollout,
+        "did_pretrend":         _gen_did_pretrend,
     }
     if name not in generators:
         raise ValueError(f"Unknown sample dataset: {name}")
@@ -342,6 +344,38 @@ def _gen_observational_coupon(n: int = 15000) -> pd.DataFrame:
     return pd.DataFrame({"customer_id": [f"C{i:06d}" for i in range(n)], "got_coupon": coupon,
                          "prior_spend_90d": prior, "loyalty_member": loyalty, "tenure_days": tenure,
                          "spend_next_90d": spend})
+
+
+def _store_panel(seed: int, treated_extra_slope: float, effect: float) -> pd.DataFrame:
+    rng = np.random.default_rng(seed)
+    stores, weeks = 40, 24
+    store = np.repeat(np.arange(stores), weeks)
+    week = np.tile(np.arange(weeks), stores)
+    in_promo = store < 20
+    store_level = rng.normal(0, 25, stores)[store]
+    seasonality = 6 * np.sin(2 * np.pi * week / 12)
+    live = week >= 12
+    units = (200 + store_level + 1.0 * week + seasonality + treated_extra_slope * in_promo * week
+             + effect * in_promo * live + rng.normal(0, 6, len(store)))
+    return pd.DataFrame({
+        "store_id": [f"S{s:03d}" for s in store],
+        "region": np.where(store % 2 == 0, "North", "South"),
+        "week_start": pd.Timestamp("2026-03-02") + pd.to_timedelta(week * 7, unit="D"),
+        "promo_group": np.where(in_promo, "promo", "control"),
+        "units_sold": units.round(1),
+    })
+
+
+def _gen_did_store_rollout() -> pd.DataFrame:
+    """A shelf promotion launched in 20 of 40 stores from week 13 (2026-05-25). Parallel trends
+    hold; true effect +8 units per store-week. Difference-in-differences recovers it."""
+    return _store_panel(201, treated_extra_slope=0.0, effect=8.0)
+
+
+def _gen_did_pretrend() -> pd.DataFrame:
+    """Same rollout, but the promo stores were already growing 1.2 units/week faster before the
+    launch and the promotion did nothing (true effect 0). A naive DiD reports a large 'effect'."""
+    return _store_panel(202, treated_extra_slope=1.2, effect=0.0)
 
 
 def _gen_ab_test_underpowered(n: int = 600) -> pd.DataFrame:

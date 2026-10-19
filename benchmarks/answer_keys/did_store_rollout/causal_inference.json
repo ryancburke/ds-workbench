@@ -1,0 +1,29 @@
+{
+ "_meta": {
+  "dataset": "did_store_rollout",
+  "skill": "causal_inference",
+  "schema_version": "1.0",
+  "generator": "databricks_client._gen_did_store_rollout()",
+  "description": "Promotion in 20 of 40 stores from 2026-05-25 (week 13 of 24). Parallel trends hold (pre-trend p ≈ 0.54), true effect +8 units per store-week; DiD with store-clustered SEs recovers ~7.7."
+ },
+ "input": {
+  "entry": "did",
+  "outcome_col": "units_sold",
+  "group_col": "promo_group",
+  "time_col": "week_start",
+  "treatment_start": "2026-05-25",
+  "unit_col": "store_id",
+  "treated_value": "promo"
+ },
+ "true_effect": 8.0,
+ "acceptable_verdicts": [
+  "valid",
+  "caution"
+ ],
+ "required_findings": [],
+ "forbidden_critical_checks": [
+  "pre_trend",
+  "anticipation",
+  "sample_ratio_mismatch"
+ ]
+}

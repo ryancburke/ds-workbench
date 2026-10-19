@@ -72,3 +72,31 @@ def test_not_identified_result_does_not_present_an_effect(fake_api):
                                  treated_value="B")
     html = SkillResult(dict(r), skill="causal_inference")._repr_html_()
     assert "Not a causal estimate" in html and "Effect:" not in html
+
+
+def test_did_recomputes_the_estimate_and_shows_the_event_study(fake_api):
+    fake_api.responder = lambda kw: tool_reply(kw["model"], "report_causal_analysis", {
+        "verdict": "valid", "design": "observational", "identification_strategy": "difference_in_differences",
+        "recommended_estimate": {"method": "difference_in_differences", "exclude_covariates": [], "rationale": "r"},
+        "findings": [], "assumptions": ["parallel trends"], "summary": "s", "next_steps": []})
+    r = causal_inference.did(dc._gen_did_store_rollout(), "units_sold", "promo_group", "week_start",
+                             "2026-05-25", unit_col="store_id")
+    assert abs(r["estimate"]["effect"] - 8.0) < 4 * r["estimate"]["se"]
+    assert r["evidence"]["pre_trend_test"]["p_value"] > 0.01
+    assert len(r["evidence"]["event_study"]) == 23
+    assert "difference_in_differences" in str(fake_api.calls[0]["messages"])
+    import app  # noqa: F401
+    from workbench.renderers.ci import _ci_render
+    assert "relative to the change" in str(_ci_render(dict(r)).to_plotly_json())
+
+
+def test_observational_analysis_reports_an_e_value(fake_api):
+    fake_api.responder = _reply("regression_adjustment", verdict="caution")
+    r = causal_inference.analyze(dc._gen_observational_coupon(), "got_coupon", "spend_next_90d", randomized=False)
+    ev = r["evidence"]["sensitivity_e_value"]
+    assert ev["e_value"] > 1 and ev["for_estimate"] == "regression_adjustment"
+
+
+def test_did_needs_periods_on_both_sides(fake_api):
+    out = causal_inference.did(dc._gen_did_store_rollout(), "units_sold", "promo_group", "week_start", "2030-01-01")
+    assert "before and after" in out["error"]

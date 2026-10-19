@@ -239,10 +239,25 @@ def layout():
                             dbc.Select(id="wb-ci-design", size="sm", value="randomized", options=[
                                 {"label": "Randomised (A/B)", "value": "randomized"},
                                 {"label": "Observational", "value": "observational"},
+                                {"label": "Before/after vs control (DiD)", "value": "did"},
                                 {"label": "Not sure", "value": "unsure"},
                             ]),
                         ], md=2),
                     ], className="g-2 mb-2"),
+                    dbc.Row([
+                        dbc.Col([
+                            dbc.Label("Time column (DiD)", size="sm"),
+                            dbc.Select(id="wb-ci-time", options=[], value=None, size="sm"),
+                        ], md=3),
+                        dbc.Col([
+                            dbc.Label("Unit column (DiD)", size="sm"),
+                            dbc.Select(id="wb-ci-unit", options=[], value=None, size="sm"),
+                        ], md=3),
+                        dbc.Col([
+                            dbc.Label("Change went live (DiD)", size="sm"),
+                            dbc.Input(id="wb-ci-start", placeholder="e.g. 2026-05-25", size="sm"),
+                        ], md=3),
+                    ], id="wb-ci-did-row", className="g-2 mb-2"),
                     dbc.Button([html.I(className="bi bi-diagram-2 me-1"), "Analyze Effect"],
                                id="wb-ci-run-btn", color="secondary", size="sm", className="mb-3",
                                style={"borderColor": "#20c997", "color": "#20c997"}),

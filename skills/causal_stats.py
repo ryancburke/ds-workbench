@@ -117,3 +117,78 @@ def smd(x: np.ndarray, t: np.ndarray) -> float:
 def mde(se: float) -> float:
     """Minimum detectable effect at alpha 0.05 (two-sided) and 80% power."""
     return (Z_95 + Z_80_POWER) * se
+
+
+# ── Sensitivity to unmeasured confounding ─────────────────────────────────────
+
+def e_value(effect: float, ci_low: float, ci_high: float, outcome_sd: float) -> dict:
+    """E-value (VanderWeele & Ding) via the standardised-difference approximation RR ≈ exp(0.91·d):
+    how strongly an unmeasured confounder would have to be associated with both treatment and
+    outcome (as a risk ratio) to fully explain the estimate away. For the CI, the bound nearer
+    the null; 1.0 when the interval already includes zero."""
+    def ev(d: float) -> float:
+        rr = math.exp(0.91 * abs(d))
+        return rr + math.sqrt(rr * (rr - 1))
+    if outcome_sd <= 0:
+        return {"e_value": None, "e_value_ci": None}
+    near_null = 0.0 if ci_low <= 0 <= ci_high else min(abs(ci_low), abs(ci_high))
+    return {"e_value": round(ev(effect / outcome_sd), 3),
+            "e_value_ci": round(ev(near_null / outcome_sd), 3) if near_null else 1.0}
+
+
+# ── Difference-in-differences ─────────────────────────────────────────────────
+
+def cluster_ols(y: np.ndarray, D: np.ndarray, clusters: np.ndarray | None) -> tuple[np.ndarray, np.ndarray]:
+    """OLS coefficients and covariance; cluster-robust (CR1) when clusters are given, else HC1."""
+    beta, *_ = np.linalg.lstsq(D, y, rcond=None)
+    resid = y - D @ beta
+    n, k = D.shape
+    bread = np.linalg.pinv(D.T @ D)
+    if clusters is None:
+        meat = (D * resid[:, None] ** 2).T @ D
+        scale = n / max(n - k, 1)
+    else:
+        _, idx = np.unique(clusters, return_inverse=True)
+        g = idx.max() + 1
+        scores = np.zeros((g, k))
+        np.add.at(scores, idx, D * resid[:, None])
+        meat = scores.T @ scores
+        scale = g / max(g - 1, 1) * (n - 1) / max(n - k, 1)
+    return beta, bread @ meat @ bread * scale
+
+
+def did(y: np.ndarray, treated: np.ndarray, post: np.ndarray, clusters: np.ndarray | None) -> dict:
+    """2x2 difference-in-differences: coefficient on treated×post in y ~ 1 + treated + post + treated×post."""
+    D = np.column_stack([np.ones_like(y), treated, post, treated * post]).astype(float)
+    beta, cov = cluster_ols(y, D, clusters)
+    return _estimate(float(beta[3]), float(math.sqrt(max(cov[3, 3], 0.0))), "difference_in_differences")
+
+
+def event_study(y: np.ndarray, treated: np.ndarray, period: np.ndarray, ref_period,
+                clusters: np.ndarray | None) -> list[dict]:
+    """Treated-vs-control gap in each period relative to ref_period (the last pre-period), with
+    period fixed effects. Pre-period gaps near zero support parallel trends."""
+    periods = [p for p in sorted(np.unique(period)) if p != ref_period]
+    period_fe = [(period == p).astype(float) for p in periods]
+    inter = [((period == p) & (treated == 1)).astype(float) for p in periods]
+    D = np.column_stack([np.ones_like(y), treated.astype(float), *period_fe, *inter])
+    beta, cov = cluster_ols(y, D, clusters)
+    first = 2 + len(periods)
+    out = []
+    for j, p in enumerate(periods):
+        b, se = float(beta[first + j]), float(math.sqrt(max(cov[first + j, first + j], 0.0)))
+        out.append({"period": p, "gap_vs_ref": b, "se": se, "p_value": two_sided_p(b / se) if se > 0 else 1.0})
+    return out
+
+
+def pre_trend(y: np.ndarray, treated: np.ndarray, time_index: np.ndarray, pre: np.ndarray,
+              clusters: np.ndarray | None) -> dict:
+    """Differential linear trend before treatment: slope of treated − control per period,
+    from y ~ 1 + treated + t + treated×t on pre-period rows."""
+    m = pre.astype(bool)
+    t = time_index[m].astype(float)
+    D = np.column_stack([np.ones(m.sum()), treated[m], t, treated[m] * t]).astype(float)
+    beta, cov = cluster_ols(y[m], D, clusters[m] if clusters is not None else None)
+    se = float(math.sqrt(max(cov[3, 3], 0.0)))
+    return {"differential_slope_per_period": float(beta[3]), "se": se,
+            "p_value": two_sided_p(beta[3] / se) if se > 0 else 1.0}

@@ -20,6 +20,11 @@ _NONE = "__none__"
     Output("wb-ci-pre", "options"),
     Output("wb-ci-pre", "value"),
     Output("wb-ci-design", "value"),
+    Output("wb-ci-time", "options"),
+    Output("wb-ci-time", "value"),
+    Output("wb-ci-unit", "options"),
+    Output("wb-ci-unit", "value"),
+    Output("wb-ci-start", "value"),
     Input("wb-ci-dataset", "value"),
     prevent_initial_call=True,
 )
@@ -37,7 +42,11 @@ def wb_ci_load_cols(dataset):
             [{"label": c, "value": c} for c in numeric], outcome,
             [{"label": "None", "value": _NONE}] + [{"label": c, "value": c} for c in numeric],
             preset.get("pre") or _NONE,
-            preset.get("design", "unsure"))
+            preset.get("design", "unsure"),
+            [{"label": c, "value": c} for c in df.columns], preset.get("time"),
+            [{"label": "None", "value": _NONE}] + [{"label": c, "value": c} for c in df.columns],
+            preset.get("unit") or _NONE,
+            preset.get("start", ""))
 
 
 @callback(
@@ -48,12 +57,15 @@ def wb_ci_load_cols(dataset):
     State("wb-ci-outcome", "value"),
     State("wb-ci-pre", "value"),
     State("wb-ci-design", "value"),
+    State("wb-ci-time", "value"),
+    State("wb-ci-unit", "value"),
+    State("wb-ci-start", "value"),
     State("runs-store", "data"),
     prevent_initial_call=True,
 )
-def wb_run_ci(_, dataset, treatment, outcome, pre, design, store):
+def wb_run_ci(_, dataset, treatment, outcome, pre, design, time_col, unit_col, start, store):
     from databricks_client import load_sample_dataset
-    from skills.causal_inference import analyze
+    from skills.causal_inference import analyze, did
 
     if not dataset or not treatment or not outcome:
         raise PreventUpdate
@@ -62,8 +74,15 @@ def wb_run_ci(_, dataset, treatment, outcome, pre, design, store):
     run_id = f"ci_{int(time.time() * 1000)}"
     randomized = {"randomized": True, "observational": False}.get(design)
 
-    result = analyze(load_sample_dataset(dataset), treatment, outcome, randomized=randomized,
-                     pre_outcome_col=None if pre in (None, _NONE) else pre, context=context)
+    df = load_sample_dataset(dataset)
+    if design == "did":
+        if not time_col or not start:
+            raise PreventUpdate
+        result = did(df, outcome, treatment, time_col, start,
+                     unit_col=None if unit_col in (None, _NONE) else unit_col, context=context)
+    else:
+        result = analyze(df, treatment, outcome, randomized=randomized,
+                         pre_outcome_col=None if pre in (None, _NONE) else pre, context=context)
     if result.get("error"):
         run = {"id": run_id, "label": label, "timestamp": datetime.now().strftime("%H:%M"),
                "status": "error", "error": result["error"], "summary": {}}
