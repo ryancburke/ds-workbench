@@ -270,7 +270,11 @@ Data profile:
    - Missing data patterns (any features with >10% nulls that constrain model choice)
 
 3. **Recommend 3–4 model families**, ranked. For rank 1, include a PySpark MLlib starter
-   code snippet (with Databricks in mind). Be specific — cite actual numbers in rationale
+   code snippet (with Databricks in mind) that matches your own notes. Split the data first
+   (by time if there is a timestamp, otherwise stratified on the target), then fit everything
+   learned from data — encoders, frequency counts, class weights, imputers, the model — on the
+   training split only, because anything fitted on all rows leaks the evaluation data into
+   training. Be specific — cite actual numbers in rationale
    (e.g. "the 5.3:1 imbalance makes gradient boosting preferable to logistic regression
    without resampling").
 

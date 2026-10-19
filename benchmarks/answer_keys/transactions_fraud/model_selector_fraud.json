@@ -77,5 +77,7 @@
   "imbalance_handling_required": true,
   "imbalance_handling_note": "At 32.33:1, imbalance handling is CRITICAL. The skill must mention at least one of: scale_pos_weight (XGBoost), class_weight='balanced', SMOTE, precision-recall AUC as the primary metric, F-beta score. A recommendation that ignores this imbalance entirely fails the benchmark. Removed 'linear_regression' and 'regression' — logistic regression variants are valid for fraud classification.",
   "top_1_note": "With only 30 positives, a class-weighted, regularised logistic regression is a defensible first model (lower variance than boosting, calibrated scores). It was penalised before, costing Opus 5.5 and Fable 5.1 20 points in the 2026-10-18 model comparison."
- }
+ },
+ "split_before_learning": true,
+ "split_before_learning_note": "Encoders, frequency counts, class weights and the model must be fitted on the training split only (found by the 2026-10-19 simulation judge)."
 }
