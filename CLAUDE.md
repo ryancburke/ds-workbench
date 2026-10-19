@@ -77,8 +77,7 @@ shows quality trends per skill over time.
 - **Anthropic SDK** — model IDs and per-role effort levels are settings in `config.py`
   (overridable in `.env`; see `.env.example`). Calls use `**role("<role>")` from
   `skills/models.py` (model + effort, read at call time); `override_roles()` swaps a role
-  for sweeps. Opus 5.5 for heavy reasoning (DQ), Fable 5.1
-  for leakage, Sonnet 5.5 for general analysis and simulation personas, Opus 5.5 for
+  for sweeps. Opus 5.5 for heavy reasoning (DQ) and leakage, Sonnet 5.5 for general analysis and simulation personas, Opus 5.5 for
   simulation judging, Haiku 5.5 for structured extraction (Pass 2). Every call uses the
   shared client `skills.api_retry.get_client()` (the SDK owns retries) and goes through
   `api_call` / `check_response`, which raise `ModelRefusal` on `stop_reason == "refusal"`.

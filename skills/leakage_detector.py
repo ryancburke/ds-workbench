@@ -51,6 +51,19 @@ _TOOL = {
 }
 
 
+def _single_feature_auc(values: pd.Series, y: pd.Series) -> float | None:
+    """Rank-based AUC of one feature against a 0/1 target, folded to >= 0.5.
+    Unlike Pearson r it sees any monotone separation, linear or not."""
+    valid = values.notna() & y.notna()
+    v, t = values[valid].astype(float), y[valid].astype(float)
+    n1 = float(t.sum()); n0 = float(len(t) - n1)
+    if n1 < 5 or n0 < 5:
+        return None
+    ranks = v.rank()
+    auc = (ranks[t == 1].sum() - n1 * (n1 + 1) / 2) / (n1 * n0)
+    return round(float(max(auc, 1 - auc)), 4)
+
+
 def build_leakage_profile(df: pd.DataFrame, target_col: str) -> dict:
     """Compute statistical signals that reveal target leakage."""
     if target_col not in df.columns:
@@ -107,6 +120,38 @@ def build_leakage_profile(df: pd.DataFrame, target_col: str) -> dict:
                         info["correlation_with_target"] = round(abs(corr), 4)
                 except Exception:
                     pass
+
+        # Single-feature AUC — catches non-linear separation that Pearson r misses
+        if is_binary and target_numeric is not None and pd.api.types.is_numeric_dtype(feat) \
+                and feat.dtype != bool:
+            auc = _single_feature_auc(feat, target_numeric)
+            if auc is not None:
+                info["single_feature_auc"] = auc
+            # Values that are zero for one class only (e.g. a refund credit after the event)
+            zeros = feat.fillna(0) == 0
+            if 0.1 <= zeros.mean() <= 0.95:
+                info["zero_pct_by_class"] = {
+                    str(val): round(float(zeros[target == val].mean() * 100), 2)
+                    for val in target.dropna().unique() if (target == val).sum() >= 5}
+
+        # Categorical: target rate per value, and values seen in only one class
+        if is_binary and target_numeric is not None and not pd.api.types.is_numeric_dtype(feat) \
+                and 1 < feat.nunique() <= 50:
+            rates = target_numeric.groupby(feat.astype(str)).agg(["mean", "size"])
+            rates = rates[rates["size"] >= max(5, int(0.01 * len(df)))]
+            if len(rates):
+                info["target_rate_by_value"] = {
+                    str(k): round(float(r["mean"]), 3)
+                    for k, r in rates.sort_values("size", ascending=False).head(8).iterrows()}
+                pure = rates[(rates["mean"] <= 0.0) | (rates["mean"] >= 1.0)]
+                if len(pure):
+                    info["single_class_values"] = {
+                        str(k): {"rows": int(r["size"]), "target_rate": round(float(r["mean"]), 3)}
+                        for k, r in pure.iterrows()}
+                encoded = feat.astype(str).map(rates["mean"]).astype(float)
+                auc = _single_feature_auc(encoded, target_numeric)
+                if auc is not None:
+                    info["single_feature_auc"] = auc
 
         # Conditional null rate — exposes post-event proxy features
         if feat.isnull().any() and is_binary:
@@ -236,10 +281,27 @@ Leakage types:
 - direct: feature IS the target or a trivial transformation of it
 - proxy: feature only exists as a downstream consequence of the target
   (e.g. a refund_id only assigned after a return; a claim_id only exists after filing a claim)
-- high_correlation: absolute correlation with target >0.8 with no plausible causal explanation
+- high_correlation: the feature separates the target far better than any pre-event signal
+  plausibly could — correlation >0.8, or single_feature_auc ≥ 0.97 even when correlation is
+  low (a non-linear leak) — with no plausible causal explanation
   (a legitimate feature can have 0.5-0.7 correlation — that's predictive, not leakage)
 - temporal: feature uses data from after the prediction event
 - identifier: ID whose values encode the target (e.g. fraud_case_id → only fraudulent rows)
+
+Profile signals:
+- single_feature_auc: how well this one column alone separates the classes (0.5 = not at all,
+  1.0 = perfectly). Legitimate strong predictors usually sit at 0.6–0.9; ≥ 0.97 from a single
+  column is rare without leakage. Pearson r can be low for a near-perfect non-linear leak.
+- single_class_values: category values (≥1% of rows) that occur in only one target class, e.g. a
+  status written by the event itself.
+- zero_pct_by_class: a column that is zero for every row of one class but not the other, e.g. a
+  credit or fee issued after the event (the zero-valued twin of conditional_null_pct).
+A strong signal says where to look; whether it is leakage depends on when the value exists.
+An attribute of the thing being scored (a transaction's amount, an applicant's income) is known
+at prediction time, so near-perfect separation there is the signal the model is for: at most a
+warning to confirm how it was recorded. Call it critical when something says the value is made
+by or after the outcome: a derived score or index, a status or ID written by the outcome flow, a
+value present or non-zero for one class only.
 
 Severity rules:
 - critical: almost certainly leakage (correlation >0.85, conditional null gap >90%, direct proxy).
@@ -262,32 +324,32 @@ Do NOT flag:
   If you mention an ID column, use info severity at most — never critical or warning.
 - Event timestamps that represent WHEN the event was recorded (not post-event data)
 
-CALIBRATION EXAMPLES — illustrative cases from a subscription-churn dataset (target 'churned');
-judge this dataset on its own profile:
+CALIBRATION EXAMPLES — illustrative cases from a hospital-readmission dataset (target
+'readmitted'); judge this dataset on its own profile:
 
 CLEAN — legitimate predictor, do NOT flag:
-  tenure_months, correlation_with_target: -0.38
+  length_of_stay_days, correlation_with_target: 0.38
   → Moderate correlation is predictive signal. Not leakage.
 
 CRITICAL LEAKAGE — post-event proxy, must flag:
-  cancellation_ticket_id, conditional_null_pct: {{"True": 3.0, "False": 98.9}}
-  → Almost always null when churned=False, present when churned=True.
-    Created by the cancellation itself. leakage_type=proxy, severity=critical.
+  readmission_case_id, conditional_null_pct: {{"True": 3.0, "False": 98.9}}
+  → Almost always null when readmitted=False, present when readmitted=True.
+    Created by the readmission itself. leakage_type=proxy, severity=critical.
 
 IDENTIFIER — not leakage, info only:
-  account_number, unique_count=5000, n_rows=5000,
+  patient_mrn, unique_count=5000, n_rows=5000,
   conditional_null_pct: {{"True": 0.2, "False": 0.2}}
   → Equal null rates across classes. Row identifier, not leakage.
     leakage_type=identifier, severity=info at most.
 
 SUSPICIOUS HIGH CORRELATION — flag critical:
-  retention_offer_score, correlation_with_target: 0.91
-  → r=0.91 with 'churned'. Scored by the retention team after a customer signals they are
-    leaving, so it encodes the outcome. leakage_type=high_correlation, severity=critical.
+  care_team_risk_score, correlation_with_target: 0.91
+  → r=0.91 with 'readmitted'. Assigned by the care team after the patient came back, so it
+    encodes the outcome. leakage_type=high_correlation, severity=critical.
 
 STRONG LEGITIMATE FEATURE — do NOT flag:
-  support_tickets_90d, correlation_with_target: 0.55
-  → r=0.55. Recent support friction plausibly drives churn. Predictive, not leaky.
+  prior_admissions_12m, correlation_with_target: 0.55
+  → r=0.55. Prior admissions plausibly drive readmission. Predictive, not leaky.
 
 Reference the specific statistics from the profile in your evidence fields."""
 

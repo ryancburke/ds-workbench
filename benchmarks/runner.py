@@ -42,7 +42,7 @@ def _get_benchmarks() -> list[dict]:
     from databricks_client import (
         _gen_orders_dirty, _gen_sales_clean, _gen_hr_attrition,
         _gen_ecommerce, _gen_transactions_fraud, _gen_sales_forecasting,
-        _gen_ecommerce_leakage,
+        _gen_ecommerce_leakage, _gen_subscription_churn,
     )
     return [
         # ── Data Quality ──────────────────────────────────────────────────────
@@ -129,6 +129,25 @@ def _get_benchmarks() -> list[dict]:
             "run_kwargs": {"target_col": "is_fraud"},
         },
         # ── Leakage Detector ──────────────────────────────────────────────────
+        {
+            # precision case: amount separates fraud perfectly but is known at prediction time
+            "id":        "transactions_fraud/leakage_detector",
+            "dataset":   "transactions_fraud",
+            "benchmark": "leakage_detector",
+            "skill":     "leakage_detector",
+            "df_fn":     _gen_transactions_fraud,
+            "run_fn":    _run_ld,
+            "run_kwargs": {"target_col": "is_fraud"},
+        },
+        {
+            "id":        "subscription_churn/leakage_detector_churned",
+            "dataset":   "subscription_churn",
+            "benchmark": "leakage_detector_churned",
+            "skill":     "leakage_detector",
+            "df_fn":     _gen_subscription_churn,
+            "run_fn":    _run_ld,
+            "run_kwargs": {"target_col": "churned"},
+        },
         {
             "id":        "ecommerce_leakage/leakage_detector_converted",
             "dataset":   "ecommerce_leakage",

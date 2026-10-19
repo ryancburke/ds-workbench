@@ -30,7 +30,9 @@ class Config:
     reasoning_model: str = _env("REASONING_MODEL", "claude-opus-5-5")    # DQ Pass 1
     analysis_model: str = _env("ANALYSIS_MODEL", "claude-sonnet-5-5")    # model_selector, join_auditor Pass 1
     general_model: str = _env("GENERAL_MODEL", "claude-sonnet-5-5")      # EDA, MLOps, NL→Spark, FE, tracker
-    leakage_model: str = _env("LEAKAGE_MODEL", "claude-fable-5-1")       # leakage Pass 1
+    # leakage Pass 1. Opus 5.5 matched Fable 5.1 on all four leakage cases (2 trials each,
+    # incl. disguised and precision cases) at ~40% of the cost — see PR for the sweep.
+    leakage_model: str = _env("LEAKAGE_MODEL", "claude-opus-5-5")
     structured_model: str = _env("STRUCTURED_MODEL", "claude-haiku-5-5") # all Pass 2 (forced tool call)
     # Agents
     sim_model: str = _env("SIM_MODEL", "claude-sonnet-5-5")              # persona think/interpret

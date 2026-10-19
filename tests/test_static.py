@@ -23,3 +23,13 @@ def test_workbench_registers_all_callbacks():
     modules = {cb["callback"].__module__ for cb in GLOBAL_CALLBACK_MAP.values()}
     for skill in ("dq", "eda", "ja", "nl", "ml", "et", "ms", "ld", "fe"):
         assert f"workbench.callbacks.{skill}" in modules
+
+
+def test_every_module_compiles():
+    import compileall
+    import re
+    ok = all(compileall.compile_dir(str(ROOT / p), quiet=2, force=True,
+                                    rx=re.compile(r"[\\/]\.venv[\\/]"))
+             if (ROOT / p).is_dir() else compileall.compile_file(str(ROOT / p), quiet=2, force=True)
+             for p in PATHS)
+    assert ok, "a module has a syntax error (see output above)"
