@@ -8,8 +8,6 @@ improvement suggestions in the feedback dashboard.
 
 import json
 import os
-import py_compile
-import tempfile
 import threading
 import time
 from datetime import datetime, timezone
@@ -148,12 +146,16 @@ def update_rec_status(rec_id: str, status: str):
     _write_recs(data)
 
 
-def save_draft(rec_id: str, file_path: str, code: str):
+def save_draft(rec_id: str, file_path: str, code: str, diff: str = "", base_sha: str = "",
+               summary: str = ""):
     data = _read_recs()
     for r in data["recommendations"]:
         if r["id"] == rec_id:
             r["drafted_file"] = file_path
             r["drafted_code"] = code
+            r["drafted_diff"] = diff
+            r["drafted_base_sha"] = base_sha
+            r["drafted_summary"] = summary
             r["status"] = "drafted"
             r["drafted_at"] = _now()
             break
@@ -427,52 +429,127 @@ def start_scheduler():
 
 
 # ── Code drafting ──────────────────────────────────────────────────────────────
+#
+# A draft is a set of exact search/replace edits, not a whole-file rewrite: the model
+# writes only what changes (a few hundred tokens instead of ~40k for pages/home.py),
+# every edit is checked to match exactly once, and the result is exported as a patch
+# for a feature branch rather than written over the running app's files.
 
-_SKILL_FILE = {
-    "data_quality":        "pages/data_quality.py",
-    "eda":                 "pages/eda.py",
-    "join_auditor":        "pages/join_auditor.py",
-    "nl_to_spark":         "pages/nl_to_spark.py",
-    "mlops_review":        "pages/mlops_review.py",
+_PATCH_DIR = Path(__file__).parent.parent / "feedback" / "patches"
+
+_SKILL_SOURCE = {
+    "data_quality":        "skills/data_quality.py",
+    "eda":                 "skills/eda.py",
+    "join_auditor":        "skills/join_auditor.py",
+    "nl_to_spark":         "skills/nl_to_spark.py",
+    "mlops_review":        "skills/mlops_reviewer.py",
     "model_selector":      "skills/model_selector.py",
     "leakage_detector":    "skills/leakage_detector.py",
     "feature_engineering": "skills/feature_engineering.py",
-    "agent_sim":           "pages/agent_sim.py",
-    "general":             "pages/home.py",
+    "experiment_tracker":  "skills/experiment_tracker.py",
+    "notebook_generator":  "skills/notebook_generator.py",
 }
+
+
+# Workbench section renderers (workbench/renderers/<short>.py)
+_WORKBENCH_RENDERER = {
+    "data_quality": "dq", "eda": "eda", "join_auditor": "ja", "nl_to_spark": "nl",
+    "mlops_review": "ml", "model_selector": "ms", "leakage_detector": "ld",
+    "feature_engineering": "fe", "experiment_tracker": "et",
+}
+
+
+def target_file(rec: dict) -> str:
+    """Where a recommendation is implemented: the skill's own logic for what it finds,
+    the notebook renderer for notebook output, the skill's Workbench renderer for its UX,
+    and the Workbench page itself for cross-skill UX."""
+    skill = rec.get("skill_affected", "general")
+    issue = rec.get("issue_type", "")
+    if skill == "agent_sim":
+        return "pages/agent_sim.py"
+    if issue == "notebook_output_quality":
+        return "skills/result.py"
+    if issue in ("data_insight", "missing_feature") and skill in _SKILL_SOURCE:
+        return _SKILL_SOURCE[skill]
+    if skill in _WORKBENCH_RENDERER:
+        return f"workbench/renderers/{_WORKBENCH_RENDERER[skill]}.py"
+    return "pages/home.py"
+
+
+_EDIT_TOOL = {
+    "name": "propose_edits",
+    "description": (
+        "Propose the change as exact search/replace edits to the file. Each `old` must be "
+        "copied verbatim from the current file (including indentation) and occur exactly once; "
+        "include enough surrounding lines to make it unique. Edits apply in order."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "summary": {"type": "string", "description": "One or two sentences on what the change does"},
+            "edits": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "old": {"type": "string", "description": "Exact text to replace"},
+                        "new": {"type": "string", "description": "Replacement text"},
+                    },
+                    "required": ["old", "new"],
+                },
+            },
+        },
+        "required": ["summary", "edits"],
+    },
+}
+
+
+def apply_edits(source: str, edits: list[dict]) -> str:
+    """Apply search/replace edits in order; each `old` must match exactly once."""
+    out = source
+    for i, edit in enumerate(edits, 1):
+        count = out.count(edit["old"])
+        if count != 1:
+            preview = edit["old"].strip().splitlines()[0][:80] if edit["old"].strip() else "(empty)"
+            raise ValueError(f"Edit {i} matches {count} times (needs exactly 1): {preview!r}")
+        out = out.replace(edit["old"], edit["new"], 1)
+    return out
+
+
+def _sha(text: str) -> str:
+    import hashlib
+    return hashlib.sha256(text.encode()).hexdigest()[:16]
 
 
 def draft_code_change(rec_id: str) -> tuple[str, str]:
     """
-    Ask Claude to implement the recommendation.
-    Returns (file_path, new_code). Saves draft to store.
-    Raises on failure.
+    Ask Claude to implement the recommendation as search/replace edits.
+    Returns (file_path, unified_diff). Saves the draft to the store.
+    Raises on failure (refusal, no edits, an edit that doesn't match, or a syntax error).
     """
-    from skills.api_retry import check_response, get_client, response_text
+    import difflib
+
+    from skills.api_retry import api_call, get_client, strict_tool, tool_input
     from skills.models import role
 
     rec = get_rec(rec_id)
     if not rec:
         raise ValueError(f"Recommendation {rec_id} not found")
 
-    file_path = _SKILL_FILE.get(rec.get("skill_affected", "general"), "pages/home.py")
-    base_dir   = Path(__file__).parent.parent
-    full_path  = base_dir / file_path
+    file_path = target_file(rec)
+    full_path = Path(__file__).parent.parent / file_path
+    current_code = full_path.read_text()
 
-    current_code = full_path.read_text() if full_path.exists() else "# File not found"
-
-    # A whole-file rewrite can be tens of thousands of tokens (pages/home.py is ~3.3k
-    # lines), so stream with a large max_tokens rather than truncating at 8k.
-    with get_client().messages.stream(
+    resp = api_call(
+        get_client().messages.create,
         **role("code"),
-        max_tokens=64000,
+        max_tokens=16000,
         system=(
-            "You are an expert Plotly Dash developer implementing a UX improvement for a "
-            "data science workbench. The app uses Dash 4.4, dash-bootstrap-components with "
-            "the DARKLY theme, and Plotly Express/Graph Objects. All callbacks use the "
-            "`@callback` decorator. Pattern-matching callbacks use MATCH/ALL. "
-            "A global `runs-store` (session storage) holds run history per skill. "
-            "Return ONLY the complete updated Python file — no markdown, no explanation."
+            "You are an expert Python and Plotly Dash developer improving a data science "
+            "workbench. Skills in skills/ are pure Python (no Dash) and also run in Databricks "
+            "notebooks; pages use Dash 4.4 with dash-bootstrap-components (DARKLY theme), "
+            "`@callback`, pattern-matching MATCH/ALL callbacks, and a global `runs-store`. "
+            "Keep the change as small as the improvement allows and preserve existing behaviour."
         ),
         messages=[{
             "role": "user",
@@ -483,58 +560,47 @@ def draft_code_change(rec_id: str) -> tuple[str, str]:
                 f"USER STORY: {rec['user_story']}\n"
                 f"IMPLEMENTATION HINT: {rec['implementation_hint']}\n\n"
                 f"Current file `{file_path}`:\n```python\n{current_code}\n```\n\n"
-                "Return the complete updated file. Preserve all existing functionality."
+                "Submit the change by calling the propose_edits tool."
             ),
         }],
-    ) as stream:
-        resp = check_response(stream.get_final_message())
+        tools=[strict_tool(_EDIT_TOOL)],
+        tool_choice={"type": "auto"},
+    )
+    proposal = tool_input(resp, "propose_edits")
+    if not proposal["edits"]:
+        raise RuntimeError("The draft contained no edits")
 
-    if resp.stop_reason == "max_tokens":
-        raise RuntimeError(f"Draft for {file_path} was cut off at max_tokens — not saving a partial file")
+    new_code = apply_edits(current_code, proposal["edits"])
+    if file_path.endswith(".py"):
+        compile(new_code, file_path, "exec")  # SyntaxError surfaces with the line number
 
-    new_code = response_text(resp)
-    # Strip accidental markdown fences
-    if new_code.startswith("```"):
-        new_code = "\n".join(new_code.split("\n")[1:])
-    if new_code.endswith("```"):
-        new_code = "\n".join(new_code.split("\n")[:-1])
-
-    save_draft(rec_id, file_path, new_code)
-    return file_path, new_code
+    diff = "".join(difflib.unified_diff(
+        current_code.splitlines(keepends=True), new_code.splitlines(keepends=True),
+        fromfile=f"a/{file_path}", tofile=f"b/{file_path}"))
+    save_draft(rec_id, file_path, new_code, diff=diff, base_sha=_sha(current_code),
+               summary=proposal["summary"])
+    return file_path, diff
 
 
-def apply_code_change(rec_id: str) -> str:
+def export_patch(rec_id: str) -> Path:
     """
-    Write drafted code to disk. Creates a .bak backup first.
-    Returns the file path that was written.
-    Raises on syntax error or missing draft.
+    Write the drafted change as a patch under feedback/patches/ for a feature branch.
+    Nothing in the working tree changes: project rule 4 is branch + PR, and the running
+    app should not rewrite its own source.
+    Raises if there is no draft or the file has changed since it was drafted.
     """
     rec = get_rec(rec_id)
-    if not rec or not rec.get("drafted_code"):
-        raise ValueError("No draft found for this recommendation")
+    if not rec or not rec.get("drafted_diff"):
+        raise ValueError("No draft found for this recommendation — generate one first")
 
-    base_dir  = Path(__file__).parent.parent
-    file_path = base_dir / rec["drafted_file"]
-    new_code  = rec["drafted_code"]
+    current = (Path(__file__).parent.parent / rec["drafted_file"]).read_text()
+    if rec.get("drafted_base_sha") and _sha(current) != rec["drafted_base_sha"]:
+        raise ValueError(f"{rec['drafted_file']} has changed since this draft was made — "
+                         "regenerate the draft")
 
-    # Syntax check before touching the file
-    with tempfile.NamedTemporaryFile(suffix=".py", mode="w", delete=False) as tmp:
-        tmp.write(new_code)
-        tmp_path = tmp.name
-    try:
-        py_compile.compile(tmp_path, doraise=True)
-    except py_compile.PyCompileError as e:
-        raise ValueError(f"Syntax error in drafted code: {e}")
-    finally:
-        try:
-            os.unlink(tmp_path)
-        except Exception:
-            pass
-
-    # Backup original
-    if file_path.exists():
-        file_path.with_suffix(".py.bak").write_text(file_path.read_text())
-
-    file_path.write_text(new_code)
+    _PATCH_DIR.mkdir(parents=True, exist_ok=True)
+    patch = _PATCH_DIR / f"{rec_id}.patch"
+    header = f"# {rec['title']}\n# {rec.get('drafted_summary', '')}\n"
+    patch.write_text(header + rec["drafted_diff"])
     update_rec_status(rec_id, "implemented")
-    return str(rec["drafted_file"])
+    return patch
