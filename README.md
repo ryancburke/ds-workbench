@@ -214,3 +214,7 @@ agents/            simulation personas and the scheduler/feedback loop
 benchmarks/        runner, scorers, answer keys, model comparison
 tests/             offline pytest suite
 ```
+
+## License
+
+MIT — see [LICENSE](LICENSE).
