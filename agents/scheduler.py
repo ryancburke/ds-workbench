@@ -33,6 +33,11 @@ def _init_files():
         BENCHMARKS_FILE.write_text(json.dumps({"benchmarks": []}, indent=2))
 
 
+# Serialises read-modify-write of recommendations.json: bulk runs reflect in parallel threads,
+# and unlocked writes could drop each other's recommendations.
+_recs_lock = threading.RLock()
+
+
 def _read_recs() -> dict:
     _init_files()
     try:
@@ -85,17 +90,28 @@ def add_recommendation(rec: dict) -> str:
     Add a recommendation or upvote an existing similar one.
     Returns the recommendation ID.
     """
+    with _recs_lock:
+        return _add_recommendation(rec)
+
+
+def _add_recommendation(rec: dict) -> str:
     data = _read_recs()
     recs = data["recommendations"]
 
     # Match on title similarity alone (skill_affected removed from gate — same concept
     # can arrive with different or empty skill labels across personas/scenarios).
-    existing = next(
-        (r for r in recs
-         if r.get("status", "pending") == "pending"
-         and _similar_title(r.get("title", ""), rec.get("title", ""))),
-        None,
-    )
+    # A pending match takes the vote; otherwise a stale match is revived, because the
+    # current tool has reproduced it.
+    def match(status):
+        return next((r for r in recs if r.get("status", "pending") == status
+                     and _similar_title(r.get("title", ""), rec.get("title", ""))), None)
+
+    existing = match("pending")
+    if existing is None:
+        existing = match("stale")
+        if existing is not None:
+            existing["status"] = "pending"
+            existing["revived_at"] = _now()
 
     if existing:
         existing["votes"] = existing.get("votes", 1) + 1
@@ -137,29 +153,61 @@ def get_recommendations(status: str | None = None) -> list[dict]:
 
 
 def update_rec_status(rec_id: str, status: str):
-    data = _read_recs()
-    for r in data["recommendations"]:
-        if r["id"] == rec_id:
-            r["status"] = status
-            r["status_updated_at"] = _now()
-            break
-    _write_recs(data)
+    with _recs_lock:
+        data = _read_recs()
+        for r in data["recommendations"]:
+            if r["id"] == rec_id:
+                r["status"] = status
+                r["status_updated_at"] = _now()
+                break
+        _write_recs(data)
+
+
+def mark_stale(before: str) -> int:
+    """Move pending recommendations not seen since `before` (ISO time) to 'stale', e.g. after a
+    model or skill change. A later simulation that suggests the same thing revives them."""
+    with _recs_lock:
+        data = _read_recs()
+        n = 0
+        for r in data["recommendations"]:
+            if r.get("status") == "pending" and (r.get("last_seen") or r.get("created_at", "")) < before:
+                r["status"] = "stale"
+                r["stale_since"] = _now()
+                n += 1
+        _write_recs(data)
+        return n
+
+
+def dismiss_stale() -> int:
+    """Dismiss every stale recommendation (they didn't reproduce on the current tool)."""
+    with _recs_lock:
+        data = _read_recs()
+        n = 0
+        for r in data["recommendations"]:
+            if r.get("status") == "stale":
+                r["status"] = "dismissed"
+                r["status_updated_at"] = _now()
+                r["dismissed_reason"] = "stale: not reproduced on the current tool"
+                n += 1
+        _write_recs(data)
+        return n
 
 
 def save_draft(rec_id: str, file_path: str, code: str, diff: str = "", base_sha: str = "",
                summary: str = ""):
-    data = _read_recs()
-    for r in data["recommendations"]:
-        if r["id"] == rec_id:
-            r["drafted_file"] = file_path
-            r["drafted_code"] = code
-            r["drafted_diff"] = diff
-            r["drafted_base_sha"] = base_sha
-            r["drafted_summary"] = summary
-            r["status"] = "drafted"
-            r["drafted_at"] = _now()
-            break
-    _write_recs(data)
+    with _recs_lock:
+        data = _read_recs()
+        for r in data["recommendations"]:
+            if r["id"] == rec_id:
+                r["drafted_file"] = file_path
+                r["drafted_code"] = code
+                r["drafted_diff"] = diff
+                r["drafted_base_sha"] = base_sha
+                r["drafted_summary"] = summary
+                r["status"] = "drafted"
+                r["drafted_at"] = _now()
+                break
+        _write_recs(data)
 
 
 def get_rec(rec_id: str) -> dict | None:
