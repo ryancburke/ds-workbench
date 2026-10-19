@@ -13,6 +13,7 @@ SAMPLE_DATASETS = {
     "transactions_fraud":  "Transactions — Fraud     (outlier amounts, mixed-case country, null user IDs, 3% fraud rate)",
     "sales_forecasting":   "Sales Forecasting        (promotions → revenue, seasonal pattern, regression target)",
     "subscription_churn":  "Subscription Churn       (disguised leakage: neutral-named status code, score and balance)",
+    "customer_accounts":   "Customer Accounts        (hidden quality issues: placeholder nulls, sentinels, future dates, units)",
 }
 
 SAMPLE_JOIN_SCENARIOS = {
@@ -47,6 +48,7 @@ def load_sample_dataset(name: str) -> pd.DataFrame:
         "transactions_fraud": _gen_transactions_fraud,
         "sales_forecasting":  _gen_sales_forecasting,
         "subscription_churn": _gen_subscription_churn,
+        "customer_accounts":  _gen_customer_accounts,
     }
     if name not in generators:
         raise ValueError(f"Unknown sample dataset: {name}")
@@ -268,6 +270,47 @@ def _gen_sales_forecasting(n: int = 730) -> pd.DataFrame:
         "returns_pct":      rng.uniform(0, 12, n).round(2),
         "new_customers":    rng.integers(5, 200, n),
         "revenue":          revenue,
+    })
+
+
+def _gen_customer_accounts(n: int = 1500) -> pd.DataFrame:
+    """
+    Customer accounts with quality problems that null counts and IQR fences alone miss:
+    - email: 7% empty strings and annual_income: 6% "N/A" — missing values that isnull() doesn't count
+    - age: 4% sentinel 999 and 1% -1
+    - signup_date: 3% in the future (2031)
+    - country: the same codes with stray whitespace and casing ("US", "US ", " us")
+    - annual_income: numbers stored as text with thousands separators ("52,000")
+    - monthly_fee: 20% recorded in cents instead of dollars (×100)
+    Clean on purpose: account_id (unique), region (consistent Title Case), tenure_days
+    (skewed but plausible).
+    """
+    rng = np.random.default_rng(23)
+    age = rng.integers(18, 80, n).astype(int)
+    sentinel = rng.random(n)
+    age = np.where(sentinel < 0.04, 999, np.where(sentinel < 0.05, -1, age))
+    signup = pd.Timestamp("2019-01-01") + pd.to_timedelta(rng.integers(0, 6 * 365, n), unit="D")
+    future = rng.random(n) < 0.03
+    signup = signup.where(~future, pd.Timestamp("2031-06-01") + pd.to_timedelta(rng.integers(0, 200, n), unit="D"))
+    country = rng.choice(["US", "US ", " us", "GB", "GB ", "DE", "FR"], n,
+                         p=[0.40, 0.08, 0.04, 0.20, 0.04, 0.14, 0.10])
+    income = (rng.lognormal(10.9, 0.45, n) // 1000 * 1000).astype(int)
+    income_txt = np.array([f"{v:,}" for v in income], dtype=object)
+    income_txt[rng.random(n) < 0.06] = "N/A"
+    email = np.array([f"user{i}@example.com" for i in range(n)], dtype=object)
+    email[rng.random(n) < 0.07] = ""
+    fee = rng.choice([19.0, 49.0, 99.0], n, p=[0.5, 0.35, 0.15])
+    fee = np.where(rng.random(n) < 0.20, fee * 100, fee)
+    return pd.DataFrame({
+        "account_id":    [f"A{i:07d}" for i in rng.permutation(n)],
+        "email":         email,
+        "age":           age,
+        "country":       country,
+        "region":        rng.choice(["North", "South", "East", "West"], n),
+        "signup_date":   signup,
+        "annual_income": income_txt,
+        "monthly_fee":   fee,
+        "tenure_days":   rng.gamma(1.5, 300, n).round(0).astype(int),
     })
 
 
