@@ -15,6 +15,9 @@ Skills are built to speak up at the right moment in a data scientist's workflow:
 before modelling, target leakage before training. They lead with the verdict and then
 give the evidence.
 
+Where the tool stands and what's next — causal inference, recommenders, optimisation — is in
+[ROADMAP.md](ROADMAP.md).
+
 ## Quick start
 
 Requires Python 3.11+ and an Anthropic API key.
