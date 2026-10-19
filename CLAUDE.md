@@ -253,8 +253,12 @@ a toggle/collapse, a dismiss button, and rendered output. Pattern-matching callb
 **Feedback loop**: Agent personas run `reflect_step` after each simulation, returning 2-3
 structured `suggest_improvement` tool calls. Recommendations are deduplicated by title similarity
 (>50% word overlap) and ranked by `priority_weight × votes`. The feedback dashboard shows
-pending → drafted → implemented → dismissed tabs with one-click code drafting and one-click apply
-(syntax-checked, `.bak` backup created first).
+pending → drafted → patch exported → dismissed tabs. Drafting asks Claude for exact
+search/replace edits to one target file (`agents.scheduler.target_file`: the skill module for
+findings, `skills/result.py` for notebook output, `workbench/renderers/<skill>.py` for a
+skill's Workbench UX, `pages/home.py` otherwise); each edit
+must match once and the result must compile. "Export Patch" writes `feedback/patches/<id>.patch`
+for a feature branch — the app never rewrites its own files.
 
 **Callback `prevent_initial_call`**: Any callback whose Input is a `dcc.Store` that lives inside
 a page layout (not the global `app.layout`) must have `prevent_initial_call=True`. The store's

@@ -83,7 +83,7 @@ def layout():
         dbc.Tabs([
             dbc.Tab(html.Div(id="fb-pending-list"),   label="Pending",     tab_id="pending"),
             dbc.Tab(html.Div(id="fb-drafted-list"),   label="Drafted",     tab_id="drafted"),
-            dbc.Tab(html.Div(id="fb-done-list"),      label="Implemented", tab_id="implemented"),
+            dbc.Tab(html.Div(id="fb-done-list"),      label="Patch exported", tab_id="implemented"),
             dbc.Tab(html.Div(id="fb-dismissed-list"), label="Dismissed",   tab_id="dismissed"),
         ], id="fb-tabs", active_tab="pending"),
 
@@ -98,7 +98,7 @@ def layout():
             ]),
             dbc.ModalFooter([
                 dbc.Button("Close", id="fb-modal-close", color="secondary", outline=True),
-                dbc.Button([html.I(className="bi bi-check-lg me-1"), "Apply Change"],
+                dbc.Button([html.I(className="bi bi-file-earmark-diff me-1"), "Export Patch"],
                            id="fb-apply-btn", color="success",
                            className="ms-2", disabled=True),
             ]),
@@ -122,7 +122,7 @@ def _rec_card(rec: dict, show_actions=True) -> dbc.Card:
         ]
     elif rec.get("status") == "drafted":
         action_buttons = [
-            dbc.Button([html.I(className="bi bi-code-slash me-1"), "View & Apply"],
+            dbc.Button([html.I(className="bi bi-code-slash me-1"), "View Diff"],
                        id={"type": "fb-view-draft", "index": rec["id"]},
                        color="primary", size="sm", outline=True),
         ]
@@ -284,7 +284,7 @@ def render_lists(_):
         *running_badges,
         dbc.Badge(f"{len(pending)} pending", color="warning", className="me-1"),
         dbc.Badge(f"{len(drafted)} drafted", color="info", className="me-1"),
-        dbc.Badge(f"{len(done)} implemented", color="success", className="me-1"),
+        dbc.Badge(f"{len(done)} exported", color="success", className="me-1"),
         html.Div(
             f"Last run: {_time_ago(last_run['completed_at'])} · {last_run.get('scenario_title', last_run.get('scenario_id', ''))}"
             if last_run and last_run.get("completed_at") else "No runs yet",
@@ -294,7 +294,7 @@ def render_lists(_):
 
     p_list = [_rec_card(r) for r in pending] or [_empty_state("No pending recommendations.")]
     d_list = [_rec_card(r) for r in drafted] or [_empty_state("No items awaiting implementation.")]
-    done_l = [_rec_card(r, show_actions=False) for r in done] or [_empty_state("Nothing implemented yet.")]
+    done_l = [_rec_card(r, show_actions=False) for r in done] or [_empty_state("No patches exported yet.")]
     dis_l  = [_rec_card(r, show_actions=False) for r in dismissed] or [_empty_state("No dismissed items.")]
 
     return p_list, d_list, done_l, dis_l, stats
@@ -397,28 +397,41 @@ def load_or_generate_draft(rec_id, is_open):
     if not rec:
         raise PreventUpdate
 
-    # If already drafted, show it directly
-    if rec.get("drafted_code"):
+    # If already drafted (as a diff), show it directly; older whole-file drafts are redone
+    if rec.get("drafted_diff"):
         return _code_panel(rec), False
 
     # Generate draft
     try:
-        file_path, new_code = draft_code_change(rec_id)
+        draft_code_change(rec_id)
         rec = get_rec(rec_id)  # reload with draft saved
         return _code_panel(rec), False
     except Exception as exc:
         return dbc.Alert(f"Draft failed: {exc}", color="danger"), True
 
 
+def _diff_line_style(line: str) -> dict:
+    if line.startswith("+") and not line.startswith("+++"):
+        return {"color": "#7ee787", "backgroundColor": "rgba(46,160,67,0.15)"}
+    if line.startswith("-") and not line.startswith("---"):
+        return {"color": "#ffa198", "backgroundColor": "rgba(248,81,73,0.15)"}
+    if line.startswith("@@"):
+        return {"color": "#79c0ff"}
+    return {"color": "#bbb"}
+
+
 def _code_panel(rec: dict) -> html.Div:
+    diff = rec.get("drafted_diff", "")
     return html.Div([
         dbc.Alert([
-            html.Strong(f"File: "),
-            html.Code(rec.get("drafted_file", "?")),
-            html.Span(" — a .bak backup will be created before applying.", className="ms-2 text-muted small"),
+            html.Strong("File: "), html.Code(rec.get("drafted_file", "?")),
+            html.Div(rec.get("drafted_summary", ""), className="small mt-1"),
+            html.Div("Export writes a patch to feedback/patches/ — nothing in the app's files "
+                     "changes until you apply it on a feature branch.",
+                     className="small text-muted mt-1"),
         ], color="dark", className="py-2 mb-3", style={"border": "1px solid #3a3a5a"}),
         html.Pre(
-            rec.get("drafted_code", ""),
+            [html.Div(line or " ", style=_diff_line_style(line)) for line in diff.splitlines()],
             style={"maxHeight": "60vh", "overflowY": "auto",
                    "fontSize": "0.75rem", "backgroundColor": "#0d0d1a",
                    "border": "1px solid #2a2a4a", "borderRadius": "4px",
@@ -442,21 +455,23 @@ def apply_change(_, rec_id, current):
     if not rec_id:
         raise PreventUpdate
 
-    from agents.scheduler import apply_code_change
+    from agents.scheduler import export_patch
 
     try:
-        file_path = apply_code_change(rec_id)
+        patch = export_patch(rec_id)
+        rel = patch.relative_to(patch.parents[2])
         msg = dbc.Alert(
             [html.I(className="bi bi-check-circle-fill me-1"),
-             html.Strong("Applied! "),
-             f"Wrote {file_path}. The app will reload automatically in debug mode."],
+             html.Strong("Patch exported. "),
+             "Apply it on a feature branch: ",
+             html.Code(f"git switch -c feedback/{rec_id} && git apply {rel}")],
             color="success", className="py-1 mb-0 small",
         )
         return False, (current or 0) + 1, msg
     except Exception as exc:
         msg = dbc.Alert(
             [html.I(className="bi bi-x-circle-fill me-1"),
-             html.Strong("Apply failed: "), str(exc)],
+             html.Strong("Export failed: "), str(exc)],
             color="danger", className="py-1 mb-0 small",
         )
         return False, current, msg
