@@ -79,5 +79,21 @@
   "top_1_note": "With only 30 positives, a class-weighted, regularised logistic regression is a defensible first model (lower variance than boosting, calibrated scores). It was penalised before, costing Opus 5.5 and Fable 5.1 20 points in the 2026-10-18 model comparison."
  },
  "split_before_learning": true,
- "split_before_learning_note": "Encoders, frequency counts, class weights and the model must be fitted on the training split only (found by the 2026-10-19 simulation judge)."
+ "split_before_learning_note": "Encoders, frequency counts, class weights and the model must be fitted on the training split only (found by the 2026-10-19 simulation judge).",
+ "decision_primary_metric": {
+  "any_of": [
+   "pr-auc",
+   "pr auc",
+   "pr_auc",
+   "auprc",
+   "average precision",
+   "recall",
+   "f1",
+   "f-beta",
+   "fbeta",
+   "precision@",
+   "precision at"
+  ],
+  "note": "Imbalanced target: the decision's primary metric must not be plain accuracy."
+ }
 }

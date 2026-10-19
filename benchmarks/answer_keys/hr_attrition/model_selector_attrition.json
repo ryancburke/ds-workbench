@@ -1,75 +1,91 @@
 {
-  "_meta": {
-    "dataset": "hr_attrition",
-    "skill": "model_selector",
-    "schema_version": "1.0",
-    "target_col": "attrition",
-    "known_characteristics": [
-      "Binary target: True/False (attrition)",
-      "Class balance: 88 True / 412 False = 4.68:1 imbalance",
-      "500 rows \u2014 moderate dataset, most algorithms viable",
-      "performance_score: 10% null, satisfaction_score: 7% null \u2014 need imputation strategy",
-      "salary: 7 extreme outliers \u2014 may need capping or robust scaling",
-      "7 numeric features + 3 categorical \u2014 mixed types, no feature engineering required to start",
-      "No high feature-feature correlations expected by design"
-    ]
+ "_meta": {
+  "dataset": "hr_attrition",
+  "skill": "model_selector",
+  "schema_version": "1.0",
+  "target_col": "attrition",
+  "known_characteristics": [
+   "Binary target: True/False (attrition)",
+   "Class balance: 88 True / 412 False = 4.68:1 imbalance",
+   "500 rows — moderate dataset, most algorithms viable",
+   "performance_score: 10% null, satisfaction_score: 7% null — need imputation strategy",
+   "salary: 7 extreme outliers — may need capping or robust scaling",
+   "7 numeric features + 3 categorical — mixed types, no feature engineering required to start",
+   "No high feature-feature correlations expected by design"
+  ]
+ },
+ "required_fields": {
+  "task_type": {
+   "acceptable_values": [
+    "binary_classification"
+   ],
+   "note": "Target is boolean True/False attrition — unambiguously binary classification."
   },
-  "required_fields": {
-    "task_type": {
-      "acceptable_values": [
-        "binary_classification"
-      ],
-      "note": "Target is boolean True/False attrition \u2014 unambiguously binary classification."
-    },
-    "class_balance_issue": {
-      "expected_value": true,
-      "note": "4.68:1 imbalance (82% negative, 18% positive). The profile reports imbalance_ratio=4.68, which crosses the conventional 3:1 concern threshold."
-    },
-    "data_readiness": {
-      "acceptable_values": [
-        "ready",
-        "needs_prep"
-      ],
-      "note": "Either is defensible. 'needs_prep' is more rigorous given 10% missing performance_score and 7 salary outliers. 'ready' is acceptable if the model treats these as minor. 'insufficient' would be incorrect."
-    }
+  "class_balance_issue": {
+   "expected_value": true,
+   "note": "4.68:1 imbalance (82% negative, 18% positive). The profile reports imbalance_ratio=4.68, which crosses the conventional 3:1 concern threshold."
   },
-  "target_analysis": {
-    "class_balance_issue_required": true,
-    "imbalance_ratio": {
-      "min": 4.0,
-      "max": 5.5,
-      "note": "Exact ratio is 4.68. Tolerance \u00b10.5 for floating-point rounding differences."
-    }
-  },
-  "recommendations": {
-    "min_count": 2,
-    "max_count": 5,
-    "top_1_acceptable_families": [
-      "gradient_boosting",
-      "xgboost",
-      "lightgbm",
-      "catboost",
-      "random_forest"
-    ],
-    "acceptable_families": [
-      "gradient_boosting",
-      "xgboost",
-      "lightgbm",
-      "catboost",
-      "random_forest",
-      "logistic_regression",
-      "svm",
-      "decision_tree"
-    ],
-    "forbidden_families": [
-      "clustering",
-      "k-means",
-      "dbscan",
-      "time_series",
-      "arima",
-      "prophet"
-    ],
-    "imbalance_handling_required": true,
-    "imbalance_handling_note": "At 4.68:1, the recommendations must acknowledge the imbalance. Acceptable signals: class_weight='balanced', scale_pos_weight, SMOTE, precision-recall AUC as preferred metric. Missing this entirely is a quality failure. Removed 'regression' \u2014 logistic regression with class_weight is valid."
+  "data_readiness": {
+   "acceptable_values": [
+    "ready",
+    "needs_prep"
+   ],
+   "note": "Either is defensible. 'needs_prep' is more rigorous given 10% missing performance_score and 7 salary outliers. 'ready' is acceptable if the model treats these as minor. 'insufficient' would be incorrect."
   }
+ },
+ "target_analysis": {
+  "class_balance_issue_required": true,
+  "imbalance_ratio": {
+   "min": 4.0,
+   "max": 5.5,
+   "note": "Exact ratio is 4.68. Tolerance ±0.5 for floating-point rounding differences."
+  }
+ },
+ "recommendations": {
+  "min_count": 2,
+  "max_count": 5,
+  "top_1_acceptable_families": [
+   "gradient_boosting",
+   "xgboost",
+   "lightgbm",
+   "catboost",
+   "random_forest"
+  ],
+  "acceptable_families": [
+   "gradient_boosting",
+   "xgboost",
+   "lightgbm",
+   "catboost",
+   "random_forest",
+   "logistic_regression",
+   "svm",
+   "decision_tree"
+  ],
+  "forbidden_families": [
+   "clustering",
+   "k-means",
+   "dbscan",
+   "time_series",
+   "arima",
+   "prophet"
+  ],
+  "imbalance_handling_required": true,
+  "imbalance_handling_note": "At 4.68:1, the recommendations must acknowledge the imbalance. Acceptable signals: class_weight='balanced', scale_pos_weight, SMOTE, precision-recall AUC as preferred metric. Missing this entirely is a quality failure. Removed 'regression' — logistic regression with class_weight is valid."
+ },
+ "decision_primary_metric": {
+  "any_of": [
+   "pr-auc",
+   "pr auc",
+   "pr_auc",
+   "auprc",
+   "average precision",
+   "recall",
+   "f1",
+   "f-beta",
+   "fbeta",
+   "precision@",
+   "precision at"
+  ],
+  "note": "Imbalanced target: the decision's primary metric must not be plain accuracy."
+ }
 }
