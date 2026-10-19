@@ -79,3 +79,27 @@ def test_export_refuses_a_stale_draft(fake_api, rec_store):
                      drafted_base_sha="0000000000000000")
     with pytest.raises(ValueError, match="changed since this draft"):
         scheduler.export_patch("r1")
+
+
+def test_stale_recommendations_revive_when_suggested_again(monkeypatch, tmp_path):
+    import json
+    recs = tmp_path / "recs.json"
+    recs.write_text(json.dumps({"recommendations": [
+        {"id": "old", "title": "Lead with the verdict before the findings", "status": "pending",
+         "votes": 3, "created_at": "2026-10-17T10:00:00", "last_seen": "2026-10-17T10:00:00"},
+        {"id": "gone", "title": "Show truncated evidence in full", "status": "pending",
+         "votes": 2, "created_at": "2026-10-17T11:00:00", "last_seen": "2026-10-17T11:00:00"},
+        {"id": "new", "title": "Add an effect size chart", "status": "pending",
+         "votes": 1, "created_at": "2026-10-20T09:00:00", "last_seen": "2026-10-20T09:00:00"},
+    ]}))
+    monkeypatch.setattr(scheduler, "RECS_FILE", recs)
+    assert scheduler.mark_stale("2026-10-19T09:38") == 2
+    assert {r["id"] for r in scheduler.get_recommendations("pending")} == {"new"}
+
+    rid = scheduler.add_recommendation({"title": "Lead with the verdict before findings", "persona_name": "p"})
+    assert rid == "old"
+    old = scheduler.get_rec("old")
+    assert old["status"] == "pending" and old["votes"] == 4 and "revived_at" in old
+
+    assert scheduler.dismiss_stale() == 1
+    assert scheduler.get_rec("gone")["status"] == "dismissed"

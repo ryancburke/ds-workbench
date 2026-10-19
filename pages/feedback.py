@@ -86,6 +86,15 @@ def layout():
             dbc.Tab(html.Div(id="fb-pending-list"),   label="Pending",     tab_id="pending"),
             dbc.Tab(html.Div(id="fb-drafted-list"),   label="Drafted",     tab_id="drafted"),
             dbc.Tab(html.Div(id="fb-done-list"),      label="Patch exported", tab_id="implemented"),
+            dbc.Tab(html.Div([
+                dbc.Alert([
+                    "Suggestions from before the current models and skill fixes. Any that a new "
+                    "simulation suggests again move back to Pending with their votes. ",
+                    dbc.Button("Dismiss all stale", id="fb-dismiss-stale-btn", size="sm",
+                               color="secondary", outline=True, className="ms-2"),
+                ], color="dark", className="py-2 small", style={"border": "1px solid #3a3a5a"}),
+                html.Div(id="fb-stale-list"),
+            ]), label="Stale", tab_id="stale"),
             dbc.Tab(html.Div(id="fb-dismissed-list"), label="Dismissed",   tab_id="dismissed"),
         ], id="fb-tabs", active_tab="pending"),
 
@@ -255,6 +264,7 @@ def poll(_n, current):
     Output("fb-drafted-list", "children"),
     Output("fb-done-list", "children"),
     Output("fb-dismissed-list", "children"),
+    Output("fb-stale-list", "children"),
     Output("fb-header-stats", "children"),
     Input("fb-refresh-trigger", "data"),
     prevent_initial_call=True,
@@ -266,6 +276,7 @@ def render_lists(_):
     drafted   = get_recommendations("drafted")
     done      = get_recommendations("implemented")
     dismissed = get_recommendations("dismissed")
+    stale     = get_recommendations("stale")
     history   = get_history()
 
     # Header stats
@@ -287,6 +298,7 @@ def render_lists(_):
         dbc.Badge(f"{len(pending)} pending", color="warning", className="me-1"),
         dbc.Badge(f"{len(drafted)} drafted", color="info", className="me-1"),
         dbc.Badge(f"{len(done)} exported", color="success", className="me-1"),
+        dbc.Badge(f"{len(stale)} stale", color="secondary", className="me-1") if stale else None,
         html.Div(
             f"Last run: {_time_ago(last_run['completed_at'])} · {last_run.get('scenario_title', last_run.get('scenario_id', ''))}"
             if last_run and last_run.get("completed_at") else "No runs yet",
@@ -298,8 +310,21 @@ def render_lists(_):
     d_list = [_rec_card(r) for r in drafted] or [_empty_state("No items awaiting implementation.")]
     done_l = [_rec_card(r, show_actions=False) for r in done] or [_empty_state("No patches exported yet.")]
     dis_l  = [_rec_card(r, show_actions=False) for r in dismissed] or [_empty_state("No dismissed items.")]
+    stale_l = [_rec_card(r, show_actions=False) for r in stale] or [_empty_state("No stale items.")]
 
-    return p_list, d_list, done_l, dis_l, stats
+    return p_list, d_list, done_l, dis_l, stale_l, stats
+
+
+@callback(
+    Output("fb-refresh-trigger", "data", allow_duplicate=True),
+    Input("fb-dismiss-stale-btn", "n_clicks"),
+    State("fb-refresh-trigger", "data"),
+    prevent_initial_call=True,
+)
+def dismiss_all_stale(_, current):
+    from agents.scheduler import dismiss_stale
+    dismiss_stale()
+    return (current or 0) + 1
 
 
 # ── Approve ────────────────────────────────────────────────────────────────────
