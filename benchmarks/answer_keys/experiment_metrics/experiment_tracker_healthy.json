@@ -1,0 +1,29 @@
+{
+ "_meta": {
+  "dataset": "experiment_metrics",
+  "skill": "experiment_tracker",
+  "schema_version": "1.0",
+  "description": "Small gaps, balanced classes, stable CV: should be called promising without invented concerns."
+ },
+ "input": {
+  "metrics": {
+   "train_auc": 0.86,
+   "val_auc": 0.84,
+   "test_auc": 0.835,
+   "val_f1": 0.71,
+   "val_accuracy": 0.8,
+   "positive_rate": 0.42,
+   "cv_auc_std": 0.012
+  },
+  "context": "Lead scoring"
+ },
+ "acceptable_verdicts": [
+  "promising"
+ ],
+ "required_dimensions": [],
+ "forbidden_critical_dimensions": [
+  "data_leakage",
+  "overfitting",
+  "class_imbalance"
+ ]
+}

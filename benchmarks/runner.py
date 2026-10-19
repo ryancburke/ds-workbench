@@ -184,7 +184,25 @@ def _get_benchmarks() -> list[dict]:
             "run_fn":    _run_ms,
             "run_kwargs": {"target_col": "revenue"},
         },
+    ] + [
+        # ── Experiment Tracker: metric sets with a known diagnosis ────────────
+        {
+            "id":        f"experiment_metrics/experiment_tracker_{case}",
+            "dataset":   "experiment_metrics",
+            "benchmark": f"experiment_tracker_{case}",
+            "skill":     "experiment_tracker",
+            "df_fn":     lambda case=case: _experiment_input(case),
+            "run_fn":    _run_et,
+            "run_kwargs": {},
+        }
+        for case in ("leakage", "overfitting", "imbalance", "healthy")
     ]
+
+
+def _experiment_input(case: str) -> dict:
+    """The metrics + context an experiment-tracker case feeds the skill."""
+    path = BENCHMARKS_DIR / "answer_keys" / "experiment_metrics" / f"experiment_tracker_{case}.json"
+    return json.loads(path.read_text())["input"]
 
 
 # ── Skill runners ─────────────────────────────────────────────────────────────
@@ -197,6 +215,11 @@ def _run_dq(df, table_name: str = "dataset") -> dict:
 def _run_fe(df, target_col: str, context: str = "") -> dict:
     from skills.feature_engineering import suggest
     return suggest(df, target_col=target_col, context=context)
+
+
+def _run_et(case_input: dict) -> dict:
+    from skills.experiment_tracker import interpret
+    return interpret(case_input["metrics"], context=case_input.get("context", ""))
 
 
 def _run_ld(df, target_col: str, context: str = "") -> dict:

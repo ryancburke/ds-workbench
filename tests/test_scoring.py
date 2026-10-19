@@ -44,3 +44,36 @@ def test_existing_keys_score_unchanged_without_new_fields():
     """Keys without the harder checks keep the original 100-point scale."""
     key = load_answer_key("ecommerce", "feature_engineering_converted")
     assert not any(k in key for k in ("forbidden_actions", "required_concepts", "preferred_actions"))
+
+
+def test_dq_score_range_credit_fades_instead_of_falling_off_a_cliff():
+    from benchmarks.scoring import score_dq
+    key = load_answer_key("transactions_fraud", "data_quality")
+    findings = [
+        {"column": "user_id", "issue_type": "null_rate", "severity": "warning"},
+        {"column": "country", "issue_type": "inconsistent_format", "severity": "warning"},
+        {"column": "amount", "issue_type": "outlier", "severity": "warning"},
+    ]
+    hi = key["score"]["max"]
+    in_range = score_dq({"findings": findings, "overall_score": hi}, key).overall
+    one_over = score_dq({"findings": findings, "overall_score": hi + 1}, key).overall
+    far_over = score_dq({"findings": findings, "overall_score": hi + 15}, key).overall
+    assert in_range == 100.0
+    assert 95 <= one_over < 100      # 1 point of arithmetic noise costs ~2.5, not 25
+    assert far_over == 75.0          # far outside the range still loses all range credit
+
+
+def test_experiment_tracker_scorer_penalises_false_alarms_on_healthy_runs():
+    from benchmarks.scoring import score_experiment_tracker
+    key = load_answer_key("experiment_metrics", "experiment_tracker_healthy")
+    calm = {"verdict": "promising", "findings": [{"dimension": "performance", "severity": "positive"}]}
+    alarmed = {"verdict": "red_flags", "findings": [{"dimension": "overfitting", "severity": "critical"}]}
+    assert score_experiment_tracker(calm, key).overall == 100.0
+    assert score_experiment_tracker(alarmed, key).overall == 50.0
+
+
+def test_experiment_tracker_scorer_requires_the_red_flag():
+    from benchmarks.scoring import score_experiment_tracker
+    key = load_answer_key("experiment_metrics", "experiment_tracker_imbalance")
+    missed = {"verdict": "promising", "findings": []}
+    assert score_experiment_tracker(missed, key).overall == 20.0
