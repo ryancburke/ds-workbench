@@ -78,16 +78,18 @@ shows quality trends per skill over time.
   (overridable in `.env`; see `.env.example`); `skills/models.py` re-exports them as
   `*_MODEL` / `*_EXTRA` for skills and agents. Opus 5.5 for heavy reasoning (DQ), Fable 5.1
   for leakage, Sonnet 5.5 for general analysis and simulation personas, Opus 5.5 for
-  simulation judging, Haiku 5.5 for structured extraction (Pass 2). Every call goes through
-  `skills.api_retry.api_call` (or `check_response`), which raises `ModelRefusal` on
-  `stop_reason == "refusal"`. Pass 2 uses forced tool calls
+  simulation judging, Haiku 5.5 for structured extraction (Pass 2). Every call uses the
+  shared client `skills.api_retry.get_client()` (the SDK owns retries) and goes through
+  `api_call` / `check_response`, which raise `ModelRefusal` on `stop_reason == "refusal"`.
+  Read tool calls with `tool_input(resp, name)`, which raises a clear error when the model
+  answered without the tool, and wrap tools used under `auto` in `strict_tool()`. Pass 2 uses forced tool calls
   (`tool_choice={"type":"tool","name":"..."}`) — this is valid **only on Haiku 5.5**; Opus 5.5,
   Sonnet 5.5, and Fable 5.1 return a 400 on forced `tool` / `any`, so on those use
   `tool_choice={"type":"auto"}` + `strict: true` or `output_config.format`. All 5.x models use
   adaptive thinking (`budget_tokens` returns a 400). Thinking is on by default on 5.x, so read
   response blocks by `type`, never `content[0].text`
 - **APScheduler `BackgroundScheduler`** — runs simulations on a configurable interval
-  (`SIM_INTERVAL_HOURS`, default 6h); guarded against Werkzeug double-start via `WERKZEUG_RUN_MAIN`
+  (`SIM_INTERVAL_HOURS`; default 0 = manual, run from the Feedback page or `run_sim.py`); guarded against Werkzeug double-start via `WERKZEUG_RUN_MAIN`
 - **python-dotenv** — `load_dotenv()` is called at the top of `config.py` before `Config()`
   instantiation; this is the only place env vars are loaded
 - Python 3.11+, `.venv` virtualenv at `.venv/`
@@ -282,7 +284,7 @@ each runs `reflect_step` to produce 2-3 structured improvement suggestions.
 **Coverage-weighted scheduler** (`agents/scheduler.py`): instead of round-robin, `_coverage_weighted_scenario()`
 counts benchmark runs per skill and picks whichever scenario's `focus_skills` have the fewest runs.
 This prevents DQ/MLOps from dominating while model_selector/leakage_detector stay underrepresented.
-Falls back to round-robin if benchmark data is unavailable. Interval: `SIM_INTERVAL_HOURS` (default 6h).
+Falls back to round-robin if benchmark data is unavailable. Interval: `SIM_INTERVAL_HOURS` (default 0 = manual).
 
 ## Local dev
 

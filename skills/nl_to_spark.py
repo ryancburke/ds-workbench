@@ -1,17 +1,6 @@
-import anthropic
 import pandas as pd
-from config import config
-from skills.api_retry import api_call, skill_entry
+from skills.api_retry import api_call, get_client, skill_entry, strict_tool, tool_input
 from skills.models import GENERAL_MODEL, GENERAL_EXTRA
-
-_client: anthropic.Anthropic | None = None
-
-
-def _get_client() -> anthropic.Anthropic:
-    global _client
-    if _client is None:
-        _client = anthropic.Anthropic(api_key=config.anthropic_api_key)
-    return _client
 
 
 _TOOL = {
@@ -49,11 +38,11 @@ def _generate(question: str, tables: dict[str, pd.DataFrame], context: str = "")
     context_block = f"\nBusiness context: {context}\n" if context else ""
 
     response = api_call(
-        _get_client().messages.create,
+        get_client().messages.create,
         model=GENERAL_MODEL,
         **GENERAL_EXTRA,
         max_tokens=4096,
-        tools=[_TOOL],
+        tools=[strict_tool(_TOOL)],
         tool_choice={"type": "auto"},
         messages=[{
             "role": "user",
@@ -67,9 +56,11 @@ User question: {question}
 Generate both Spark SQL and equivalent PySpark DataFrame API code.
 Use Delta Lake features where applicable. Avoid unnecessary shuffles.
 Prefer predicate pushdown. Flag any ambiguities as assumptions.
-When the query returns metric columns (rates, counts, scores, revenue, amounts), include ORDER BY <metric> DESC. Note the sort rationale in performance_notes.""",
+When the query returns metric columns (rates, counts, scores, revenue, amounts), include ORDER BY <metric> DESC. Note the sort rationale in performance_notes.
+
+Report your results by calling the generate_query tool.""",
         }],
     )
-    tool_block = next(b for b in response.content if b.type == "tool_use")
+    tool_args = tool_input(response, _TOOL["name"])
     from skills.result import SkillResult
-    return SkillResult(tool_block.input, skill="nl_to_spark")
+    return SkillResult(tool_args, skill="nl_to_spark")

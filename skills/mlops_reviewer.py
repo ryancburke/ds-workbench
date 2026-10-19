@@ -1,17 +1,6 @@
-import anthropic
-from config import config
 from skills.result import SkillResult
-from skills.api_retry import api_call, skill_entry
+from skills.api_retry import api_call, get_client, skill_entry, strict_tool, tool_input
 from skills.models import GENERAL_MODEL, GENERAL_EXTRA
-
-_client: anthropic.Anthropic | None = None
-
-
-def _get_client() -> anthropic.Anthropic:
-    global _client
-    if _client is None:
-        _client = anthropic.Anthropic(api_key=config.anthropic_api_key)
-    return _client
 
 
 _TOOL = {
@@ -81,11 +70,11 @@ def review(code: str) -> dict:
 
 def _review(code: str) -> dict:
     response = api_call(
-        _get_client().messages.create,
+        get_client().messages.create,
         model=GENERAL_MODEL,
         **GENERAL_EXTRA,
         max_tokens=4096,
-        tools=[_TOOL],
+        tools=[strict_tool(_TOOL)],
         tool_choice={"type": "auto"},
         messages=[{
             "role": "user",
@@ -120,8 +109,12 @@ warning (should fix), or suggestion (nice to have):
 7. Security: credentials in code, overly broad file permissions
 
 Reference actual code snippets. Provide concrete fixes, not vague advice.
-If there is one clear quick win, include a refactored_snippet showing it.""",
+If there is one clear quick win, include a refactored_snippet showing it.
+
+Report your results by calling the report_mlops_review tool.""",
         }],
     )
-    tool_block = next(b for b in response.content if b.type == "tool_use")
-    return SkillResult(tool_block.input, skill="mlops_reviewer")
+    tool_args = tool_input(response, _TOOL["name"])
+    # strict schemas can't carry minimum/maximum, so clamp the score here
+    tool_args["readiness_score"] = max(0, min(100, int(tool_args.get("readiness_score", 0))))
+    return SkillResult(tool_args, skill="mlops_reviewer")

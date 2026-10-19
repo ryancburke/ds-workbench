@@ -1,12 +1,13 @@
-dash>=2.14
-dash-bootstrap-components>=1.5
-plotly>=5.18
-anthropic>=0.34
-pandas>=2.0
-numpy>=1.24
+# Floors are the versions the app is developed and tested against.
+dash>=4.4.1
+dash-bootstrap-components>=2.0.4
+plotly>=6.0
+anthropic>=1.15  # 5.x models: output_config.effort, strict tools, refusal stop_details
+pandas>=2.2
+numpy>=1.26
 python-dotenv>=1.0
-gunicorn>=21.0
-apscheduler>=3.10
+gunicorn>=22.0
+apscheduler>=3.10,<4  # 4.x replaces BackgroundScheduler
 # Databricks (comment out for local dev)
 # databricks-sql-connector>=3.0
 # databricks-sdk>=0.20

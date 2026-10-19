@@ -399,6 +399,10 @@ def start_scheduler():
         return None
 
     interval_hours = config.sim_interval_hours
+    if interval_hours <= 0:
+        print("[scheduler] Manual mode (SIM_INTERVAL_HOURS=0) — run simulations from the "
+              "Feedback page or run_sim.py", flush=True)
+        return None
 
     try:
         from apscheduler.schedulers.background import BackgroundScheduler
@@ -444,9 +448,7 @@ def draft_code_change(rec_id: str) -> tuple[str, str]:
     Returns (file_path, new_code). Saves draft to store.
     Raises on failure.
     """
-    from config import config
-    import anthropic
-    from skills.api_retry import check_response, response_text
+    from skills.api_retry import check_response, get_client, response_text
     from skills.models import CODE_EXTRA, CODE_MODEL
 
     rec = get_rec(rec_id)
@@ -461,8 +463,7 @@ def draft_code_change(rec_id: str) -> tuple[str, str]:
 
     # A whole-file rewrite can be tens of thousands of tokens (pages/home.py is ~3.3k
     # lines), so stream with a large max_tokens rather than truncating at 8k.
-    client = anthropic.Anthropic(api_key=config.anthropic_api_key)
-    with client.messages.stream(
+    with get_client().messages.stream(
         model=CODE_MODEL,
         max_tokens=64000,
         **CODE_EXTRA,

@@ -1,18 +1,7 @@
 import json
-import anthropic
-from config import config
 from skills.result import SkillResult
-from skills.api_retry import api_call, skill_entry
+from skills.api_retry import api_call, get_client, skill_entry, strict_tool, tool_input
 from skills.models import GENERAL_MODEL, GENERAL_EXTRA
-
-_client_instance: anthropic.Anthropic | None = None
-
-
-def _get_client() -> anthropic.Anthropic:
-    global _client_instance
-    if _client_instance is None:
-        _client_instance = anthropic.Anthropic(api_key=config.anthropic_api_key)
-    return _client_instance
 
 
 _TOOL = {
@@ -81,11 +70,11 @@ def interpret(metrics: dict, context: str = "") -> dict:
     context_block = f"\nBusiness context: {context}\n" if context else ""
 
     response = api_call(
-        _get_client().messages.create,
+        get_client().messages.create,
         model=GENERAL_MODEL,
         **GENERAL_EXTRA,
         max_tokens=2048,
-        tools=[_TOOL],
+        tools=[strict_tool(_TOOL)],
         tool_choice={"type": "auto"},
         messages=[{
             "role": "user",
@@ -103,10 +92,12 @@ Review these results carefully. Look for:
 - Whether the reported metrics make sense together (e.g. high accuracy + low F1 on imbalanced data)
 
 Be direct and specific. Flag red flags clearly — data scientists need to know before they ship.
-If the results look genuinely good, say so. Don't manufacture concerns where there are none.""",
+If the results look genuinely good, say so. Don't manufacture concerns where there are none.
+
+Report your results by calling the interpret_experiment tool.""",
         }],
     )
 
-    tool_block = next(b for b in response.content if b.type == "tool_use")
-    result = SkillResult(tool_block.input, skill="experiment_tracker")
+    tool_args = tool_input(response, _TOOL["name"])
+    result = SkillResult(tool_args, skill="experiment_tracker")
     return result

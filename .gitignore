@@ -23,3 +23,6 @@ benchmarks/cache/
 .idea/
 .vscode/
 *.swp
+
+# Backups written by the Feedback page apply step
+*.bak
