@@ -169,6 +169,28 @@ model.save("/tmp/churn_model_v1")
 """,
     },
     {
+        "id": "launch_impact",
+        "title": "Did the Launch Work?",
+        "icon": "bi-diagram-2",
+        "color": "#20c997",
+        "brief": (
+            "Leadership wants to know whether three recent changes moved revenue: a new checkout "
+            "flow tested as an A/B experiment (run twice through different logging pipelines), a "
+            "new onboarding flow tested as an A/B experiment, and a coupon campaign marketing ran "
+            "without a control group. The team must say which effects are real, how big they are, "
+            "and which numbers shouldn't be trusted."
+        ),
+        "context": (
+            "Decisions are worth millions: a wrong 'it worked' ships a bad change, a wrong 'no "
+            "effect' kills a good one. Randomisation, logging, what was measured after treatment, "
+            "and how coupon recipients were chosen all matter."
+        ),
+        "focus_skills": ["causal_inference", "data_quality"],
+        "available_datasets": ["ab_test_clean", "ab_test_srm", "ab_test_bad_control", "observational_coupon"],
+        "join_scenario": "sales_products_clean",
+        "mlops_code": "",
+    },
+    {
         "id": "fraud_detection",
         "title": "Fraud Model Pre-flight",
         "icon": "bi-shield-exclamation",
@@ -259,6 +281,7 @@ AVAILABLE_SKILLS = {
     "model_selector":      "Given a target column, recommends appropriate model families with starter code. Flags class imbalance and data readiness gaps.",
     "leakage_detector":    "Scans features for target leakage before model training: high correlation, post-event proxy columns, identifier columns that encode the target.",
     "feature_engineering": "Produces a complete PySpark MLlib preprocessing pipeline: per-column imputation/scaling/encoding decisions and runnable Pipeline code.",
+    "causal_inference":    "Estimates the effect of a treatment (A/B variant, campaign, feature) on an outcome and says whether it can be trusted: sample-ratio mismatch, balance, confounding, bad controls, power.",
 }
 
 AVAILABLE_DATASETS = {
@@ -268,6 +291,18 @@ AVAILABLE_DATASETS = {
     "ecommerce":          "E-commerce sessions with channel, device, conversion flag, and cart value (8% conversion rate, 11.7:1 imbalance).",
     "ecommerce_leakage":  "Same e-commerce sessions but with two planted leakage features: conversion_score (r=0.89 with target) and order_id (only exists post-conversion).",
     "transactions_fraud": "Financial transactions with 3% fraud rate (32:1 imbalance), extreme outlier amounts as fraud signal, mixed-case country values.",
+    "ab_test_clean":        "Checkout A/B test: one row per user with variant (A/B), revenue_30d, pre-period revenue, country, device, tenure.",
+    "ab_test_srm":          "A second run of the checkout A/B test, same columns, from a different logging pipeline.",
+    "ab_test_bad_control":  "Onboarding A/B test: new_onboarding flag, orders_30d, sessions_first_week, country, device, tenure.",
+    "observational_coupon": "Customers who did or didn't receive a marketing coupon (not randomised), with prior spend, loyalty status, tenure and spend over the next 90 days.",
+}
+
+# Causal datasets → (treatment, outcome, pre-period outcome, randomised?)
+_CAUSAL_SETUP = {
+    "ab_test_clean":        ("variant", "revenue_30d", "revenue_prev_30d", True),
+    "ab_test_srm":          ("variant", "revenue_30d", "revenue_prev_30d", True),
+    "ab_test_bad_control":  ("new_onboarding", "orders_30d", None, True),
+    "observational_coupon": ("got_coupon", "spend_next_90d", None, False),
 }
 
 # Maps dataset name → natural target column for skills that need one
@@ -556,6 +591,22 @@ def _run_skill(skill: str, dataset: str, decision: dict, scenario: dict) -> tupl
                 },
             }
 
+        elif skill == "causal_inference":
+            from databricks_client import load_sample_dataset
+            from skills.causal_inference import analyze
+            if dataset not in _CAUSAL_SETUP:
+                raise ValueError(f"No treatment/outcome defined for dataset '{dataset}'")
+            treatment, outcome, pre, randomized = _CAUSAL_SETUP[dataset]
+            result = analyze(load_sample_dataset(dataset), treatment, outcome, randomized=randomized,
+                             pre_outcome_col=pre, context=scenario.get("brief", ""))
+            est = result.get("estimate") or {}
+            run_record = {
+                "id": run_id, "label": f"[Agent] {dataset}: {treatment} → {outcome}", "timestamp": ts,
+                "status": "error" if result.get("error") else "complete", "result": result,
+                "error": result.get("error"),
+                "summary": {"verdict": result.get("verdict", "?"), "effect": est.get("effect")},
+            }
+
         elif skill == "leakage_detector":
             from databricks_client import load_sample_dataset
             from skills.leakage_detector import check
@@ -710,6 +761,17 @@ def _result_summary(skill: str, result: dict) -> str:
             f"  - {f.get('column','?')} [{f.get('leakage_type','?')}]: {f.get('evidence','')[:120]}"
             for f in findings[:3]
         ]
+        return "\n".join(lines)
+
+    elif skill == "causal_inference":
+        est = result.get("estimate") or {}
+        lines = [f"Verdict: {result.get('verdict', '?')} ({result.get('design', '')}, "
+                 f"{result.get('identification_strategy', '')})", result.get("summary", "")]
+        if est.get("effect") is not None:
+            lines.append(f"Estimate ({est.get('method')}): {est['effect']:+.3g} "
+                         f"[{est['ci_low']:.3g}, {est['ci_high']:.3g}]")
+        lines += [f"  - [{f.get('severity')}] {f.get('check')}: {f.get('evidence', '')[:120]}"
+                  for f in result.get("findings", [])[:4]]
         return "\n".join(lines)
 
     elif skill == "feature_engineering":
@@ -1012,7 +1074,7 @@ Be specific and honest. Reference what you actually ran and what you saw in the 
                         "enum": ["data_quality", "eda", "join_auditor", "nl_to_spark",
                                  "mlops_review", "model_selector", "leakage_detector",
                                  "feature_engineering", "experiment_tracker",
-                                 "notebook_generator", "agent_sim", "general"],
+                                 "notebook_generator", "causal_inference", "agent_sim", "general"],
                     },
                     "issue_type": {
                         "type": "string",

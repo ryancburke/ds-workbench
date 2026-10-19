@@ -448,6 +448,7 @@ _SKILL_SOURCE = {
     "feature_engineering": "skills/feature_engineering.py",
     "experiment_tracker":  "skills/experiment_tracker.py",
     "notebook_generator":  "skills/notebook_generator.py",
+    "causal_inference":    "skills/causal_inference.py",
 }
 
 
@@ -455,7 +456,7 @@ _SKILL_SOURCE = {
 _WORKBENCH_RENDERER = {
     "data_quality": "dq", "eda": "eda", "join_auditor": "ja", "nl_to_spark": "nl",
     "mlops_review": "ml", "model_selector": "ms", "leakage_detector": "ld",
-    "feature_engineering": "fe", "experiment_tracker": "et",
+    "feature_engineering": "fe", "experiment_tracker": "et", "causal_inference": "ci",
 }
 
 
