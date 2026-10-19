@@ -77,3 +77,14 @@ def test_experiment_tracker_scorer_requires_the_red_flag():
     key = load_answer_key("experiment_metrics", "experiment_tracker_imbalance")
     missed = {"verdict": "promising", "findings": []}
     assert score_experiment_tracker(missed, key).overall == 20.0
+
+
+def test_split_before_learning_heuristic():
+    from benchmarks.scoring import split_before_learning
+    good = "train, test = df.randomSplit([0.8, 0.2], seed=42)\nfreq = train.groupBy('m').count()\nmodel = pipe.fit(train)"
+    leaky = "freq = df.groupBy('m').count()\nw = df.groupBy('label').agg(F.count('*'))\ntrain, test = df.randomSplit([0.8, 0.2])\nmodel = pipe.fit(train)"
+    no_holdout = "model = LogisticRegression().fit(df)"
+    assert split_before_learning(good)[0]
+    assert not split_before_learning(leaky)[0]
+    assert "never holds data out" in split_before_learning(no_holdout)[1]
+    assert split_before_learning("pipeline = Pipeline(stages=[a, b])")[0]  # nothing fitted yet

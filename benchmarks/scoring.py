@@ -6,6 +6,7 @@ ScoreResult.overall is 0-100 and is what gets tracked over time in benchmark_his
 """
 from __future__ import annotations
 import json
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -114,6 +115,27 @@ class ScoreResult:
         return (f"[{status}] {self.benchmark_id}: {self.overall:.1f}/100  "
                 f"(recall={self.components.get('recall',0):.0%}  "
                 f"fp={len(self.false_positives)}  {extra})")
+
+
+# ── Shared: leakage-safe code order ──────────────────────────────────────────
+
+_SPLIT_RE = re.compile(r"randomSplit\(|train_test_split\(|sampleBy\(|\btrain(?:_df|_sdf)?\s*=")
+_LEARN_RE = re.compile(r"\.fit\(|groupBy\([^)]*\)\s*\.\s*(?:count|agg)\(")
+
+
+def split_before_learning(code: str) -> tuple[bool, str]:
+    """Heuristic: is the train/test split made before anything is learned from the data
+    (model or transformer .fit, frequency counts / class weights via groupBy)?
+    Fitting on all rows, or with no holdout at all, leaks evaluation data into training."""
+    learn = _LEARN_RE.search(code or "")
+    if not learn:
+        return True, "nothing is fitted"
+    split = _SPLIT_RE.search(code)
+    if not split:
+        return False, f"'{learn.group(0)}' runs on all rows; the code never holds data out"
+    if learn.start() < split.start():
+        return False, f"'{learn.group(0)}' runs before the train/test split"
+    return True, "split comes before any fitting"
 
 
 # ── DQ scoring ───────────────────────────────────────────────────────────────
@@ -484,8 +506,19 @@ def score_model_selector(output: dict, answer_key: dict, benchmark_id: str | Non
             )
             missed.append("imbalance_handling")
 
+    # Starter code must not learn from the evaluation rows (optional per key)
+    if answer_key.get("split_before_learning"):
+        code = "\n".join(r.get("starter_code") or "" for r in output.get("recommendations", []))
+        ok, why = split_before_learning(code)
+        max_pts += 10
+        if ok:
+            total_pts += 10; matched.append("split_before_learning")
+        else:
+            missed.append("split_before_learning"); notes.append(f"LEAKY STARTER CODE: {why}")
+
     # ── Composite score ───────────────────────────────────────────────────────
-    recall = len([m for m in matched if m != "imbalance_handling"]) / max(len(required_fields), 1)
+    recall = len([m for m in matched if m not in ("imbalance_handling", "split_before_learning")]) \
+        / max(len(required_fields), 1)
     overall = (total_pts / max_pts * 100) if max_pts > 0 else 0.0
 
     # Penalise forbidden families
@@ -801,6 +834,14 @@ def score_feature_engineering(output: dict, answer_key: dict, benchmark_id: str 
         else:
             missed.append(spec["id"])
             notes.append(f"NOT PREFERRED '{spec['id']}': '{spec['column_hint']}' not {spec['preferred']} — {spec.get('note', '')}")
+
+    if answer_key.get("split_before_learning"):
+        extra_possible += 10
+        ok, why = split_before_learning(pyspark_code)
+        if ok:
+            matched.append("split_before_learning"); extra_pts += 10
+        else:
+            missed.append("split_before_learning"); notes.append(f"LEAKY CODE ORDER: {why}")
 
     # dropped_cols must agree with the per-column plan
     if answer_key.get("dropped_cols_consistent"):

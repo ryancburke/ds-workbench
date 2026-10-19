@@ -351,8 +351,9 @@ encoding and scaling choices consistent with it, because they differ:
   linear models.
 - If the target is imbalanced (see imbalance_ratio), handle it in the pipeline, e.g. a class-weight
   column passed as weightCol, and say how in imbalance_handling.
-- Impute before encoding or scaling, and fit every stage inside the Pipeline so nothing is learned
-  from validation data.
+- Impute before encoding or scaling. Anything learned from data (imputation values, encodings,
+  frequency counts, class weights, scalers) must be fitted on the training split only, so split
+  first or put the step inside the Pipeline; fitted on all rows it leaks evaluation data.
 
 dropped_cols must list every column the plan or code drops. Cast a boolean target to an integer
 column named "label" (MLlib convention).
