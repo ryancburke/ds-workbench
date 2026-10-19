@@ -67,6 +67,14 @@ def _summary_badges(run: dict, skill: str) -> list:
                                     color="warning", text_color="dark", className="me-1"))
         return badges
 
+    if skill == "causal_inference":
+        verdict = s.get("verdict", "")
+        vc = {"valid": "success", "caution": "warning", "not_identified": "danger"}.get(verdict, "secondary")
+        badges = [dbc.Badge(verdict.replace("_", " ").upper(), color=vc, className="me-1")]
+        if s.get("effect") is not None and verdict != "not_identified":
+            badges.append(dbc.Badge(f"effect {s['effect']:+.3g}", color="secondary"))
+        return badges
+
     if skill == "model_selector":
         task      = s.get("task_type", "").replace("_", " ").title()
         top_model = s.get("top_model", "")
