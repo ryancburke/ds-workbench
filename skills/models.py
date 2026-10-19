@@ -1,47 +1,70 @@
 """
 Model configuration for DS Workbench skills and agents.
-Model IDs and effort levels are settings in config.py (overridable via .env) — this
-module only re-exports them under the names the skills import. Never hardcode a model ID.
+
+Model IDs and effort levels are settings in config.py (overridable via .env). Skills ask
+for a *role* at call time — `**role("reasoning")` expands to `model=...` and
+`output_config={"effort": ...}` — so a benchmark sweep can swap the model or effort for
+one role without touching any prompt:
+
+    with override_roles(leakage=(config.reasoning_model, "medium")):
+        leakage_detector.check(df, "converted")
+
+Never hardcode a model ID.
 """
+import contextvars
+from contextlib import contextmanager
+
 from config import config
 
-# ── Model IDs ────────────────────────────────────────────────────────────────
+# role -> (config attribute for the model, config attribute for effort or None)
+ROLES = {
+    "reasoning":  ("reasoning_model", "reasoning_effort"),    # DQ Pass 1
+    "analysis":   ("analysis_model", "analysis_effort"),      # model_selector, join_auditor Pass 1
+    "general":    ("general_model", "general_effort"),        # EDA, MLOps, NL→Spark, FE, tracker
+    "leakage":    ("leakage_model", "leakage_effort"),        # leakage Pass 1
+    # All Pass 2 extraction. Must accept forced tool_choice: Haiku 5.5 does;
+    # Opus 5.5 / Sonnet 5.5 / Fable 5.1 return a 400. Runs at the model's default effort.
+    "structured": ("structured_model", None),
+    "sim":        ("sim_model", "sim_effort"),                # persona think/interpret
+    "sim_judge":  ("sim_judge_model", "sim_judge_effort"),    # debrief, rating, reflection
+    "code":       ("code_model", "code_effort"),              # feedback-loop drafting
+}
 
-# Heavy reasoning: large profile analysis, DQ Pass 1
-REASONING_MODEL = config.reasoning_model
+# Which role each benchmarked skill's main call uses
+SKILL_ROLE = {
+    "data_quality": "reasoning", "leakage_detector": "leakage", "model_selector": "analysis",
+    "join_auditor": "analysis", "feature_engineering": "general", "eda": "general",
+    "nl_to_spark": "general", "mlops_review": "general", "experiment_tracker": "general",
+}
 
-# Extended analysis: model_selector, join_auditor Pass 1
-ANALYSIS_MODEL = config.analysis_model
+_overrides: contextvars.ContextVar[dict] = contextvars.ContextVar("role_overrides", default={})
 
-# General generation: EDA, MLOps, NL-to-Spark, Feature Engineering, Experiment Tracker
-GENERAL_MODEL = config.general_model
 
-# Leakage detection: Fable family has better recall on proxy leakage than Opus
-LEAKAGE_MODEL = config.leakage_model
+def role(name: str) -> dict:
+    """Request kwargs for a role: model, plus output_config.effort where the role sets one."""
+    model_attr, effort_attr = ROLES[name]
+    model = getattr(config, model_attr)
+    effort = getattr(config, effort_attr) if effort_attr else None
+    model, effort = _overrides.get().get(name, (model, effort))
+    kwargs = {"model": model}
+    if effort:
+        kwargs["output_config"] = {"effort": effort}
+    return kwargs
 
-# Structured output extraction: all Pass 2. Must accept forced tool_choice —
-# Haiku 5.5 does; Opus 5.5 / Sonnet 5.5 / Fable 5.1 return a 400.
-STRUCTURED_MODEL = config.structured_model
 
-# Agents (agents/simulation.py, agents/scheduler.py)
-SIM_MODEL = config.sim_model
-SIM_JUDGE_MODEL = config.sim_judge_model
-CODE_MODEL = config.code_model
+def role_model(name: str) -> str:
+    return role(name)["model"]
 
-# ── Thinking / effort configs ────────────────────────────────────────────────
+
+@contextmanager
+def override_roles(**roles: tuple[str, str | None]):
+    """Temporarily run roles on another (model, effort), e.g. for a benchmark sweep."""
+    token = _overrides.set({**_overrides.get(), **roles})
+    try:
+        yield
+    finally:
+        _overrides.reset(token)
+
 
 # All 5.x models use adaptive thinking (on by default); budget_tokens returns a 400
 THINKING_ADAPTIVE = {"type": "adaptive"}
-
-
-def _effort(level: str) -> dict:
-    return {"output_config": {"effort": level}}
-
-
-REASONING_EXTRA = _effort(config.reasoning_effort)
-ANALYSIS_EXTRA = _effort(config.analysis_effort)
-GENERAL_EXTRA = _effort(config.general_effort)
-LEAKAGE_EXTRA = _effort(config.leakage_effort)
-SIM_EXTRA = _effort(config.sim_effort)
-SIM_JUDGE_EXTRA = _effort(config.sim_judge_effort)
-CODE_EXTRA = _effort(config.code_effort)

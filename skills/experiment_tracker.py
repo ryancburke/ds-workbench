@@ -1,7 +1,7 @@
 import json
 from skills.result import SkillResult
 from skills.api_retry import api_call, get_client, skill_entry, strict_tool, tool_input
-from skills.models import GENERAL_MODEL, GENERAL_EXTRA
+from skills.models import role
 
 
 _TOOL = {
@@ -71,8 +71,7 @@ def interpret(metrics: dict, context: str = "") -> dict:
 
     response = api_call(
         get_client().messages.create,
-        model=GENERAL_MODEL,
-        **GENERAL_EXTRA,
+        **role("general"),
         max_tokens=8000,  # headroom for thinking; a cut-off reply is an error
         tools=[strict_tool(_TOOL)],
         tool_choice={"type": "auto"},

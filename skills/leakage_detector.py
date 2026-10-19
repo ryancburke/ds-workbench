@@ -10,7 +10,7 @@ import pandas as pd
 import numpy as np
 from skills.result import SkillResult
 from skills.api_retry import api_call, get_client, skill_entry, tool_input
-from skills.models import LEAKAGE_MODEL, STRUCTURED_MODEL, THINKING_ADAPTIVE, LEAKAGE_EXTRA
+from skills.models import THINKING_ADAPTIVE, role
 
 
 _TOOL = {
@@ -294,10 +294,9 @@ Reference the specific statistics from the profile in your evidence fields."""
     # Pass 1: reason through leakage patterns with extended thinking
     _r1 = api_call(
         get_client().messages.create,
-        model=LEAKAGE_MODEL,
+        **role("leakage"),
         max_tokens=12000,
         thinking=THINKING_ADAPTIVE,
-        **LEAKAGE_EXTRA,
         messages=[{"role": "user", "content": _prompt}],
     )
     _analysis = next((b.text for b in _r1.content if b.type == "text"), "")
@@ -307,7 +306,7 @@ Reference the specific statistics from the profile in your evidence fields."""
     # Pass 2: format findings into structured output
     response = api_call(
         get_client().messages.create,
-        model=STRUCTURED_MODEL,
+        **role("structured"),
         max_tokens=4096,
         tools=[_TOOL],
         tool_choice={"type": "tool", "name": "report_leakage"},

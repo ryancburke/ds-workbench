@@ -49,4 +49,21 @@ class Config:
     code_effort: str = _env("CODE_EFFORT", "medium")
 
 
+
+# List prices per million tokens (input, output), checked against the pricing page on
+# 2026-10-19. Used only to report and compare spend (benchmark sweeps, live checks).
+MODEL_PRICES: dict[str, tuple[float, float]] = {
+    "claude-opus-5-5":   (4.00, 20.00),
+    "claude-sonnet-5-5": (2.00, 10.00),
+    "claude-fable-5-1":  (10.00, 50.00),
+    "claude-haiku-5-5":  (0.10, 0.50),   # prompts ≤100K tokens
+}
+
+
+def call_cost(model: str, input_tokens: int, output_tokens: int) -> float:
+    """Approximate list-price cost of one call in USD (0 for an unknown model)."""
+    price_in, price_out = MODEL_PRICES.get(model, (0.0, 0.0))
+    return (input_tokens * price_in + output_tokens * price_out) / 1e6
+
+
 config = Config()

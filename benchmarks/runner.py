@@ -348,9 +348,13 @@ def run_benchmarks(
     print(f"{'─'*62}\n")
 
     # ── Append to history ─────────────────────────────────────────────────────
+    from skills.models import ROLES, role
     run_record = {
         "timestamp":   ts,
         "score_only":  score_only,
+        # model:effort per role, so a score change can be traced to a model change
+        "models": {name: f"{r['model']}:{r.get('output_config', {}).get('effort', 'default')}"
+                   for name in ROLES for r in [role(name)]},
         "results":     results,
         "summary": {
             "n_total":    n_total,
