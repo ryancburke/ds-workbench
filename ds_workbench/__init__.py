@@ -9,34 +9,44 @@ Designed to be imported directly from Databricks notebooks:
     leak      = leakage_detector.check(df, target_col="churn")
     fe_plan   = feature_engineering.suggest(df, target_col="churn")
     review    = experiment_tracker.interpret({"train_auc": 0.91, "val_auc": 0.84})
+
+Deterministic functions that need no API key live in ds_workbench.core.
+
+Skills load on first use, so `import ds_workbench.core` stays light (no config, no SDK).
 """
+import importlib
 
-from skills import data_quality
-from skills import eda
-from skills import join_auditor
-from skills import nl_to_spark
-from skills import mlops_reviewer
-from skills import model_selector
-from skills import leakage_detector
-from skills import feature_engineering
-from skills import preflight
-from skills import experiment_tracker
-from skills import causal_inference
-from skills.session import WorkflowSession
+_SKILLS = {
+    "data_quality": "skills.data_quality",
+    "eda": "skills.eda",
+    "join_auditor": "skills.join_auditor",
+    "nl_to_spark": "skills.nl_to_spark",
+    "mlops_reviewer": "skills.mlops_reviewer",
+    "model_selector": "skills.model_selector",
+    "leakage_detector": "skills.leakage_detector",
+    "feature_engineering": "skills.feature_engineering",
+    "preflight": "skills.preflight",
+    "experiment_tracker": "skills.experiment_tracker",
+    "causal_inference": "skills.causal_inference",
+}
 
-__all__ = [
-    "data_quality",
-    "eda",
-    "join_auditor",
-    "nl_to_spark",
-    "mlops_reviewer",
-    "model_selector",
-    "leakage_detector",
-    "feature_engineering",
-    "preflight",
-    "experiment_tracker",
-    "causal_inference",
-    "WorkflowSession",
-]
-
+__all__ = [*_SKILLS, "WorkflowSession", "core"]
 __version__ = "0.1.0"
+
+
+def __getattr__(name: str):
+    if name in _SKILLS:
+        module = importlib.import_module(_SKILLS[name])
+        globals()[name] = module
+        return module
+    if name == "WorkflowSession":
+        from skills.session import WorkflowSession
+        globals()[name] = WorkflowSession
+        return WorkflowSession
+    if name == "core":
+        return importlib.import_module("ds_workbench.core")
+    raise AttributeError(f"module 'ds_workbench' has no attribute {name!r}")
+
+
+def __dir__():
+    return sorted(__all__)

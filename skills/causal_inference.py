@@ -4,7 +4,7 @@ Causal Inference skill.
 Estimates the effect of a binary treatment on an outcome — for randomised experiments
 (A/B tests) and observational data — and says whether the estimate can be trusted.
 
-Every number is computed in code (skills/causal_stats.py): sample-ratio mismatch, covariate
+Every number is computed in code (ds_workbench/core/causal_stats.py): sample-ratio mismatch, covariate
 balance, propensity overlap, power, and effect estimates with confidence intervals. The model
 reads that evidence, chooses the design and estimate, and names the threats to validity —
 especially bad controls (covariates measured after treatment) and confounding. The estimate
@@ -21,7 +21,7 @@ import json
 import numpy as np
 import pandas as pd
 
-from skills import causal_stats as cs
+from ds_workbench.core import causal_stats as cs
 from skills.api_retry import api_call, get_client, skill_entry, strict_tool, tool_input
 from skills.dtypes import is_text
 from skills.models import role
