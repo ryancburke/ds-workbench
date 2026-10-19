@@ -13,6 +13,9 @@ __pycache__/
 
 # Runtime data (persisted feedback, benchmark history, and cache — machine-local)
 feedback/
+
+# Live-check outputs (raw API results, per-call usage/cost) — kept locally, not committed
+runs/
 benchmarks/benchmark_history.json
 benchmarks/cache/
 
