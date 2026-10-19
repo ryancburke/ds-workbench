@@ -19,6 +19,7 @@ _NAV = [
      "badge_id": "sidebar-feedback-count"},
     {"label": "Benchmarks", "href": "/benchmarks","icon": "bi-speedometer2"},
     {"label": "Agent Sim",  "href": "/agent-sim", "icon": "bi-robot"},
+    {"label": "Costs",      "href": "/costs",     "icon": "bi-cash-coin"},
 ]
 
 

@@ -59,6 +59,13 @@ A skill that turns a problem description and data tables into a structured formu
 never runs code. Benchmarks use small problems with known optima. Links to the other skills
 through "predict, then optimise".
 
+### Cost visibility
+- **Shipped:** a usage ledger for every call (user, skill, run, model, tokens, latency, outcome,
+  estimated cost; no content), a Costs page (by day, skill, user, model; cost per successful
+  run; spend on failures), and a Delta export for the platform team.
+- **Next:** reconcile the estimates with the Anthropic Usage & Cost Admin API; budgets and
+  alerts per team or skill; write directly to Delta from the deployed app.
+
 ### Cross-cutting
 - **Real-data pilot:** run the notebook flow on one or two real Databricks tables with a data
   scientist on a live question. The highest-value next step for trust in the tool.

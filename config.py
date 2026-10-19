@@ -64,10 +64,21 @@ MODEL_PRICES: dict[str, tuple[float, float]] = {
 }
 
 
-def call_cost(model: str, input_tokens: int, output_tokens: int) -> float:
+# Cache reads bill at a fraction of the input price (per the pricing page); 5-minute cache
+# writes at 1.25x.
+CACHE_READ_MULTIPLIER: dict[str, float] = {
+    "claude-opus-5-5": 0.05, "claude-sonnet-5-5": 0.05, "claude-fable-5-1": 0.025, "claude-haiku-5-5": 0.1,
+}
+CACHE_WRITE_MULTIPLIER = 1.25
+
+
+def call_cost(model: str, input_tokens: int, output_tokens: int,
+              cache_read_tokens: int = 0, cache_write_tokens: int = 0) -> float:
     """Approximate list-price cost of one call in USD (0 for an unknown model)."""
     price_in, price_out = MODEL_PRICES.get(model, (0.0, 0.0))
-    return (input_tokens * price_in + output_tokens * price_out) / 1e6
+    read = price_in * CACHE_READ_MULTIPLIER.get(model, 0.1)
+    return (input_tokens * price_in + output_tokens * price_out
+            + cache_read_tokens * read + cache_write_tokens * price_in * CACHE_WRITE_MULTIPLIER) / 1e6
 
 
 config = Config()

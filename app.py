@@ -23,6 +23,18 @@ server = app.server
 
 _scheduler = start_scheduler()
 
+
+def _request_user() -> str | None:
+    """Signed-in user for the usage ledger: Databricks Apps forwards it in request headers."""
+    from flask import has_request_context, request
+    if not has_request_context():
+        return None
+    return request.headers.get("X-Forwarded-Email") or request.headers.get("X-Forwarded-User")
+
+
+from skills.usage import set_user_resolver  # noqa: E402
+set_user_resolver(_request_user)
+
 app.layout = dbc.Container(
     [
         dcc.Store(id="runs-store", storage_type="session", data=EMPTY_STORE),

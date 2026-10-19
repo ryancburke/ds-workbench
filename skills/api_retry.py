@@ -5,6 +5,7 @@ import functools
 import inspect
 import json
 import logging
+import uuid
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -40,7 +41,10 @@ def skill_entry(skill: str):
             except TypeError:
                 table = None
             dataset = _call_ctx.get().get("dataset") or table
-            with call_context(skill=skill, dataset=dataset):
+            # One run_id groups the calls of a skill run (e.g. both passes) in the usage ledger;
+            # a skill called from inside another keeps the outer run
+            run_id = _call_ctx.get().get("run_id") or uuid.uuid4().hex[:12]
+            with call_context(skill=skill, dataset=dataset, run_id=run_id):
                 return fn(*args, **kwargs)
         return inner
     return wrap
@@ -132,7 +136,9 @@ def get_client():
     if _client is None:
         import anthropic
         from config import config
-        _client = anthropic.Anthropic(api_key=config.anthropic_api_key, max_retries=SDK_MAX_RETRIES)
+        from skills import usage
+        _client = usage.instrument(
+            anthropic.Anthropic(api_key=config.anthropic_api_key, max_retries=SDK_MAX_RETRIES))
     return _client
 
 
