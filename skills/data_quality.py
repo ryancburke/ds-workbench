@@ -13,7 +13,6 @@ _TOOL = {
         "type": "object",
         "properties": {
             "summary": {"type": "string"},
-            "overall_score": {"type": "integer", "minimum": 0, "maximum": 100},
             "findings": {
                 "type": "array",
                 "items": {
@@ -37,13 +36,24 @@ _TOOL = {
                 },
             },
         },
-        "required": ["summary", "overall_score", "findings"],
+        "required": ["summary", "findings"],
     },
 }
 
 
 # Strings that mean "missing" but aren't counted by isnull()
 _PLACEHOLDERS = {"", "n/a", "na", "null", "none", "nan", "-", "--", "?", "unknown", "#n/a", "missing"}
+
+
+# Points deducted per finding. The score is computed from the findings rather than asked of the
+# model, so the same findings always give the same score (model arithmetic varied by ±10).
+SCORE_DEDUCTIONS = {"critical": 20, "warning": 8, "info": 2}
+
+
+def quality_score(findings: list) -> int:
+    """0-100 data quality score: 100 minus a fixed deduction per finding severity."""
+    deducted = sum(SCORE_DEDUCTIONS.get(f.get("severity"), 0) for f in findings)
+    return max(0, 100 - deducted)
 
 
 def build_profile(df: pd.DataFrame) -> dict:
@@ -209,9 +219,7 @@ After all seven steps:
 1. Write a 1–2 sentence overall verdict.
 2. List confirmed findings in this format:
    column | issue_type | severity | brief justification
-3. State an overall_score out of 100.
-   Scoring: start at 100; deduct 15–25 per critical finding, 5–10 per warning, 1–3 per info.
-   Multiple criticals can push the score below 50."""
+   (The overall score is computed from the findings' severities, so you don't need to state one.)"""
 
     # Pass 1: systematic sweep + domain reasoning with extended thinking
     pass1 = api_call(
@@ -242,12 +250,14 @@ After all seven steps:
                 f"- For duplicate_rows findings, use '{table_name}' as the column field\n"
                 "- Match severity exactly to what the analysis concluded\n"
                 "- Include affected_rows_pct wherever the analysis provides a percentage\n"
-                "- The overall_score must match what the analysis calculated\n"
+
                 "- Format only what the analysis identified — do not add or remove findings"
             ),
         }],
     )
     tool_args = tool_input(response, _TOOL["name"])
+    tool_args["overall_score"] = quality_score(tool_args.get("findings", []))
+    tool_args["score_source"] = "computed"
     result = SkillResult(tool_args, skill="data_quality")
     result["profile"] = profile
     if sample_note:

@@ -266,7 +266,9 @@ def score_dq(output: dict, answer_key: dict) -> ScoreResult:
     sev_penalty = min(len(severity_violations) * 10, 20)
 
     # ── 4. Score in range? ────────────────────────────────────────────────────
-    score_range = answer_key.get("score", {})
+    # A score computed in code from the findings adds nothing the recall, false-positive
+    # and severity checks don't already measure, so only a model-stated score is checked.
+    score_range = answer_key.get("score", {}) if output.get("score_source") != "computed" else {}
     score_in_range = True
     range_distance = 0.0
     if score_range:

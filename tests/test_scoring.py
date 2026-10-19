@@ -104,3 +104,16 @@ def test_hard_dq_case_separates_thorough_from_naive_reviews():
     naive_result = score(naive, "customer_accounts", "data_quality")
     assert naive_result.overall < 50
     assert {"email_placeholder_nulls", "income_text_and_na", "future_signups"} <= set(naive_result.missed_findings)
+
+
+def test_dq_score_is_computed_from_findings_and_not_range_checked():
+    from benchmarks.scoring import score_dq
+    from skills.data_quality import quality_score
+    findings = [{"column": "user_id", "issue_type": "null_rate", "severity": "warning"},
+                {"column": "country", "issue_type": "inconsistent_format", "severity": "warning"},
+                {"column": "amount", "issue_type": "outlier", "severity": "warning"},
+                {"column": "is_fraud", "issue_type": "low_cardinality", "severity": "info"}]
+    assert quality_score(findings) == 100 - 3 * 8 - 2
+    key = load_answer_key("transactions_fraud", "data_quality")
+    out = {"findings": findings, "overall_score": quality_score(findings), "score_source": "computed"}
+    assert score_dq(out, key).overall == 100.0      # 74 is outside the key's 50-72 range, but computed
