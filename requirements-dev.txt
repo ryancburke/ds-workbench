@@ -1,3 +1,4 @@
 # Development and test tools (not needed to run the app)
 -r requirements.txt
 pytest>=8
+pyflakes>=3
