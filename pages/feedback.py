@@ -18,11 +18,13 @@ ISSUE_ICON = {
     "workflow_improvement":"bi-arrow-repeat",
     "data_insight":       "bi-lightbulb",
 }
-SCENARIO_CHOICES = [
-    {"label": "Q3 Revenue Shortfall",  "value": "q3_revenue"},
-    {"label": "Customer Churn Risk",   "value": "churn_risk"},
-    {"label": "New Pipeline Handoff",  "value": "pipeline_handoff"},
-]
+def _scenario_choices() -> list[dict]:
+    """Every simulation scenario (this list was hardcoded and missed newer ones)."""
+    from agents.simulation import SCENARIOS
+    return [{"label": sc["title"], "value": sc["id"]} for sc in SCENARIOS]
+
+
+SCENARIO_CHOICES = _scenario_choices()
 ALL_SCENARIO_IDS = [s["value"] for s in SCENARIO_CHOICES]
 
 

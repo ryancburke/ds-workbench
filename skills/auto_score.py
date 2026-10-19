@@ -280,4 +280,18 @@ def auto_score(skill: str, result: dict, dataset: str, scenario_id: str,
         return score_eda(result, dataset)
     if skill == "nl_to_spark":
         return score_nl_to_spark(result)
+    if skill == "causal_inference":
+        return score_causal(result, dataset)
     return None
+
+
+def score_causal(result: dict, dataset: str) -> dict | None:
+    """Benchmark scorer for the causal datasets (known true effects), on the 0-5 scale."""
+    from benchmarks.scoring import load_answer_key, score_causal_inference
+    try:
+        key = load_answer_key(dataset, "causal_inference")
+    except FileNotFoundError:
+        return None
+    r = score_causal_inference(dict(result), key)
+    return {"score": round(r.overall / 20, 2), "recall": r.components.get("recall", 0.0),
+            "missed": r.missed_findings, "note": "; ".join(r.notes)[:300]}

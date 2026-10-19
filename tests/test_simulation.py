@@ -75,3 +75,28 @@ def test_judge_rates_the_full_output_not_the_summary(fake_api):
     prompt = fake_api.calls[0]["messages"][0]["content"]
     assert prompt.count("END-OF-EVIDENCE") == 6      # every finding, untruncated
     assert "profiling data" not in prompt             # internal profile omitted
+
+
+def test_personas_can_run_causal_inference_and_it_is_scored(fake_api):
+    from tests.conftest import tool_reply as reply
+    scenario = next(s for s in simulation.SCENARIOS if s["id"] == "launch_impact")
+
+    def respond(kw):
+        name = kw["tools"][0]["name"] if kw.get("tools") else None
+        if name == "report_causal_analysis":
+            return reply(kw["model"], name, {
+                "verdict": "caution", "design": "randomized_experiment", "identification_strategy": "randomization",
+                "recommended_estimate": {"method": "difference_in_means", "exclude_covariates": [], "rationale": "r"},
+                "findings": [{"check": "bad_control", "severity": "warning", "column": "sessions_first_week",
+                              "evidence": "e", "recommendation": "r"}],
+                "assumptions": [], "summary": "s", "next_steps": []})
+        if name == "rate_output":
+            return reply(kw["model"], name, {"usefulness": 4, "clarity": 4, "brief_note": "none"})
+        return text_reply(kw["model"], "interpretation")
+
+    fake_api.responder = respond
+    result, record = simulation._execute_skill("causal_inference", "ab_test_bad_control", {}, scenario)
+    assert record["status"] == "complete" and record["summary"]["verdict"] == "caution"
+    bench = simulation.evaluate_output_step(PERSONA, "causal_inference", "ab_test_bad_control", result, scenario)
+    assert bench["quantitative"]["score"] == 5.0          # bad control flagged, estimate ≈ true 2.0
+    assert "Verdict: caution" in simulation._result_summary("causal_inference", result)
