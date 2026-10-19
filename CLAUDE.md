@@ -200,9 +200,10 @@ the go/no-go decision is always front and center before charts or tables.
 | `notebook_generator` | Starter Notebook Generator | `skills/notebook_generator.generate()` | — |
 | `experiment_tracker` | Experiment Tracker | `skills/experiment_tracker.interpret()` | — |
 
-The first 8 skills are importable via `from ds_workbench import <skill>` (see `ds_workbench/__init__.py`).
-`notebook_generator` and `experiment_tracker` are workbench-only (no notebook import needed — they
-consume session/training artifacts rather than raw DataFrames).
+The first 8 skills plus `experiment_tracker` (training metrics come from the notebook) and
+`preflight` are importable via `from ds_workbench import <skill>` (see `ds_workbench/__init__.py`).
+`notebook_generator` is workbench-only (it consumes the session store). Every notebook skill
+returns `{"error": ...}` instead of raising (tested).
 
 ### Workflow the skills cover end-to-end
 ```
