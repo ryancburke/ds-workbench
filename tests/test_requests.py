@@ -21,6 +21,12 @@ SKILL_RUNS = {
 }
 
 
+# Tools deliberately left non-strict, with the measured reason
+NON_STRICT_OK = {
+    "report_eda": "strict decoding ran away (max_tokens / 1,305-item list) in 2 of 4 runs; output is validated in code",
+}
+
+
 def _objects(schema):
     """Every object node in a JSON schema."""
     if isinstance(schema, dict):
@@ -52,6 +58,8 @@ def test_skill_requests_are_valid_on_5x(fake_api, skill):
 
         if choice == "auto":
             for tool in call["tools"]:
+                if tool["name"] in NON_STRICT_OK:
+                    continue
                 assert tool.get("strict") is True, f"{skill}: {tool['name']} not strict under auto"
                 for obj in _objects(tool["input_schema"]):
                     assert obj.get("additionalProperties") is False

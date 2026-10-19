@@ -33,3 +33,17 @@ def test_every_module_compiles():
              if (ROOT / p).is_dir() else compileall.compile_file(str(ROOT / p), quiet=2, force=True)
              for p in PATHS)
     assert ok, "a module has a syntax error (see output above)"
+
+
+def test_workbench_survives_runs_saved_by_older_skill_versions():
+    """Reported crash: an EDA run saved before strict schemas had recommended_charts as strings."""
+    import app  # noqa: F401
+    from workbench.callbacks.eda import wb_render_eda
+    from workbench.renderers.ms import _ms_render
+    old_eda = {"id": "eda_1", "label": "ecommerce", "timestamp": "10:00", "status": "complete",
+               "result": {"narrative": "n", "key_insights": ["i"], "recommended_charts": ["histogram of cart_value"]},
+               "summary": {}}
+    rendered = str(wb_render_eda({"eda": [old_eda]})[0].to_plotly_json())
+    assert "earlier version" not in rendered      # old string charts are skipped, the rest renders
+    garbage = _ms_render({"recommendations": "not a list", "decision": 3})
+    assert "earlier version" in str(garbage.to_plotly_json())

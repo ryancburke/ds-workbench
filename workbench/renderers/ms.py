@@ -1,6 +1,7 @@
 """Workbench renderers for Model Selector results (result dict → Dash components)."""
 import dash_bootstrap_components as dbc
 from dash import html
+from workbench.renderers._safe import safe_render
 
 
 # ── Model Selector renderer ───────────────────────────────────────────────────
@@ -13,6 +14,7 @@ _MS_SUIT_COLOR    = {"strong": "success", "moderate": "warning", "weak": "second
 _MS_READY_COLOR   = {"ready": "success", "needs_prep": "warning", "insufficient": "danger"}
 
 
+@safe_render
 def _ms_render(result: dict) -> html.Div:
     task        = result.get("task_type", "unknown").replace("_", " ").title()
     readiness   = result.get("data_readiness", "needs_prep")

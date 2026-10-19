@@ -5,6 +5,7 @@ import plotly.graph_objects as go
 from dash import dcc, html
 
 from workbench.constants import DQ_ROW_STYLE, DQ_SEV_COLOR, DQ_SEV_HEADER, DQ_SEV_RANK
+from workbench.renderers._safe import safe_render
 
 
 # ── DQ helpers ────────────────────────────────────────────────────────────────
@@ -123,6 +124,7 @@ def _dq_top_blockers(findings: list) -> html.Div | None:
     ], className="mb-3", style={"borderColor": "#dc354540"})
 
 
+@safe_render
 def _dq_render(result: dict, profile: dict) -> html.Div:
     findings  = result.get("findings", [])
     counts    = {s: sum(1 for f in findings if f.get("severity") == s)

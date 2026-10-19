@@ -3,6 +3,7 @@ import dash_bootstrap_components as dbc
 from dash import html
 
 from workbench.constants import DQ_SEV_COLOR
+from workbench.renderers._safe import safe_render
 
 
 # ── Leakage Detector helpers ──────────────────────────────────────────────────
@@ -116,6 +117,7 @@ def _ld_dq_xref(ld_findings: list, dq_findings: list) -> dbc.Card | None:
     ], className="mb-3", style={"borderColor": "#ffc10740"})
 
 
+@safe_render
 def _ld_render(result: dict, dq_findings: list | None = None) -> html.Div:
     findings = result.get("findings", [])
     summary  = result.get("summary", "")

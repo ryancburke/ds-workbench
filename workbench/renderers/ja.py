@@ -3,6 +3,7 @@ import dash_bootstrap_components as dbc
 from dash import html
 
 from workbench.constants import JA_SEV_COLOR, JA_VERDICT_CLR
+from workbench.renderers._safe import safe_render
 
 
 # ── Join Auditor helpers ───────────────────────────────────────────────────────
@@ -79,6 +80,7 @@ def _ja_verdict_hero(result: dict) -> dbc.Alert:
     return dbc.Alert(children, color=color, className="py-2 mb-3")
 
 
+@safe_render
 def _ja_render(result: dict) -> html.Div:
     findings = result.get("findings", [])
     rows     = _ja_findings_table(findings)

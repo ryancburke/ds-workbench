@@ -1,6 +1,7 @@
 """Workbench renderers for Feature Engineering results (result dict → Dash components)."""
 import dash_bootstrap_components as dbc
 from dash import html
+from workbench.renderers._safe import safe_render
 
 
 # ── Feature Engineering helpers ───────────────────────────────────────────────
@@ -18,6 +19,7 @@ _FE_ACTION_COLOR = {
 }
 
 
+@safe_render
 def _fe_render(result: dict, leakage_warning: str | None = None,
                sequence_warning: bool = False) -> html.Div:
     features     = result.get("features", [])

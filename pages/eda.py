@@ -168,7 +168,7 @@ def _render_results(result: dict, df_json: str) -> html.Div:
     except Exception:
         df = pd.DataFrame()
 
-    charts = [c for rec in result.get("recommended_charts", [])
+    charts = [c for rec in result.get("recommended_charts", []) if isinstance(rec, dict)
               if (c := _build_chart(rec, df)) is not None]
     targets = result.get("potential_targets", [])
 

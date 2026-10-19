@@ -119,20 +119,35 @@ def instrument(client):
         t0 = time.perf_counter()
 
         class _Recorded:
+            _recorded = False
+
             def __enter__(self):
                 self._inner = manager.__enter__()
                 return self
 
             def __exit__(self, *exc):
+                # A stream consumed by iteration is recorded when it closes
+                if not self._recorded and exc[0] is None:
+                    try:
+                        self.get_final_message()
+                    except Exception:
+                        pass
                 return manager.__exit__(*exc)
+
+            def __iter__(self):            # dunder lookups bypass __getattr__
+                return iter(self._inner)
 
             def get_final_message(self):
                 try:
                     resp = self._inner.get_final_message()
                 except Exception as exc:
-                    record(kwargs, error=exc, latency_s=time.perf_counter() - t0)
+                    if not self._recorded:
+                        record(kwargs, error=exc, latency_s=time.perf_counter() - t0)
+                        self._recorded = True
                     raise
-                record(kwargs, resp, latency_s=time.perf_counter() - t0)
+                if not self._recorded:
+                    record(kwargs, resp, latency_s=time.perf_counter() - t0)
+                    self._recorded = True
                 return resp
 
             def __getattr__(self, name):
