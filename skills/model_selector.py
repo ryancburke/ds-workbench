@@ -1,5 +1,5 @@
 import pandas as pd
-from skills.result import SkillResult
+from skills.result import SkillResult, findings_of
 from skills.dtypes import is_text
 from skills.api_retry import api_call, get_client, skill_entry, tool_input
 from skills.models import THINKING_ADAPTIVE, role
@@ -208,6 +208,8 @@ def _select(
         if not problem_context:
             problem_context = getattr(session, "context", "")
 
+    dq_findings = findings_of(dq_findings)  # accepts a prior result or its findings list
+    leakage_findings = findings_of(leakage_findings)  # accepts a prior result or its findings list
     session_warnings = session.prerequisite_warnings("model_selector") if session else []
 
     if target_col not in df.columns:

@@ -221,6 +221,16 @@ def _render_data_quality(r: dict) -> str:
     )
 
 
+def findings_of(prior) -> list:
+    """Findings from an earlier skill run, given either the result itself (e.g. the object
+    leakage_detector.check() returned) or its findings list. None/empty → []."""
+    if not prior:
+        return []
+    if isinstance(prior, dict):
+        return list(prior.get("findings") or [])
+    return list(prior)
+
+
 def _leakage_drop_snippet(findings: list) -> str | None:
     cols = [f.get("column") for f in findings
             if f.get("severity") == "critical" and f.get("column")]
@@ -228,7 +238,7 @@ def _leakage_drop_snippet(findings: list) -> str | None:
         return None
     col_list = ", ".join(f'"{c}"' for c in cols)
     return (
-        f"columns_to_drop = [{col_list}]\n"
+        f"columns_to_drop = [{col_list}]   # also: result['drop_columns']\n"
         f"df = df.drop(columns=columns_to_drop)         # pandas\n"
         f"# df = df.drop(*columns_to_drop)              # PySpark"
     )
