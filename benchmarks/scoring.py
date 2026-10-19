@@ -634,6 +634,8 @@ def score_feature_engineering(output: dict, answer_key: dict, benchmark_id: str 
     features = output.get("features", [])
     dropped_cols = [c.lower() for c in output.get("dropped_cols", [])]
     pyspark_code = output.get("pyspark_code", "")
+    # Trees don't need scaling, so a tree-based plan may keep numerics as-is
+    tree_based = output.get("model_family") == "tree_based"
 
     notes: list[str] = []
     matched: list[str] = []
@@ -670,7 +672,11 @@ def score_feature_engineering(output: dict, answer_key: dict, benchmark_id: str 
         action = feat_entry.get("action", "")
         imputation = feat_entry.get("imputation", "none")
 
-        action_ok = action in acceptable
+        action_ok = (
+            action in acceptable
+            or (action == "log_then_scale" and "scale" in acceptable)
+            or (tree_based and action == "keep_as_is" and "scale" in acceptable)
+        )
         imputation_ok = not requires_imp or imputation != "none"
 
         if action_ok and imputation_ok:
@@ -716,6 +722,8 @@ def score_feature_engineering(output: dict, answer_key: dict, benchmark_id: str 
     required_code = answer_key.get("required_code_elements", [])
     code_matched: list[str] = []
     code_missed: list[str] = []
+    if tree_based:
+        required_code = [e for e in required_code if e != "StandardScaler"]
     for elem in required_code:
         if elem.lower() in pyspark_code.lower():
             code_matched.append(elem)
@@ -745,8 +753,63 @@ def score_feature_engineering(output: dict, answer_key: dict, benchmark_id: str 
 
     fp_pts = max(0, 20 - fp_count * 20)
 
-    # ── 5. Composite score ────────────────────────────────────────────────────
-    overall = max(0.0, recall_pts + drop_pts + code_pts + fp_pts)
+    # ── 5. Harder checks (optional per answer key; 10 pts each) ───────────────
+    extra_possible = extra_pts = 0.0
+
+    # Encodings that are wrong for the stated model family, e.g. a StringIndexer
+    # index on a high-cardinality ID fed to a linear model as a number
+    for spec in answer_key.get("forbidden_actions", []):
+        extra_possible += 10
+        hint = spec["column_hint"].lower()
+        exempt = output.get("model_family") in spec.get("allowed_for_model_families", [])
+        bad = [col for col, f in feature_by_col.items()
+               if hint in col and f.get("action") in spec["forbidden"] and not exempt]
+        if bad:
+            missed.append(spec["id"])
+            notes.append(f"BAD ENCODING '{spec['id']}': {bad} used {spec['forbidden']} — {spec.get('note', '')}")
+        else:
+            matched.append(spec["id"])
+            extra_pts += 10
+
+    # Concepts the plan must address (imbalance handling, case normalisation, ...)
+    for spec in answer_key.get("required_concepts", []):
+        extra_possible += 10
+        haystack = " ".join(
+            str(output.get(field, "")) for field in spec.get("fields", ["pyspark_code"])
+        ).lower()
+        if any(term.lower() in haystack for term in spec["any_of"]):
+            matched.append(spec["id"])
+            extra_pts += 10
+        else:
+            missed.append(spec["id"])
+            notes.append(f"MISSING CONCEPT '{spec['id']}': none of {spec['any_of']} — {spec.get('note', '')}")
+
+    # Better-than-acceptable transforms earn credit (e.g. log1p on a skewed amount)
+    for spec in answer_key.get("preferred_actions", []):
+        extra_possible += 10
+        hint = spec["column_hint"].lower()
+        if any(hint in col and f.get("action") in spec["preferred"] for col, f in feature_by_col.items()):
+            matched.append(spec["id"])
+            extra_pts += 10
+        else:
+            missed.append(spec["id"])
+            notes.append(f"NOT PREFERRED '{spec['id']}': '{spec['column_hint']}' not {spec['preferred']} — {spec.get('note', '')}")
+
+    # dropped_cols must agree with the per-column plan
+    if answer_key.get("dropped_cols_consistent"):
+        extra_possible += 10
+        plan_drops = {col for col, f in feature_by_col.items() if f.get("action") == "drop"}
+        missing = sorted(plan_drops - set(dropped_cols))
+        if missing:
+            missed.append("dropped_cols_consistent")
+            notes.append(f"INCONSISTENT DROPS: plan drops {missing} but dropped_cols omits them")
+        else:
+            matched.append("dropped_cols_consistent")
+            extra_pts += 10
+
+    # ── 6. Composite score (base 100 + harder checks, normalised to 100) ──────
+    base = recall_pts + drop_pts + code_pts + fp_pts
+    overall = max(0.0, (base + extra_pts) / (100 + extra_possible) * 100)
 
     components = {
         "recall":               round(recall, 3),
@@ -757,6 +820,8 @@ def score_feature_engineering(output: dict, answer_key: dict, benchmark_id: str 
         "code_pts":             round(code_pts, 1),
         "false_positive_count": fp_count,
         "fp_pts":               round(fp_pts, 1),
+        "extra_pts":            round(extra_pts, 1),
+        "extra_possible":       round(extra_possible, 1),
     }
 
     return ScoreResult(

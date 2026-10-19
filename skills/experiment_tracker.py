@@ -73,7 +73,7 @@ def interpret(metrics: dict, context: str = "") -> dict:
         get_client().messages.create,
         model=GENERAL_MODEL,
         **GENERAL_EXTRA,
-        max_tokens=2048,
+        max_tokens=8000,  # headroom for thinking; a cut-off reply is an error
         tools=[strict_tool(_TOOL)],
         tool_choice={"type": "auto"},
         messages=[{

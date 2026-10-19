@@ -1,5 +1,6 @@
 import pandas as pd
 from skills.result import SkillResult
+from skills.dtypes import is_text
 from skills.api_retry import api_call, get_client, skill_entry, tool_input
 from skills.models import ANALYSIS_MODEL, STRUCTURED_MODEL, THINKING_ADAPTIVE, ANALYSIS_EXTRA
 
@@ -107,8 +108,9 @@ def _build_profile(df: pd.DataFrame, target_col: str) -> str:
         if c != target_col
     ]
     cat_features = [
-        c for c in df.select_dtypes(include=["object", "category", "bool"]).columns
-        if c != target_col
+        c for c in df.columns
+        if c != target_col and (is_text(df[c]) or isinstance(df[c].dtype, pd.CategoricalDtype)
+                                or pd.api.types.is_bool_dtype(df[c]))
     ]
 
     lines.append(f"Features: {len(numeric_features)} numeric, {len(cat_features)} categorical")

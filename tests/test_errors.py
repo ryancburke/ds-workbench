@@ -60,3 +60,11 @@ def test_strict_tool_moves_bounds_to_description_without_mutating():
     assert strict["input_schema"]["additionalProperties"] is False
     assert strict["input_schema"]["properties"]["items"]["items"]["additionalProperties"] is False
     assert "minimum" in tool["input_schema"]["properties"]["score"]  # original untouched
+
+
+def test_truncated_tool_call_is_an_error_not_a_partial_result(fake_api):
+    from types import SimpleNamespace as NS
+    fake_api.responder = lambda kw: NS(model=kw["model"], stop_reason="max_tokens", content=[
+        NS(type="tool_use", name="report_eda", input={"key_insights": []})])
+    out = eda.analyze(dc._gen_ecommerce(100), "ecommerce")
+    assert "cut off at max_tokens" in out["error"]

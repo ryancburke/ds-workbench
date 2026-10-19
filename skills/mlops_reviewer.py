@@ -73,7 +73,7 @@ def _review(code: str) -> dict:
         get_client().messages.create,
         model=GENERAL_MODEL,
         **GENERAL_EXTRA,
-        max_tokens=4096,
+        max_tokens=16000,  # headroom for thinking; a cut-off reply is an error
         tools=[strict_tool(_TOOL)],
         tool_choice={"type": "auto"},
         messages=[{

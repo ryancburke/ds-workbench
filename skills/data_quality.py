@@ -124,11 +124,11 @@ STEP 3 — FORMAT CONSISTENCY
 For every string/object column, inspect top_values.
 Flag columns where:
   (a) The same concept appears with different casing in that column's own values
-      (e.g. "completed" AND "Completed" AND "COMPLETED" all in the same column), OR
+      (e.g. "high" AND "High" AND "HIGH" all in the same column), OR
   (b) Different values each use a different casing convention, meaning the column has no consistent
-      style at all (e.g. "NORTH"=ALL CAPS, "South"=Title Case, "West"=Title Case, "east"=lowercase —
-      four different conventions in one column).
-Do NOT flag: all-lowercase different words ("online", "retail", "wholesale"),
+      style at all (e.g. "BERLIN"=ALL CAPS, "Madrid"=Title Case, "lisbon"=lowercase —
+      several conventions in one column).
+Do NOT flag: all-lowercase different words ("air", "sea", "rail"),
 all-Title-Case sets, datetime/numeric/boolean columns.
 For each flagged column, reason: will this cause downstream encoding inconsistency?
 
@@ -138,9 +138,9 @@ work through all three questions:
   Q1 Rate: outlier_count / {n_rows} rows — is this above 1%?
   Q2 Volume: is outlier_count ≥ 10?
   Q3 Plausibility: are the extreme min/max values realistic for what this column measures?
-     Think about the column's domain. A salary of 750000 when mean=85000 (≈30σ) is impossible in
-     a normal HR dataset. A holiday revenue spike of 3× the mean is plausible.
-     An age of -5 or 150 is impossible. A price of $0 in a paid-only service is suspicious.
+     Think about the column's domain. A value ~30σ above the mean is rarely real; a seasonal
+     spike of 3× the mean often is. Negative ages or durations are impossible, and a $0 price
+     in a paid-only service is suspicious.
 Severity: warning if any of Q1, Q2, Q3 triggers; info if all three say "probably fine".
 
 STEP 5 — IDENTIFIER INTEGRITY
@@ -152,25 +152,26 @@ Find object/string columns where ALL top_values consist only of digits (no lette
 These may be numeric columns stored as strings. Reason: identifier stored as text (acceptable)
 or numeric feature that will cause errors unless cast?
 
-CALIBRATION — anchor your severity reasoning against these known cases:
+CALIBRATION — anchor your severity reasoning against these illustrative cases (from other
+datasets; judge this dataset on its own profile):
 
 FORMAT:
-  channel: {{"online": 412, "retail": 301, "wholesale": 287}}
+  shipping_mode: {{"air": 140, "sea": 95, "rail": 60}}
     → All lowercase, different words. Consistent style. No finding.
-  status: {{"completed": 180, "Completed": 95, "COMPLETED": 23}}
+  ticket_priority: {{"high": 88, "High": 41, "HIGH": 12}}
     → Same concept, three casing variants. inconsistent_format, severity=warning.
-  region: {{"NORTH": 215, "South": 197, "West": 203, "east": 185}}
+  warehouse: {{"BERLIN": 70, "Madrid": 66, "Oslo": 61, "lisbon": 58}}
     → No consistent convention across values. inconsistent_format, severity=warning.
-  region: {{"North": 250, "South": 250, "East": 250, "West": 250}}
+  airline: {{"Lufthansa": 120, "Iberia": 110, "Finnair": 90}}
     → All Title Case. Consistent. No finding.
 
 OUTLIERS:
-  revenue: 3 outliers / 1000 rows (0.3%), max=12000, mean=4200
-    → Low rate, low volume, plausible business extreme. info at most.
-  salary: 7 outliers / 500 rows (1.4%), min=5000, max=750000, mean=85000, std=22000
-    → Q1 triggers (1.4% > 1%). Q3 triggers (750000 ≈ 30σ above mean — impossible). warning.
-  price: 47 outliers, min=0.0, mean=45.2
-    → Q2 triggers (47 ≥ 10). Q3 triggers ($0 in a paid service is suspicious). warning.
+  delivery_days: 4 outliers / 2000 rows (0.2%), max=21, mean=3.1
+    → Low rate, low volume, a plausible delay. info at most.
+  patient_age: 9 outliers / 600 rows (1.5%), min=-3, max=212, mean=47, std=18
+    → Q1 triggers (1.5% > 1%). Q3 triggers (negative and 212-year ages are impossible). warning.
+  fare: 52 outliers, min=0.0, mean=38.5
+    → Q2 triggers (52 ≥ 10). Q3 triggers (a $0 fare on a paid route is suspicious). warning.
 
 FINAL ASSESSMENT
 After all six steps:
