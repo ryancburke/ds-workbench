@@ -13,18 +13,14 @@ import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
-from skills.session import build_digest
+from ds_workbench.core.readiness import STATUSES, assess
+from ds_workbench.core.readiness import CHECK_LABEL as GATE_LABEL  # noqa: F401  (used by pages/sessions)
 
 SESSIONS_FILE = Path(__file__).parent.parent / "feedback" / "sessions.json"
 _lock = threading.RLock()
 
 # Checks a modelling session is expected to pass, in workflow order
 GATES = ["data_quality", "leakage_detector", "feature_engineering", "model_selector"]
-GATE_LABEL = {"data_quality": "Data quality", "leakage_detector": "Leakage",
-              "feature_engineering": "Features", "model_selector": "Model", "causal_inference": "Causal"}
-_MODELLING = {"feature_engineering", "model_selector"}
-_PREREQ_GATES = ("data_quality", "leakage_detector")
-_ATTENTION_ORDER = {"red": 0, "amber": 1, "green": 2, "grey": 3}
 
 
 def _now() -> str:
@@ -82,22 +78,6 @@ def _jsonable(result) -> dict:
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 
-def _gate_status(skill: str, result: dict | None) -> str:
-    if not result:
-        return "skipped"
-    if result.get("error"):
-        return "error"
-    findings = result.get("findings", [])
-    sev = {f.get("severity") for f in findings}
-    if (skill == "leakage_detector" and result.get("verdict") == "leakage_detected") or "critical" in sev:
-        return "blocked"
-    if skill == "model_selector":
-        return {"ready": "clear", "insufficient": "blocked"}.get(result.get("data_readiness"), "warn")
-    if "warning" in sev:
-        return "warn"
-    return "clear"
-
-
 def headline(skill: str, result: dict) -> str:
     """One line per skill: the conclusion, not the mechanics."""
     if result.get("error"):
@@ -131,42 +111,30 @@ def headline(skill: str, result: dict) -> str:
     return (result.get("summary") or "")[:90]
 
 
+# check state (readiness policy) → gate chip
+_GATE_FROM_STATE = {"missing": "skipped", "failed": "error", "blocked": "blocked",
+                    "caution": "warn", "clean": "clear"}
+_ATTENTION_FROM_STATUS = {"blocked": "red", "incomplete": "amber", "caution": "amber",
+                          "ready_for_review": "green"}
+
+
 def summarize_session(session: dict) -> dict:
+    """The session's readiness comes from the shared policy (ds_workbench.core.readiness);
+    this only adds presentation: gate chips, attention colour and per-step headlines."""
     results = session.get("results", {})
-    digest = build_digest(results) if results else {"blockers": [], "cautions": []}
-    blockers = list(digest.get("blockers", []))
-    cautions = list(digest.get("cautions", []))
+    readiness = assess(results)
+    checks = readiness["checks"]
+    gate_skills = [*GATES, *(["causal_inference"] if "causal_inference" in results else [])]
+    gates = {g: _GATE_FROM_STATE[checks[g]["state"]] if g in checks else "skipped" for g in gate_skills}
 
-    gates = {g: _gate_status(g, results.get(g)) for g in GATES}
-    if "causal_inference" in results:
-        r = results["causal_inference"]
-        gates["causal_inference"] = ("error" if r.get("error") else
-                                     {"valid": "clear", "caution": "warn"}.get(r.get("verdict"), "blocked"))
-        if r.get("verdict") == "not_identified":
-            blockers.append({"source": "causal_inference", "column": "—",
-                             "issue": "Effect not identified: no estimate can be trusted yet"})
-
-    # Modelling output without the checks it depends on is the risk a lead most needs to see
-    unresolved = [g for g in _PREREQ_GATES if gates[g] == "skipped"] if _MODELLING & results.keys() else []
-    for g in unresolved:
-        blockers.insert(0, {"source": "workflow", "column": "—",
-                            "issue": f"{GATE_LABEL[g]} check skipped before modelling"})
-
-    if not results:
-        verdict, attention = "in_progress", "grey"
-    elif blockers:
-        verdict, attention = "blocked", "red"
-    elif cautions or any(s in ("warn", "error") for s in gates.values()):
-        verdict, attention = "caution", "amber"
-    else:
-        verdict, attention = "ready", "green"
-
+    attention = "grey" if not results else _ATTENTION_FROM_STATUS[readiness["status"]]
     order = [r["skill"] for r in session.get("runs", [])]
     seen = list(dict.fromkeys(order))
     return {
-        "verdict": verdict, "attention": attention, "gates": gates,
-        "unresolved_gates": unresolved,
-        "blockers": blockers, "n_blockers": len(blockers), "n_cautions": len(cautions),
+        "verdict": readiness["status"], "verdict_label": readiness["label"], "attention": attention,
+        "gates": gates, "missing": readiness["missing"], "failed": readiness["failed"],
+        "blockers": readiness["blockers"], "n_blockers": len(readiness["blockers"]),
+        "n_cautions": len(readiness["cautions"]), "summary": readiness["summary"],
         "headlines": [{"skill": s, "line": headline(s, results[s])} for s in seen if s in results],
     }
 
@@ -202,7 +170,9 @@ def team_overview(sessions: list[dict] | None = None) -> list[dict]:
                      if set(p["datasets"] or []) & set(row["datasets"] or [])), None)
         row["blocker_delta"] = row["n_blockers"] - prev["n_blockers"] if prev else None
         row["previous_session"] = prev["id"] if prev else None
-    return sorted(rows, key=lambda r: (_ATTENTION_ORDER[r["attention"]], -(_ts(r["updated_at"]))))
+    # most urgent first, in the policy's order; sessions with nothing run yet last
+    rank = {s: i for i, s in enumerate(STATUSES)}
+    return sorted(rows, key=lambda r: (r["attention"] == "grey", rank[r["verdict"]], -_ts(r["updated_at"])))
 
 
 def _ts(iso: str | None) -> float:

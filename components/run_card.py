@@ -53,11 +53,12 @@ def _summary_badges(run: dict, skill: str) -> list:
         ]
 
     if skill == "preflight":
-        verdict  = s.get("verdict", "ready")
+        verdict  = s.get("verdict", "incomplete")
         n_block  = len(s.get("blockers", []))
         n_caut   = len(s.get("cautions", []))
-        vc = {"blocked": "danger", "caution": "warning", "ready": "success"}.get(verdict, "secondary")
-        label = {"blocked": "BLOCKED", "caution": "CAUTION", "ready": "READY TO TRAIN"}.get(verdict, verdict)
+        vc = {"blocked": "danger", "caution": "warning", "ready_for_review": "success"}.get(verdict, "warning")
+        label = {"blocked": "BLOCKED", "caution": "CAUTION", "ready_for_review": "READY FOR REVIEW",
+                 "incomplete": "INCOMPLETE"}.get(verdict, verdict.upper())
         badges = [dbc.Badge(label, color=vc, className="me-1")]
         if n_block:
             badges.append(dbc.Badge(f"{n_block} blocker{'s' if n_block != 1 else ''}",

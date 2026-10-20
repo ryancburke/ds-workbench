@@ -86,11 +86,26 @@ def _timeline_row(run: dict, skill: str) -> html.Tr:
 
 # ── Cross-tool helpers ────────────────────────────────────────────────────────
 
+def latest_results(store: dict) -> dict:
+    """Latest result per skill from the runs-store; a failed run counts as {"error": ...}."""
+    out = {}
+    for skill in ("data_quality", "leakage_detector", "model_selector", "feature_engineering",
+                  "join_auditor", "causal_inference", "mlops_review", "eda"):
+        runs = [r for r in (store or {}).get(skill, []) or [] if isinstance(r, dict)]
+        if not runs:
+            continue
+        last = runs[-1]
+        out[skill] = last.get("result") if last.get("status") == "complete" else {"error": last.get("error") or "run failed"}
+    return out
+
+
 def _readiness_strip(store: dict) -> html.Div:
-    """Compact always-visible training-readiness bar for the session card."""
-    dq_runs = [r for r in store.get("data_quality",     []) if r.get("status") == "complete"]
-    ld_runs = [r for r in store.get("leakage_detector", []) if r.get("status") == "complete"]
-    ms_runs = [r for r in store.get("model_selector",   []) if r.get("status") == "complete"]
+    """Compact always-visible readiness bar for the session card. The verdict comes from the
+    shared readiness policy (ds_workbench.core.readiness), never computed here."""
+    from ds_workbench.core.readiness import assess
+    results = latest_results(store)
+    readiness = assess(results)
+    checks = readiness["checks"]
 
     def _chip(text: str, color: str) -> html.Span:
         ico = {
@@ -104,51 +119,28 @@ def _readiness_strip(store: dict) -> html.Div:
             className=f"small {'text-muted' if color == 'secondary' else ''}",
         )
 
-    # DQ chip
-    if dq_runs:
-        s = dq_runs[-1].get("summary", {})
-        score, crit = s.get("score", 0), s.get("critical", 0)
-        if crit:          dq_color, dq_txt = "danger",    f"DQ {score}/100 · {crit} crit"
-        elif score < 75:  dq_color, dq_txt = "warning",   f"DQ {score}/100"
-        else:             dq_color, dq_txt = "success",   f"DQ {score}/100"
-    else:
-        dq_color, dq_txt = "secondary", "DQ — not run"
+    state_colour = {"clean": "success", "caution": "warning", "blocked": "danger",
+                    "failed": "danger", "missing": "secondary"}
 
-    # Leakage chip
-    if ld_runs:
-        v = ld_runs[-1].get("result", {}).get("verdict", "clean")
-        if v == "leakage_detected": ld_color, ld_txt = "danger",  "Leakage detected"
-        elif v == "suspicious":     ld_color, ld_txt = "warning", "Leakage suspicious"
-        else:                       ld_color, ld_txt = "success", "Leakage clean"
-    else:
-        ld_color, ld_txt = "secondary", "Leakage — not run"
+    def _check_chip(skill: str, label: str, detail: str = "") -> tuple[str, str]:
+        c = checks.get(skill, {"state": "missing"})
+        word = {"clean": "clear", "caution": "review", "blocked": "blocked",
+                "failed": "failed", "missing": "not run"}[c["state"]]
+        return f"{label} {word}{detail}", state_colour[c["state"]]
 
-    # Model chip
-    if ms_runs:
-        rd   = ms_runs[-1].get("result", {}).get("data_readiness", "needs_prep")
-        recs = ms_runs[-1].get("result", {}).get("recommendations", [])
-        top  = recs[0].get("display_name", recs[0].get("model_family", "")) if recs else ""
-        if rd == "ready":        ms_color, ms_txt = "success", ("Model ready" + (f" · {top}" if top else ""))
-        elif rd == "needs_prep": ms_color, ms_txt = "warning", "Model needs prep"
-        else:                    ms_color, ms_txt = "danger",  "Model insufficient"
-    else:
-        ms_color, ms_txt = "secondary", "Model — not run"
+    dq = results.get("data_quality") or {}
+    dq_txt, dq_color = _check_chip("data_quality", "DQ",
+                                   f" · {dq['overall_score']}/100" if dq.get("overall_score") is not None else "")
+    ld_txt, ld_color = _check_chip("leakage_detector", "Leakage")
+    ms_txt, ms_color = _check_chip("model_selector", "Model")
 
-    # Overall verdict
-    all_run  = bool(dq_runs and ld_runs and ms_runs)
-    colors   = [c for c in [dq_color, ld_color, ms_color] if c != "secondary"]
-    if not any([dq_runs, ld_runs, ms_runs]):
-        v_color, v_label = "secondary", "PENDING"
-    elif all_run:
-        if all(c == "success" for c in colors):
-            v_color, v_label = "success", "READY TO TRAIN"
-        elif "danger" in colors:
-            v_color, v_label = "danger",  "NOT READY"
-        else:
-            v_color, v_label = "warning", "CAUTION"
+    status = readiness["status"]
+    if not results:
+        v_color, v_label = "secondary", "NOT STARTED"
     else:
-        v_color = "danger" if "danger" in colors else "warning"
-        v_label = "BLOCKED" if v_color == "danger" else "IN PROGRESS"
+        v_color = {"blocked": "danger", "incomplete": "warning", "caution": "warning",
+                   "ready_for_review": "success"}[status]
+        v_label = readiness["label"].upper()
 
     return html.Div([
         html.Span("Training readiness", className="text-muted small fw-semibold me-3",
@@ -252,36 +244,19 @@ def _pipeline_health_card(store: dict) -> html.Div | None:
             dbc.Badge(f"{score}/100", color=color),
         ], width="auto"))
 
-    # ── Training-readiness verdict (DQ + leakage + model selector only) ─────────
-    dq_s      = dq_runs[-1].get("summary", {}) if dq_runs else {}
-    dq_ok     = bool(dq_runs) and dq_s.get("score", 0) >= 75 and dq_s.get("critical", 0) == 0
-    ld_ok     = bool(ld_runs) and ld_runs[-1].get("result", {}).get("verdict") == "clean"
-    ms_ok     = bool(ms_runs) and ms_runs[-1].get("result", {}).get("data_readiness") == "ready"
-    prereqs_run = bool(dq_runs and ld_runs and ms_runs)
-    training_ready = dq_ok and ld_ok and ms_ok
-
-    if prereqs_run:
-        if training_ready:
-            t_color, t_icon, t_label = "success", "bi-check-circle-fill", "READY TO TRAIN"
-            t_reasons: list[str] = []
-        else:
-            t_color, t_icon, t_label = "danger", "bi-x-octagon-fill", "NOT READY TO TRAIN"
-            t_reasons = []
-            if not dq_ok:
-                s = dq_s.get("score", 0)
-                c = dq_s.get("critical", 0)
-                t_reasons.append(f"Data Quality: {s}/100 score" + (f", {c} critical issue{'s' if c != 1 else ''}" if c else ""))
-            if not ld_ok:
-                v = ld_runs[-1].get("result", {}).get("verdict", "?")
-                t_reasons.append(f"Leakage: {v.replace('_', ' ')}")
-            if not ms_ok:
-                rd = ms_runs[-1].get("result", {}).get("data_readiness", "?")
-                t_reasons.append(f"Model readiness: {rd.replace('_', ' ')}")
-    else:
-        missing = [n for ran, n in [(dq_runs, "Data Quality"), (ld_runs, "Leakage Detector"),
-                                     (ms_runs, "Model Selector")] if not ran]
-        t_color, t_icon, t_label = "secondary", "bi-hourglass-split", "TRAINING READINESS PENDING"
-        t_reasons = [f"Still needed: {', '.join(missing)}"] if missing else []
+    # ── Readiness verdict: from the shared policy, never computed here ─────────
+    from ds_workbench.core.readiness import CHECK_LABEL, assess
+    readiness = assess(latest_results(store))
+    t_color, t_icon = {
+        "blocked":          ("danger",  "bi-x-octagon-fill"),
+        "incomplete":       ("warning", "bi-hourglass-split"),
+        "caution":          ("warning", "bi-exclamation-triangle-fill"),
+        "ready_for_review": ("success", "bi-check-circle-fill"),
+    }[readiness["status"]]
+    t_label = readiness["label"].upper()
+    t_reasons = ([f"{CHECK_LABEL.get(m, m)} not run" for m in readiness["missing"]]
+                 + [f"{CHECK_LABEL.get(f['skill'], f['skill'])} failed: {f['error'][:90]}" for f in readiness["failed"]]
+                 + [f"{CHECK_LABEL.get(b['source'], b['source'])}: {b['issue'][:90]}" for b in readiness["blockers"][:3]])
 
     verdict_hero = dbc.Alert(
         [
@@ -305,8 +280,8 @@ def _pipeline_health_card(store: dict) -> html.Div | None:
             blocker_row,
         ]),
     ], style={
-        "border": f"1px solid {'#19875440' if training_ready else '#ffffff15'}",
-        "background": f"{'rgba(25,135,84,0.05)' if training_ready else 'rgba(255,255,255,0.02)'}",
+        "border": f"1px solid {'#19875440' if readiness['status'] == 'ready_for_review' else '#ffffff15'}",
+        "background": f"{'rgba(25,135,84,0.05)' if readiness['status'] == 'ready_for_review' else 'rgba(255,255,255,0.02)'}",
     }, className="mb-2")
 
 
@@ -347,19 +322,9 @@ def _synthesis_card(store: dict) -> html.Div | None:
     """Session digest — appears when 2+ skills have run."""
     from skills.session import build_digest
 
-    SKILL_KEYS_ORDERED = [
-        "data_quality", "leakage_detector", "join_auditor", "model_selector",
-        "mlops_review", "eda", "feature_engineering",
-    ]
-    results = {}
-    n_run = 0
-    for skill in SKILL_KEYS_ORDERED:
-        runs = [r for r in store.get(skill, []) if r.get("status") == "complete"]
-        if runs:
-            results[skill] = runs[-1].get("result", {})
-            n_run += 1
-
-    if n_run < 2:
+    # Failed runs are included as {"error": ...}, so the digest reports them as failed
+    results = latest_results(store)
+    if len(results) < 2:
         return None
 
     d = build_digest(results)
@@ -369,10 +334,10 @@ def _synthesis_card(store: dict) -> html.Div | None:
     cleared  = d["cleared"]
     next_step = d["next_step"]
 
-    vc = {"blocked": "danger", "caution": "warning",
-          "ready": "success", "in_progress": "secondary"}.get(verdict, "secondary")
-    vl = {"blocked": "BLOCKED", "caution": "CAUTION",
-          "ready": "READY TO TRAIN", "in_progress": "IN PROGRESS"}.get(verdict, "PENDING")
+    vc = {"blocked": "danger", "caution": "warning", "incomplete": "warning",
+          "ready_for_review": "success"}.get(verdict, "warning")
+    vl = {"blocked": "BLOCKED", "caution": "CAUTION", "incomplete": "INCOMPLETE",
+          "ready_for_review": "READY FOR REVIEW"}.get(verdict, "INCOMPLETE")
 
     # ── Blockers ─────────────────────────────────────────────────────────────
     blocker_rows = []
@@ -455,7 +420,7 @@ def _synthesis_card(store: dict) -> html.Div | None:
         dbc.CardHeader([
             html.I(className="bi bi-journal-text me-2"),
             html.Strong("Session Digest"),
-            html.Span(f" · {n_run} skill{'s' if n_run != 1 else ''} run",
+            html.Span(f" · {len(results)} skill{'s' if len(results) != 1 else ''} run",
                       className="text-muted small ms-1"),
             dbc.Badge(vl, color=vc, pill=True, className="ms-2",
                       style={"fontSize": "0.65rem"}),

@@ -18,17 +18,17 @@ def _save(sid, results, datasets=("orders",), updated=None):
 def test_verdicts_and_gates():
     ready = ts.summarize_session({"results": {"data_quality": DQ_CLEAN, "leakage_detector": LD_CLEAN,
                                               "model_selector": MS_READY}, "runs": []})
-    assert (ready["verdict"], ready["attention"]) == ("ready", "green")
+    assert (ready["verdict"], ready["attention"]) == ("ready_for_review", "green")
     assert ready["gates"]["feature_engineering"] == "skipped"
     blocked = ts.summarize_session({"results": {"data_quality": DQ_BLOCKED}, "runs": []})
     assert blocked["verdict"] == "blocked" and blocked["gates"]["data_quality"] == "blocked"
 
 
-def test_modelling_without_prerequisite_checks_is_flagged():
+def test_modelling_without_prerequisite_checks_is_incomplete():
     s = ts.summarize_session({"results": {"model_selector": MS_READY}, "runs": [{"skill": "model_selector"}]})
-    assert s["attention"] == "red"
-    assert s["unresolved_gates"] == ["data_quality", "leakage_detector"]
-    assert "skipped before modelling" in s["blockers"][0]["issue"]
+    assert (s["verdict"], s["attention"]) == ("incomplete", "amber")
+    assert s["missing"] == ["data_quality", "leakage_detector"]
+    assert s["gates"]["data_quality"] == "skipped"
 
 
 def test_overview_orders_by_attention_and_tracks_change_on_the_same_data():

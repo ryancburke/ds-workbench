@@ -13,6 +13,7 @@ Usage (with session — pulls results automatically):
     pf  = preflight.check(session=session)
 """
 from __future__ import annotations
+from ds_workbench.core.readiness import MODELLING_CHECKS, assess
 from skills.result import SkillResult
 
 
@@ -39,99 +40,32 @@ def check(
             skill="preflight",
         )
 
-    dq_findings  = list(dq_result.get("findings",  []) if dq_result  else [])
-    dq_score     = dq_result.get("overall_score") if dq_result else None
-    ld_findings  = list(leakage_result.get("findings", []) if leakage_result else [])
-    ld_verdict   = leakage_result.get("verdict", "clean") if leakage_result else None
-
-    dq_criticals  = [f for f in dq_findings if f.get("severity") == "critical"]
-    dq_warnings   = [f for f in dq_findings if f.get("severity") == "warning"]
-    ld_criticals  = [f for f in ld_findings if f.get("severity") == "critical"]
-    ld_warnings   = [f for f in ld_findings if f.get("severity") == "warning"]
-
-    # ── Build blockers and cautions ───────────────────────────────────────────
-
-    blockers = []
-    for f in ld_criticals:
-        blockers.append({
-            "source":  "leakage",
-            "column":  f.get("column", "?"),
-            "reason":  f.get("evidence", f.get("description", ""))[:120],
-            "action":  f.get("recommendation", "")[:140],
-        })
-    for f in dq_criticals:
-        blockers.append({
-            "source":  "data_quality",
-            "column":  f.get("column", "?"),
-            "reason":  f.get("description", "")[:120],
-            "action":  f.get("recommendation", "")[:140],
-        })
-
-    cautions = []
-    for f in ld_warnings:
-        cautions.append({
-            "source":  "leakage",
-            "column":  f.get("column", "?"),
-            "reason":  f.get("description", "")[:120],
-        })
-    for f in dq_warnings[:4]:
-        cautions.append({
-            "source":  "data_quality",
-            "column":  f.get("column", "?"),
-            "reason":  f.get("description", "")[:120],
-        })
-
-    # ── Verdict ───────────────────────────────────────────────────────────────
-
-    if blockers:
-        verdict = "blocked"
-    elif cautions:
-        verdict = "caution"
-    else:
-        verdict = "ready"
-
-    # ── Cleared items ─────────────────────────────────────────────────────────
+    # The readiness policy decides; a missing or failed check is never treated as passed
+    readiness = assess({"data_quality": dq_result, "leakage_detector": leakage_result},
+                       mandatory=MODELLING_CHECKS)
+    checks = readiness["checks"]
+    dq_score = dq_result.get("overall_score") if isinstance(dq_result, dict) and not dq_result.get("error") else None
 
     cleared = []
-    if leakage_result is not None and not ld_criticals:
-        cleared.append("No critical leakage found — feature set is safe to use")
-    if dq_score is not None and dq_score >= 75 and not dq_criticals:
-        cleared.append(f"Data quality score {dq_score}/100 — no blocking issues")
-    if leakage_result is None:
-        cleared.append("Leakage check not yet run — run leakage_detector before training")
-    if dq_result is None:
-        cleared.append("Data quality check not yet run — run data_quality before training")
-
-    # ── Summary sentence ──────────────────────────────────────────────────────
-
-    if verdict == "blocked":
-        n = len(blockers)
-        summary = (
-            f"{n} blocking issue{'s' if n != 1 else ''} must be resolved before training. "
-            "See the action items below."
-        )
-    elif verdict == "caution":
-        n = len(cautions)
-        summary = (
-            f"No hard blockers, but {n} issue{'s' if n != 1 else ''} warrant review "
-            "before you commit to training."
-        )
-    else:
-        summary = (
-            "Data and feature set look clean. "
-            "Proceed to feature engineering and model selection."
-        )
+    if checks["data_quality"]["state"] == "clean":
+        cleared.append(f"Data quality{f' score {dq_score}/100' if dq_score is not None else ''} — no blocking issues")
+    if checks["leakage_detector"]["state"] == "clean":
+        cleared.append("No leakage found — feature set is safe to use")
 
     return SkillResult(
         {
-            "verdict":            verdict,
-            "blockers":           blockers,
-            "cautions":           cautions,
-            "cleared":            cleared,
-            "summary":            summary,
-            "dq_score":           dq_score,
-            "dq_available":       dq_result       is not None,
-            "leakage_available":  leakage_result  is not None,
+            "verdict":           readiness["status"],
+            "blockers":          [{"source": b["source"], "column": b["column"], "reason": b["issue"],
+                                   "action": b["action"]} for b in readiness["blockers"]],
+            "cautions":          [{"source": c["source"], "column": c["column"], "reason": c["issue"]}
+                                  for c in readiness["cautions"]],
+            "missing":           readiness["missing"],
+            "failed":            readiness["failed"],
+            "cleared":           cleared,
+            "summary":           readiness["summary"],
+            "dq_score":          dq_score,
+            "dq_available":      checks["data_quality"]["state"] not in ("missing", "failed"),
+            "leakage_available": checks["leakage_detector"]["state"] not in ("missing", "failed"),
         },
         skill="preflight",
     )
