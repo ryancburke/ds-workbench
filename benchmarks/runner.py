@@ -37,13 +37,26 @@ PASS_THRESHOLD = 70.0
 # Each entry: (dataset_name, benchmark_id, skill_fn, skill_kwargs)
 # skill_fn is called as skill_fn(df, **skill_kwargs) → dict
 
+# Inputs for the renewal_timing cases (what a data scientist would pass; not the answers)
+RENEWAL_PREDICTION_POINTS = {
+    "month_start": "1st of each month, predicting whether the subscriber cancels by month end",
+    "mid_month":   "15th of each month, predicting whether the subscriber cancels by month end",
+}
+RENEWAL_COLUMN_NOTES = {
+    "support_tickets_mtd": "support tickets opened from the 1st to the 14th of the month",
+    "retention_offer_code": "set by the cancellation flow when a subscriber asks to cancel",
+    "last_login_days": "days since last login, as of the 1st of the month",
+    "churned": "cancelled between the 15th and the end of the month",
+}
+
+
 def _get_benchmarks() -> list[dict]:
     """Build the full benchmark list from available answer keys."""
     from databricks_client import (
         _gen_orders_dirty, _gen_sales_clean, _gen_hr_attrition,
         _gen_ecommerce, _gen_transactions_fraud, _gen_sales_forecasting,
         _gen_ecommerce_leakage, _gen_subscription_churn, _gen_customer_accounts,
-        _gen_clinical_small_wide,
+        _gen_clinical_small_wide, _gen_renewal_timing,
     )
     return [
         # ── Data Quality ──────────────────────────────────────────────────────
@@ -176,6 +189,18 @@ def _get_benchmarks() -> list[dict]:
             "run_fn":    _run_ld,
             "run_kwargs": {"target_col": "attrition"},
         },
+        # Same data, same column notes, two prediction points: support_tickets_mtd leaks when
+        # scoring on the 1st and is legitimate when scoring on the 15th
+        *[{
+            "id":        f"renewal_timing/leakage_detector_{pp_id}",
+            "dataset":   "renewal_timing",
+            "benchmark": f"leakage_detector_{pp_id}",
+            "skill":     "leakage_detector",
+            "df_fn":     _gen_renewal_timing,
+            "run_fn":    _run_ld,
+            "run_kwargs": {"target_col": "churned", "prediction_point": pp,
+                           "column_notes": RENEWAL_COLUMN_NOTES, "dataset": "renewal_timing"},
+        } for pp_id, pp in RENEWAL_PREDICTION_POINTS.items()],
         # ── Model Selector ────────────────────────────────────────────────────
         {
             "id":        "hr_attrition/model_selector_attrition",
@@ -284,9 +309,9 @@ def _run_et(case_input: dict) -> dict:
     return interpret(case_input["metrics"], context=case_input.get("context", ""))
 
 
-def _run_ld(df, target_col: str, context: str = "") -> dict:
+def _run_ld(df, target_col: str, context: str = "", **timing) -> dict:
     from skills.leakage_detector import check
-    return check(df, target_col=target_col, context=context)
+    return check(df, target_col=target_col, context=context, **timing)
 
 
 def _run_ms(df, target_col: str, problem_context: str = "") -> dict:

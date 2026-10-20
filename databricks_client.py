@@ -15,6 +15,7 @@ SAMPLE_DATASETS = {
     "subscription_churn":  "Subscription Churn       (disguised leakage: neutral-named status code, score and balance)",
     "customer_accounts":   "Customer Accounts        (hidden quality issues: placeholder nulls, sentinels, future dates, units)",
     "clinical_small_wide": "Clinical Small & Wide    (160 patients, 46 markers, few informative — overfitting trap)",
+    "renewal_timing":      "Renewal Timing           (a column that leaks or not depending on the prediction point)",
 }
 
 SAMPLE_JOIN_SCENARIOS = {
@@ -51,6 +52,7 @@ def load_sample_dataset(name: str) -> pd.DataFrame:
         "subscription_churn": _gen_subscription_churn,
         "customer_accounts":  _gen_customer_accounts,
         "clinical_small_wide": _gen_clinical_small_wide,
+        "renewal_timing":      _gen_renewal_timing,
         "ab_test_clean":        _gen_ab_test_clean,
         "ab_test_srm":          _gen_ab_test_srm,
         "ab_test_bad_control":  _gen_ab_test_bad_control,
@@ -486,6 +488,35 @@ def _gen_subscription_churn(n: int = 2000) -> pd.DataFrame:
         "status_code":         status,
         "engagement_index_v2": engagement,
         "credit_balance":      credit,
+        "churned":             churned,
+    })
+
+
+def _gen_renewal_timing(n: int = 2000) -> pd.DataFrame:
+    """
+    One row per subscriber-month, target `churned` = cancelled between the 15th and month end.
+    Whether support_tickets_mtd leaks depends on when the model scores:
+    - support_tickets_mtd counts tickets opened from the 1st to the 14th (strongly elevated before
+      a cancellation). Scored on the 1st, those tickets don't exist yet: temporal leakage.
+      Scored on the 15th, they do: a legitimate, strong predictor.
+    - retention_offer_code is set by the cancellation flow: leakage at either prediction point.
+    - tenure_months, monthly_spend and last_login_days (as of the 1st) are legitimate at both.
+    """
+    rng = np.random.default_rng(23)
+    churned = rng.random(n) < 0.18
+    tenure = np.where(churned, rng.gamma(2.0, 6.0, n), rng.gamma(3.0, 10.0, n)).round(0) + 1
+    last_login = np.where(churned, rng.exponential(14, n), rng.exponential(6, n)).round(0)
+    spend = rng.choice([19.0, 49.0, 99.0], n, p=[0.5, 0.35, 0.15]) * rng.uniform(0.9, 1.1, n)
+    tickets = np.where(churned, rng.poisson(3.2, n), rng.poisson(0.5, n))
+    offer = np.where(churned & (rng.random(n) < 0.8), rng.choice(["RET10", "RET25", "PAUSE1"], n),
+                     np.where(rng.random(n) < 0.04, rng.choice(["RET10", "RET25"], n), None))
+    return pd.DataFrame({
+        "subscriber_ref":      [f"SB{i:06d}" for i in rng.permutation(n)],
+        "tenure_months":       tenure.astype(int),
+        "monthly_spend":       spend.round(2),
+        "last_login_days":     last_login.astype(int),
+        "support_tickets_mtd": tickets,
+        "retention_offer_code": offer,
         "churned":             churned,
     })
 

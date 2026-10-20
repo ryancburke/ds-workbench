@@ -58,12 +58,16 @@ class WorkflowSession:
         eda_result = eda.analyze(df, "customers", session=session)  # focuses on churn drivers
     """
 
-    def __init__(self, context: str = "", *, datasets: list[str] | None = None, persist: bool = True) -> None:
+    def __init__(self, context: str = "", *, datasets: list[str] | None = None, persist: bool = True,
+                 prediction_point: str = "", column_notes: dict[str, str] | None = None) -> None:
         """
         Args:
             context: The business question (shown on the team Sessions page).
             datasets: Tables this session is about (used to compare with earlier sessions).
             persist: Save the session for the team Sessions page (best effort; never raises).
+            prediction_point: When the model will score, e.g. "1st of each month, predicting
+                churn in the next 30 days". Leakage checks use it to reason about timing.
+            column_notes: When/how columns are recorded, e.g. {"tickets_mtd": "opened 1st-14th"}.
         """
         import uuid
         self._results: dict[str, object] = {}
@@ -71,7 +75,50 @@ class WorkflowSession:
         self.id = f"nb_{uuid.uuid4().hex[:10]}"
         self.datasets = list(datasets or [])
         self.persist = persist
+        self.prediction_point = (prediction_point or "").strip()
+        self.column_notes = dict(column_notes or {})
+        self.confirmations: list[dict] = []
         self._runs: list[dict] = []
+
+    # ── Availability confirmations (the user's judgment, never the model's) ───
+
+    def confirm_available(self, columns, *, note: str, dataset: str = "") -> list[dict]:
+        """Record that you have checked these columns exist at the prediction point.
+
+        A confirmed column no longer blocks readiness; its leakage finding shows as info with
+        your name, the time and your note. The confirmation applies only to this dataset and
+        this session's prediction point: if either changes, the finding blocks again.
+
+        Args:
+            columns: A column name or a list of them.
+            note: Required — how you know (e.g. "snapshot taken at 00:00 on the 1st; verified
+                in the pipeline DAG").
+            dataset: The table; defaults to the session's dataset when it has exactly one.
+
+        Example::
+
+            session.confirm_available("tickets_mtd", note="Counted up to the prediction date; see ETL job 42")
+        """
+        from ds_workbench.core.readiness import make_confirmation
+        from skills import usage
+        from skills.api_retry import _call_ctx
+
+        if not self.prediction_point:
+            raise ValueError("Set a prediction point first (WorkflowSession(prediction_point=...)): "
+                             "availability only means something relative to when the model scores.")
+        if not dataset:
+            ld = self.get_result("leakage_detector") or {}
+            dataset = ld.get("dataset") or (self.datasets[0] if len(self.datasets) == 1 else "")
+        if not dataset:
+            raise ValueError("Say which dataset these columns are in: confirm_available(..., dataset='...')")
+        user = usage.current_user(dict(_call_ctx.get()))
+        new = [make_confirmation(c, dataset=dataset, prediction_point=self.prediction_point,
+                                 note=note, user=user)
+               for c in ([columns] if isinstance(columns, str) else list(columns))]
+        self.confirmations.extend(new)
+        if self.persist:
+            self._save()
+        return new
 
     # ── Registration ──────────────────────────────────────────────────────────
 
@@ -94,7 +141,8 @@ class WorkflowSession:
             from skills.api_retry import _call_ctx
             team_sessions.save_session(
                 self.id, owner=usage.current_user(dict(_call_ctx.get())), question=self.context,
-                datasets=self.datasets, results=dict(self._results), runs=self._runs, source="notebook")
+                datasets=self.datasets, results=dict(self._results), runs=self._runs, source="notebook",
+                prediction_point=self.prediction_point, confirmations=self.confirmations)
         except Exception:
             pass  # persistence must never break an analysis
 
@@ -165,7 +213,7 @@ class WorkflowSession:
                 {"error": "No skills have been run in this session yet."},
                 skill="session_digest",
             )
-        data = build_digest(dict(self._results))
+        data = build_digest(dict(self._results), confirmations=self.confirmations)
         return SkillResult(data, skill="session_digest")
 
     # ── Repr ──────────────────────────────────────────────────────────────────
@@ -178,14 +226,16 @@ class WorkflowSession:
 
 # ── Standalone digest builder (used by WorkflowSession.digest and Dash card) ──
 
-def build_digest(results: dict) -> dict:
+def build_digest(results: dict, confirmations: list | None = None) -> dict:
     """Synthesise a dict of {skill: result} into a structured digest.
 
-    ``results`` is a plain-dict mapping of skill name → result dict.
+    ``results`` is a plain-dict mapping of skill name → result dict; ``confirmations`` are
+    people's availability confirmations (WorkflowSession.confirm_available).
     Returns a dict suitable for SkillResult(…, skill='session_digest').
     """
     from ds_workbench.core.readiness import CHECK_LABEL, assess
-    readiness = assess(results)
+    readiness = assess(results, confirmations=confirmations)
+    confirmed_cols = {c["column"] for c in readiness["confirmed"]}
     # A failed check is never narrated as cleared: drop it before building the narrative
     failed = {f["skill"] for f in readiness["failed"]}
     results = {k: v for k, v in results.items() if k not in failed and v is not None}
@@ -198,6 +248,8 @@ def build_digest(results: dict) -> dict:
     ld = results.get("leakage_detector") or {}
     if ld:
         for f in ld.get("findings", []):
+            if f.get("column") in confirmed_cols:
+                continue            # a person confirmed it's available: listed under confirmed
             entry = {
                 "source": "leakage",
                 "column": f.get("column", "?"),
@@ -318,7 +370,8 @@ def build_digest(results: dict) -> dict:
     elif ld_blockers:
         n = len(ld_blockers)
         cols = ", ".join(b["column"] for b in ld_blockers[:3] if b["column"] != "—")
-        next_step = f"Drop {n} leaking column{'s' if n > 1 else ''}{f' ({cols})' if cols else ''}, then re-run leakage_detector"
+        next_step = (f"Drop {n} leaking column{'s' if n > 1 else ''}{f' ({cols})' if cols else ''}, or confirm "
+                     "availability with session.confirm_available(...), then re-run leakage_detector")
     elif dq_blockers:
         n = len(dq_blockers)
         next_step = f"Fix {n} critical data quality issue{'s' if n > 1 else ''} before training"
@@ -341,5 +394,7 @@ def build_digest(results: dict) -> dict:
         "blockers":        blockers,
         "cautions":        cautions,
         "cleared":         cleared,
+        "confirmed":       readiness["confirmed"],
+        "leakage_caveat":  ld.get("caveat", ""),
         "next_step":       next_step,
     }

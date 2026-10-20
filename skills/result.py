@@ -266,14 +266,19 @@ def _render_leakage_detector(r: dict) -> str:
 
     critical = [f for f in findings if f.get("severity") == "critical"]
     warning_f = [f for f in findings if f.get("severity") == "warning"]
+    pp = r.get("prediction_point")
+    timing = f"prediction point: {pp}" if pp else "statistics only — no prediction point"
+
+    def _detail(f):
+        return f.get("evidence") or f.get("description", "")
     if verdict == "leakage_detected":
         hero = _verdict_hero("Leakage", "LEAKAGE DETECTED", "danger",
-                             items=[f.get("description", "")[:80] for f in critical[:3]],
-                             subtitle=f"risk: {risk}")
+                             items=[f"{f.get('column', '')}: {_detail(f)}"[:80] for f in critical[:3]],
+                             subtitle=f"risk: {risk} · {timing}")
     elif verdict == "suspicious":
         hero = _verdict_hero("Leakage", "SUSPICIOUS", "warning",
-                             items=[f.get("description", "")[:80] for f in warning_f[:3]],
-                             subtitle=f"risk: {risk}")
+                             items=[f"{f.get('column', '')}: {_detail(f)}"[:80] for f in warning_f[:3]],
+                             subtitle=f"risk: {risk} · {timing}")
     else:
         hero = _verdict_hero("Leakage", "CLEAN", "success", subtitle="no leakage detected")
 
@@ -299,9 +304,10 @@ def _render_leakage_detector(r: dict) -> str:
             f'<tr class="{_sev_row_cls(sev)}">'
             f'<td>{_badge(sev.upper(), _sev_style(sev))}</td>'
             f'<td><span class="wr-mono">{f.get("column","—")}</span></td>'
-            f'<td class="wr-muted">{f.get("leakage_type","").replace("_"," ").title()}</td>'
+            f'<td class="wr-muted">{f.get("leakage_type","").replace("_"," ").title()}'
+            f'<br><span style="font-size:10px">{f.get("evidence_type", "statistical")} evidence</span></td>'
             f'<td style="font-family:monospace;font-size:11px">{corr_str}</td>'
-            f'<td>{f.get("description","")}'
+            f'<td>{_detail(f)}'
             + (f'<br><span class="wr-muted">{rec}</span>' if rec else "")
             + f'</td>'
             f'</tr>'
@@ -322,6 +328,8 @@ def _render_leakage_detector(r: dict) -> str:
         f'{_badge(f"risk: {risk}", rc)}'
         f'</div>'
         f'<div class="wr-body">'
+        + (f'<div style="background:#fff3cd;border-left:4px solid #e0a800;border-radius:4px;'
+           f'padding:6px 12px;margin:6px 0;font-size:12px">{r["caveat"]}</div>' if r.get("caveat") else "")
         + _critical_callout(
             findings,
             "Exclude from training set before fitting any model",
@@ -829,6 +837,7 @@ def _render_preflight(r: dict) -> str:
         f'<p class="wr-sum">{summary}</p>'
         + blockers_html
         + cautions_html
+        + _confirmed_html(r)
         + cleared_html
         + '</div>'
     )
@@ -843,6 +852,22 @@ def _gaps_html(r: dict) -> str:
     return ('<div style="background:#fff3cd;border-left:4px solid #e0a800;border-radius:4px;'
             'padding:6px 12px;margin:6px 0;font-size:12px"><strong>Incomplete — required checks:</strong> '
             + "; ".join(items) + "</div>")
+
+
+def _confirmed_html(r: dict) -> str:
+    """Leakage caveat, and columns a person confirmed available (info, with who/when/why)."""
+    out = ""
+    if r.get("leakage_caveat"):
+        out += ('<div style="background:#fff3cd;border-left:4px solid #e0a800;border-radius:4px;'
+                f'padding:6px 12px;margin:6px 0;font-size:12px">{r["leakage_caveat"]}</div>')
+    items = [f'<li><span class="wr-mono">{c["column"]}</span> — confirmed available by {c["confirmed_by"]} '
+             f'on {c["confirmed_at"][:10]}: “{c["note"]}” <span class="wr-muted">(was {c["was"]})</span></li>'
+             for c in r.get("confirmed", [])]
+    if items:
+        out += ('<div style="margin:6px 0;font-size:12px">'
+                f'{_badge("INFO", "info")} <strong>Confirmed by a person</strong>'
+                f'<ul style="margin:4px 0">{"".join(items)}</ul></div>')
+    return out
 
 
 def _render_session_digest(r: dict) -> str:
@@ -938,6 +963,7 @@ def _render_session_digest(r: dict) -> str:
         f'<div class="wr-body">'
         + _gaps_html(r)
         + blockers_html
+        + _confirmed_html(r)
         + cautions_html
         + cleared_html
         + next_html

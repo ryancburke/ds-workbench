@@ -81,7 +81,8 @@ from ds_workbench import WorkflowSession, data_quality, leakage_detector, featur
 
 df = spark.table("main.crm.customers").limit(200_000).toPandas()
 
-session = WorkflowSession(context="Predict which customers churn next quarter")
+session = WorkflowSession(context="Predict which customers churn next quarter", datasets=["customers"],
+                          prediction_point="1st of each month, predicting churn in the next 30 days")
 dq = data_quality.assess(df, table_name="customers", session=session)        # issues ranked by severity
 ld = leakage_detector.check(df, target_col="churned", session=session)        # leaks to drop before training
 fe = feature_engineering.suggest(df, target_col="churned", session=session)   # plan + runnable PySpark MLlib pipeline
@@ -90,6 +91,22 @@ preflight.check(session=session)                                               #
 
 X = df.drop(columns=ld["drop_columns"])                                        # columns flagged as critical leakage
 ```
+
+**Leakage and prediction time.** Whether a column leaks depends on when the model scores, so
+give the session a `prediction_point` (and, optionally, `column_notes` saying when columns are
+recorded). Each leakage finding says whether it rests on **timing** (the column is shown to exist
+after the prediction point) or only on its **statistical** signal; without a prediction point
+every finding is statistical and the output says so. A strong statistical finding stays
+critical, with the action "confirm availability at prediction time, or drop". Only a person can
+confirm:
+
+```python
+session.confirm_available("support_tickets_mtd", note="Counted up to the prediction date; see ETL job 42")
+```
+
+The confirmation is recorded with your name and the time, shows as info on the finding, and stops
+it blocking, but only for this column, this dataset and this prediction point. Change any of them
+and the finding blocks again.
 
 With a `WorkflowSession`, later skills pick up earlier findings automatically: feature
 engineering drops the leakage columns, and model selection factors in data quality.
@@ -155,7 +172,9 @@ most-urgent first. For each session it shows:
 - **Verdict:** blocked, incomplete, caution or ready for review, from the one readiness policy
   (`ds_workbench.core.readiness`). A check that failed or never ran is never counted as passed.
 - **Gates:** data quality, leakage, features and model, each passed, warned, blocked or skipped.
-  Modelling without the data-quality and leakage checks counts as a blocker.
+  Modelling without the data-quality and leakage checks makes the session incomplete.
+- **Prediction point and confirmations:** columns a person confirmed available, with who, when
+  and their note.
 - **Blockers:** the top blocking issues.
 - **Headlines:** one line per step, in the order the steps ran.
 - **Change:** blocker count against the previous session on the same data.
