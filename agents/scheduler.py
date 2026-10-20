@@ -436,16 +436,16 @@ def start_scheduler():
     A production WSGI server also has WERKZEUG_RUN_MAIN absent — so there is no
     env-var-only way to tell the monitor apart from production.
 
-    Strategy: skip the parent by requiring WERKZEUG_RUN_MAIN=true when LOCAL_DEV_MODE
-    is active (guaranteed dev/debug context). In production LOCAL_DEV_MODE is false so
-    we always start regardless of WERKZEUG_RUN_MAIN. This avoids duplicate schedulers
-    in dev without blocking production.
+    Strategy: when DEBUG is on (the reloader runs), skip the parent by requiring
+    WERKZEUG_RUN_MAIN=true. With DEBUG off — demos, and production (set DEBUG=false there)
+    — there is one process and the scheduler always starts.
     """
     from config import config
 
-    if config.local_dev_mode and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
-        # Dev mode: skip the Werkzeug monitor (parent) process.
-        # The child, which actually serves requests, has WERKZEUG_RUN_MAIN=true.
+    if config.debug and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+        # Debug mode runs Werkzeug's reloader: skip its monitor (parent) process. The child,
+        # which serves requests, has WERKZEUG_RUN_MAIN=true. Without debug there is no
+        # reloader and no such variable, so the single process starts the scheduler.
         return None
 
     interval_hours = config.sim_interval_hours

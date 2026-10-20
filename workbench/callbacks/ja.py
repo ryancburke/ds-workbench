@@ -19,6 +19,8 @@ from workbench.renderers.ja import _ja_render
     prevent_initial_call=True,
 )
 def wb_run_ja(_, scenario, store):
+    if not _:  # a click, not a page load: Dash Pages can fire this when the page mounts
+        raise PreventUpdate
     from databricks_client import load_join_scenario, SAMPLE_JOIN_SCENARIOS
     from skills.join_auditor import audit
 

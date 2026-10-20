@@ -19,6 +19,8 @@ from workbench.renderers.ml import _ml_render
     prevent_initial_call=True,
 )
 def wb_run_ml(_, code, store):
+    if not _:  # a click, not a page load: Dash Pages can fire this when the page mounts
+        raise PreventUpdate
     from skills.mlops_reviewer import review
 
     if not code or not code.strip():

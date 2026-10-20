@@ -64,6 +64,8 @@ def wb_ci_load_cols(dataset):
     prevent_initial_call=True,
 )
 def wb_run_ci(_, dataset, treatment, outcome, pre, design, time_col, unit_col, start, store):
+    if not _:  # a click, not a page load: Dash Pages can fire this when the page mounts
+        raise PreventUpdate
     from databricks_client import load_sample_dataset
     from skills.causal_inference import analyze, did
 

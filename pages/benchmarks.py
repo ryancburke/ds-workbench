@@ -141,7 +141,6 @@ def layout():
 )
 def poll(_n, current_count):
     from agents.scheduler import get_benchmarks
-    from dash.exceptions import PreventUpdate
     n = len(get_benchmarks())
     if n == current_count:
         raise PreventUpdate
@@ -164,6 +163,8 @@ def poll(_n, current_count):
     prevent_initial_call=True,
 )
 def set_range(n30, n90, nall):
+    if not (n30 or n90 or nall):  # a click, not a page load
+        raise PreventUpdate
     from dash import ctx
     tid = ctx.triggered[0]["prop_id"]
     if "30" in tid:

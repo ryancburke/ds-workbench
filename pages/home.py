@@ -491,6 +491,8 @@ def render_session(store):
     prevent_initial_call=True,
 )
 def start_session(_, problem, datasets, store):
+    if not _:  # a click, not a page load: Dash Pages can fire this when the page mounts
+        raise PreventUpdate
     from databricks_client import load_sample_dataset
     from skills.data_quality import assess
 
@@ -688,6 +690,8 @@ def wb_render_timeline(store):
     prevent_initial_call=True,
 )
 def wb_export_notebook(_, store):
+    if not _:  # a click, not a page load: Dash Pages can fire this when the page mounts
+        raise PreventUpdate
     from skills.notebook_generator import generate
 
     session = (store or {}).get("session") or {}

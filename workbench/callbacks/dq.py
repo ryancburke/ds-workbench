@@ -19,6 +19,8 @@ from workbench.renderers.dq import _dq_render
     prevent_initial_call=True,
 )
 def wb_run_dq(_, dataset, store):
+    if not _:  # a click, not a page load: Dash Pages can fire this when the page mounts
+        raise PreventUpdate
     from databricks_client import load_sample_dataset
     from skills.data_quality import assess
 

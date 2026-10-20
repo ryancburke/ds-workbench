@@ -104,6 +104,8 @@ def layout():
 )
 def populate_tables(load_clicks, left_contents, right_contents,
                     scenario, left_fname, right_fname):
+    if not (load_clicks or left_contents or right_contents):  # a click or an upload, not a page load
+        raise PreventUpdate
     from dash import ctx
     from databricks_client import load_join_scenario, SAMPLE_JOIN_SCENARIOS
 
@@ -143,6 +145,8 @@ def populate_tables(load_clicks, left_contents, right_contents,
     prevent_initial_call=True,
 )
 def run_join_audit(_, left_json, right_json, keys_str, join_type, store):
+    if not _:  # a click, not a page load: Dash Pages can fire this when the page mounts
+        raise PreventUpdate
     from skills.join_auditor import audit
 
     if not left_json or not right_json:

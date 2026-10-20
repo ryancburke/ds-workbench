@@ -5,9 +5,26 @@ import dash_bootstrap_components as dbc
 from dash import ALL, MATCH, Input, Output, State, callback, dcc, html
 from dash.exceptions import PreventUpdate
 
+import importlib
+
 from config import config  # triggers load_dotenv
 from components.sidebar import create_sidebar, SKILLS
 from agents.scheduler import start_scheduler, pending_count
+
+
+def _preload_skills() -> None:
+    """Import every skill and core module now, on the main thread. Callbacks import skills
+    lazily, and Dash serves callbacks on several threads: concurrent first imports of related
+    modules can deadlock on Python's per-module import locks."""
+    import ds_workbench
+    import ds_workbench.core
+    for module in [*ds_workbench._SKILLS.values(), "skills.session", "skills.team_sessions",
+                   "skills.usage", "skills.notebook_generator", "agents.simulation",
+                   "ds_workbench.core.joins", "ds_workbench.core.leakage", "ds_workbench.core.causal_stats"]:
+        importlib.import_module(module)
+
+
+_preload_skills()   # before the scheduler thread or the server start
 
 SKILL_KEYS = [s["key"] for s in SKILLS]
 EMPTY_STORE = {key: [] for key in SKILL_KEYS} | {"session": None}
@@ -75,6 +92,8 @@ def update_sidebar_counts(store):
     prevent_initial_call=True,
 )
 def toggle_run(_, is_open):
+    if not _:  # a click, not a page load: Dash Pages can fire this when the page mounts
+        raise PreventUpdate
     return not is_open
 
 
@@ -104,6 +123,8 @@ def dismiss_run(n_clicks_list, store):
     prevent_initial_call=True,
 )
 def clear_all_runs(_):
+    if not _:  # a click, not a page load: Dash Pages can fire this when the page mounts
+        raise PreventUpdate
     return EMPTY_STORE
 
 
@@ -120,4 +141,4 @@ def update_feedback_badge(_):
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=8050)
+    app.run(debug=config.debug, port=8050)

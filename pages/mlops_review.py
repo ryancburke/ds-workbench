@@ -223,6 +223,8 @@ def _render_results(result: dict) -> html.Div:
     prevent_initial_call=True,
 )
 def run_mlops(_, code, store):
+    if not _:  # a click, not a page load: Dash Pages can fire this when the page mounts
+        raise PreventUpdate
     from skills.mlops_reviewer import review
 
     if not code or not code.strip():

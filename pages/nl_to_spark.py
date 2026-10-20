@@ -103,11 +103,12 @@ def update_nl_dq_gate(sample_name, store, active_tab):
     prevent_initial_call=True,
 )
 def nl_run_quick_dq(_, sample_name, store):
+    if not _:  # a click, not a page load: Dash Pages can fire this when the page mounts
+        raise PreventUpdate
     import time as _t
     from datetime import datetime as _dt
     from databricks_client import load_sample_dataset
     from skills.data_quality import assess
-    from dash.exceptions import PreventUpdate
 
     if not sample_name:
         raise PreventUpdate
@@ -315,6 +316,8 @@ def _find_column(df: pd.DataFrame, name: str) -> str | None:
     prevent_initial_call=True,
 )
 def run_nl(_, question, tables_store, store):
+    if not _:  # a click, not a page load: Dash Pages can fire this when the page mounts
+        raise PreventUpdate
     from skills.nl_to_spark import generate
 
     if not question or not tables_store:

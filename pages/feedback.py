@@ -209,6 +209,8 @@ def _empty_state(msg: str) -> html.Div:
     prevent_initial_call=True,
 )
 def trigger_run(_, _all, selected):
+    if not (_ or _all):  # a click, not a page load
+        raise PreventUpdate
     from dash import ctx
     from agents.scheduler import trigger_bulk_run, running_scenarios
 
@@ -322,6 +324,8 @@ def render_lists(_):
     prevent_initial_call=True,
 )
 def dismiss_all_stale(_, current):
+    if not _:  # a click, not a page load: Dash Pages can fire this when the page mounts
+        raise PreventUpdate
     from agents.scheduler import dismiss_stale
     dismiss_stale()
     return (current or 0) + 1
@@ -384,6 +388,8 @@ def dismiss_rec(n_clicks_list, current):
     prevent_initial_call=True,
 )
 def toggle_modal(view_clicks, approve_clicks, close_click, is_open):
+    if not (close_click or any(view_clicks or []) or any(approve_clicks or [])):  # a click, not a mount
+        raise PreventUpdate
     from dash import ctx
     import json as _json
     from agents.scheduler import get_rec
@@ -479,6 +485,8 @@ def _code_panel(rec: dict) -> html.Div:
     prevent_initial_call=True,
 )
 def apply_change(_, rec_id, current):
+    if not _:  # a click, not a page load: Dash Pages can fire this when the page mounts
+        raise PreventUpdate
     if not rec_id:
         raise PreventUpdate
 

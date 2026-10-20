@@ -305,6 +305,17 @@ skill's Workbench UX, `pages/home.py` otherwise); each edit
 must match once and the result must compile. "Export Patch" writes `feedback/patches/<id>.patch`
 for a feature branch — the app never rewrites its own files.
 
+**Button callbacks check the click**: Dash Pages can fire a button callback when its page
+mounts even with `prevent_initial_call=True` (every Workbench load used to run DQ, EDA and a join
+audit — paid API calls). Every callback with an `n_clicks` input starts with
+`if not n_clicks: raise PreventUpdate` (lists for `ALL` patterns). `tests/test_static.py`
+calls each one without a click and fails if it does anything.
+
+**Import skills at startup**: callbacks import skills lazily and Dash serves callbacks on
+several threads; concurrent first imports deadlocked on module locks. `app.py` preloads every
+skill and `ds_workbench.core` module before the scheduler or server start, and
+`ds_workbench/core/__init__` never imports its own submodules eagerly (it uses `__getattr__`).
+
 **Callback `prevent_initial_call`**: Any callback whose Input is a `dcc.Store` that lives inside
 a page layout (not the global `app.layout`) must have `prevent_initial_call=True`. The store's
 initial value fires the callback through a different internal path in Dash 4.x that causes
@@ -350,7 +361,7 @@ Falls back to round-robin if benchmark data is unavailable. Interval: `SIM_INTER
 .venv/bin/pip install -r requirements.txt
 
 # Run app
-.venv/bin/python app.py          # debug mode, port 8050
+.venv/bin/python app.py          # port 8050; DEBUG=false in .env turns off dev tools (demos)
 # or
 LOCAL_DEV_MODE=true .venv/bin/python app.py
 

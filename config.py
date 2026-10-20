@@ -19,6 +19,8 @@ class Config:
     local_dev_mode: bool = field(
         default_factory=lambda: os.getenv("LOCAL_DEV_MODE", "true").lower() == "true"
     )
+    # Dash debug mode (dev tools, error overlay, hot reload). Set DEBUG=false for demos.
+    debug: bool = field(default_factory=lambda: os.getenv("DEBUG", "true").lower() == "true")
     # 0 = manual: simulations run only from the Feedback page or run_sim.py, so each
     # run can be tied to a change. Set e.g. 6 to run on a schedule.
     sim_interval_hours: float = field(

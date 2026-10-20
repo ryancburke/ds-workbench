@@ -40,6 +40,8 @@ def wb_ld_load_cols(dataset):
     prevent_initial_call=True,
 )
 def wb_run_ld(_, dataset, target_col, store):
+    if not _:  # a click, not a page load: Dash Pages can fire this when the page mounts
+        raise PreventUpdate
     from databricks_client import load_sample_dataset
     from skills.leakage_detector import check
 
