@@ -112,3 +112,50 @@ def test_renderers_never_default_an_unknown_verdict_to_ready():
     from skills.result import SkillResult
     html = SkillResult({"blockers": [], "cautions": [], "cleared": []}, skill="preflight")._repr_html_()
     assert "READY" not in html and "INCOMPLETE" in html
+
+
+# ── Fail closed: missing/unrecognised verdicts and unknown severities ────────
+
+def test_leakage_result_with_no_verdict_is_failed_not_clean():
+    r = assess({"data_quality": DQ_CLEAN, "leakage_detector": {"findings": []}})
+    assert r["status"] == "incomplete"
+    assert r["failed"] == [{"skill": "leakage_detector", "error": "unrecognised verdict: verdict=None"}]
+
+
+def test_leakage_result_with_an_unknown_verdict_is_failed():
+    r = assess({"data_quality": DQ_CLEAN, "leakage_detector": {"verdict": "looks_fine", "findings": []}})
+    assert r["status"] == "incomplete"
+    assert r["failed"][0]["error"] == "unrecognised verdict: verdict='looks_fine'"
+
+
+def test_finding_with_unknown_severity_is_a_caution_not_ignored():
+    dq = {"overall_score": 90, "findings": [{"severity": "high", "column": "amount", "description": "odd values"}]}
+    r = assess({"data_quality": dq, "leakage_detector": LD_CLEAN})
+    assert r["status"] == "caution"
+    assert r["cautions"][0]["issue"] == "unrecognised severity 'high': odd values"
+    no_severity = {"overall_score": 90, "findings": [{"column": "x", "description": "?"}]}
+    assert assess({"data_quality": no_severity, "leakage_detector": LD_CLEAN})["status"] == "caution"
+
+
+@pytest.mark.parametrize("skill,key", [
+    ("leakage_detector", "verdict"), ("join_auditor", "overall_verdict"), ("model_selector", "data_readiness"),
+    ("causal_inference", "verdict"), ("experiment_tracker", "verdict"),
+])
+def test_every_verdict_field_fails_closed(skill, key):
+    from ds_workbench.core.readiness import VERDICT_RULES, check_state
+    assert check_state(skill, {"findings": []})["state"] == "failed"
+    assert check_state(skill, {key: "something_new", "findings": []})["state"] == "failed"
+    clean_value = next(iter(VERDICT_RULES[skill][3]))
+    assert check_state(skill, {key: clean_value, "findings": []})["state"] == "clean"
+
+
+def test_benign_severities_stay_clean():
+    from ds_workbench.core.readiness import check_state
+    findings = [{"severity": s, "description": s} for s in ("info", "suggestion", "positive", "note")]
+    assert check_state("data_quality", {"findings": findings})["state"] == "clean"
+
+
+def test_a_malformed_verdict_still_surfaces_known_blockers():
+    leak = {"verdict": None, "findings": [{"severity": "critical", "column": "score_v2", "evidence": "AUC 1.0"}]}
+    r = assess({"data_quality": DQ_CLEAN, "leakage_detector": leak})
+    assert r["status"] == "blocked" and r["failed"][0]["skill"] == "leakage_detector"

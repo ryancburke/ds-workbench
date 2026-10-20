@@ -13,7 +13,9 @@
    commit there, and open a PR.
 5. **A failed or missing check never counts as passed.** A skill result with `{"error": ...}`
    is a failed check and a mandatory check that never ran is a missing one; both make the work
-   *incomplete*. Never default an unknown or absent verdict to ready, clean or cleared.
+   *incomplete*. Never default an unknown or absent verdict to ready, clean or cleared: the
+   policy fails closed — a missing or unrecognised skill verdict makes the check failed, and a
+   finding with an unknown severity counts as a caution.
 6. **Readiness is computed in one place:** `ds_workbench.core.readiness.assess()`. Preflight,
    the Sessions page, the Workbench strip, pipeline-health card and session digest all call it
    and only decide how to display the result. Don't add readiness rules anywhere else.

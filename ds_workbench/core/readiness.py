@@ -7,6 +7,8 @@ strip, so they can never disagree. Pure logic over skill result dicts — no mod
 Rules:
   - a mandatory check that never ran → incomplete (never ready)
   - a check that failed ({"error": ...}) → incomplete, with the error; never treated as clean
+  - fail closed: a missing or unrecognised verdict value makes the check failed, and a finding
+    with an unknown or missing severity counts as a caution
   - critical findings → blocked
   - warnings → caution
   - only when every mandatory check ran and nothing is blocking or cautioned → ready_for_review
@@ -44,8 +46,26 @@ def _item(source: str, issue: str, column: str = "—", action: str = "") -> dic
     return {"source": source, "column": column or "—", "issue": issue[:160], "action": action[:160]}
 
 
+# Finding severities, by meaning. Anything else — including a missing severity — is treated as a
+# caution: an unknown severity is never silently ignored.
+_BLOCKING_SEVERITIES = {"critical"}
+_CAUTION_SEVERITIES = {"warning", "concern"}
+_BENIGN_SEVERITIES = {"info", "suggestion", "positive", "note"}
+
+# Skill-level verdict field → (blocking, caution, clean) values, as each skill returns them.
+# A missing or unrecognised value makes the check failed (fail closed), never clean.
+VERDICT_RULES = {
+    "leakage_detector":   ("verdict",         {"leakage_detected"}, {"suspicious"},    {"clean"}),
+    "join_auditor":       ("overall_verdict", {"dangerous"},        {"review_needed"}, {"safe"}),
+    "model_selector":     ("data_readiness",  {"insufficient"},     {"needs_prep"},    {"ready"}),
+    "causal_inference":   ("verdict",         {"not_identified"},   {"caution"},       {"valid"}),
+    "experiment_tracker": ("verdict",         {"red_flags"},        {"needs_work"},    {"promising"}),
+}
+
+
 def check_state(skill: str, result: dict | None) -> dict:
-    """State of one check: missing, failed, blocked, caution or clean, with its reasons."""
+    """State of one check: missing, failed, blocked, caution or clean, with its reasons.
+    Fails closed: an error, an unrecognised verdict or an unknown severity never reads as clean."""
     if result is None:
         return {"skill": skill, "state": "missing", "blockers": [], "cautions": []}
     if not isinstance(result, dict) or result.get("error"):
@@ -58,27 +78,31 @@ def check_state(skill: str, result: dict | None) -> dict:
             continue
         issue = f.get("evidence") or f.get("description") or f.get("observation") or f.get("issue_type", "")
         action = f.get("recommendation") or f.get("fix") or ""
-        if f.get("severity") == "critical":
+        severity = f.get("severity")
+        if severity in _BLOCKING_SEVERITIES:
             blockers.append(_item(skill, issue, f.get("column"), action))
-        elif f.get("severity") in ("warning", "concern"):
+        elif severity in _CAUTION_SEVERITIES:
             cautions.append(_item(skill, issue, f.get("column"), action))
+        elif severity not in _BENIGN_SEVERITIES:
+            cautions.append(_item(skill, f"unrecognised severity {severity!r}: {issue}", f.get("column"), action))
 
-    # Skill-level verdicts that mean "blocked" or "caution" even without itemised findings
-    verdict_rules = {
-        "leakage_detector":   ("verdict", {"leakage_detected"}, {"suspicious"}),
-        "join_auditor":       ("overall_verdict", {"dangerous"}, {"review_needed"}),
-        "model_selector":     ("data_readiness", {"insufficient"}, {"needs_prep"}),
-        "causal_inference":   ("verdict", {"not_identified"}, {"caution"}),
-        "experiment_tracker": ("verdict", {"red_flags"}, {"needs_work"}),
-    }
-    if skill in verdict_rules:
-        key, blocking, cautioning = verdict_rules[skill]
+    error = None
+    if skill in VERDICT_RULES:
+        key, blocking, cautioning, clean = VERDICT_RULES[skill]
         value = result.get(key)
-        if value in blocking and not blockers:
-            blockers.append(_item(skill, f"{key.replace('_', ' ')}: {str(value).replace('_', ' ')}"))
-        elif value in cautioning and not (blockers or cautions):
-            cautions.append(_item(skill, f"{key.replace('_', ' ')}: {str(value).replace('_', ' ')}"))
+        label = f"{key.replace('_', ' ')}: {str(value).replace('_', ' ')}"
+        if value in blocking:
+            if not blockers:
+                blockers.append(_item(skill, label))
+        elif value in cautioning:
+            if not (blockers or cautions):
+                cautions.append(_item(skill, label))
+        elif value not in clean:
+            error = f"unrecognised verdict: {key}={value!r}"
 
+    if error:
+        # Keep any findings so a known blocker still shows, but the check is never clean
+        return {"skill": skill, "state": "failed", "error": error, "blockers": blockers, "cautions": cautions}
     state = "blocked" if blockers else "caution" if cautions else "clean"
     return {"skill": skill, "state": state, "blockers": blockers, "cautions": cautions}
 
