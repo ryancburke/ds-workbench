@@ -57,7 +57,8 @@ def _delta(d):
 
 
 def _session_item(row: dict) -> dbc.AccordionItem:
-    color, label = _ATTENTION[row["attention"]]
+    color = _ATTENTION[row["attention"]][0]
+    label = "Not started" if row["attention"] == "grey" else row["verdict_label"]
     title = html.Div([
         dbc.Badge(label, color=color, className="me-2"),
         html.Strong((row["question"] or "(no question)")[:80], className="me-2"),
@@ -73,6 +74,11 @@ def _session_item(row: dict) -> dbc.AccordionItem:
     body = html.Div([
         html.Div([html.Strong("Data: ", className="small"),
                   html.Span(", ".join(row["datasets"] or []) or "—", className="small")], className="mb-2"),
+        html.Div([html.Strong("Required checks: ", className="small text-warning"),
+                  html.Span("; ".join([f"{m.replace('_', ' ')} not run" for m in row["missing"]]
+                                      + [f"{f['skill'].replace('_', ' ')} failed — {f['error'][:90]}"
+                                         for f in row["failed"]]), className="small")],
+                 className="mb-2") if (row["missing"] or row["failed"]) else html.Div(),
         html.Div([html.Strong("Blocking", className="small text-danger"),
                   html.Ul(blockers, className="mb-2")]) if blockers else
         html.P("Nothing blocking.", className="small text-success mb-2"),
@@ -90,9 +96,11 @@ def sessions_panel(rows: list[dict], attention_only: bool = False):
     if not rows:
         return dbc.Alert("No sessions yet. Start one on the Workbench, or in a notebook with "
                          "WorkflowSession(context=...) — both appear here automatically.", color="secondary")
-    counts = {a: sum(1 for r in rows if r["attention"] == a) for a in _ATTENTION}
-    summary = html.Div([dbc.Badge(f"{counts[a]} {_ATTENTION[a][1].lower()}", color=_ATTENTION[a][0], className="me-1")
-                        for a in _ATTENTION if counts[a]], className="mb-2")
+    from ds_workbench.core.readiness import STATUS_LABEL, STATUSES
+    colour = {"blocked": "danger", "incomplete": "warning", "caution": "warning", "ready_for_review": "success"}
+    counts = {st: sum(1 for r in rows if r["verdict"] == st and r["attention"] != "grey") for st in STATUSES}
+    summary = html.Div([dbc.Badge(f"{counts[st]} {STATUS_LABEL[st].lower()}", color=colour[st], className="me-1")
+                        for st in STATUSES if counts[st]], className="mb-2")
     return html.Div([summary, dbc.Accordion([_session_item(r) for r in rows], start_collapsed=True,
                                             always_open=True, style=_CARD)])
 

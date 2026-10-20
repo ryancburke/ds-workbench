@@ -152,7 +152,8 @@ Every analysis session is saved automatically, whether it was started on the Wor
 notebook with `WorkflowSession(context=..., datasets=[...])`. The **Sessions** page lists them
 most-urgent first. For each session it shows:
 
-- **Verdict:** blocked, caution or ready.
+- **Verdict:** blocked, incomplete, caution or ready for review, from the one readiness policy
+  (`ds_workbench.core.readiness`). A check that failed or never ran is never counted as passed.
 - **Gates:** data quality, leakage, features and model, each passed, warned, blocked or skipped.
   Modelling without the data-quality and leakage checks counts as a blocker.
 - **Blockers:** the top blocking issues.

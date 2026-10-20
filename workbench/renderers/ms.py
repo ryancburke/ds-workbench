@@ -28,11 +28,11 @@ def _ms_render(result: dict) -> html.Div:
     _top_model = recs[0].get("display_name", recs[0].get("model_family", "")) if recs else ""
     _violated  = [a for a in assumptions if a.get("status") == "violated"]
     if readiness == "insufficient" or len(_violated) >= 2:
-        _v_color, _v_icon, _v_label = "danger",  "bi-x-octagon-fill",            "NOT READY"
+        _v_color, _v_icon, _v_label = "danger",  "bi-x-octagon-fill",            "INSUFFICIENT DATA"
     elif readiness == "needs_prep" or _violated:
         _v_color, _v_icon, _v_label = "warning", "bi-exclamation-triangle-fill", "PREP REQUIRED"
     else:
-        _v_color, _v_icon, _v_label = "success", "bi-check-circle-fill",         "READY TO TRAIN"
+        _v_color, _v_icon, _v_label = "success", "bi-check-circle-fill",         "DATA SUFFICIENT"
     verdict_hero = dbc.Alert([
         html.Strong([html.I(className=f"bi {_v_icon} me-2"), f"Model Selector: {_v_label}"],
                     className="d-block mb-1"),

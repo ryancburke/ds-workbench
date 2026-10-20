@@ -19,8 +19,9 @@ _EXPORTS = {
     "join_stats": "ds_workbench.core.joins",
     "join_verdict": "ds_workbench.core.joins",
     "leakage_profile": "ds_workbench.core.leakage",
+    "assess_readiness": "ds_workbench.core.readiness",
 }
-_SUBMODULES = {"joins", "leakage", "causal_stats"}
+_SUBMODULES = {"joins", "leakage", "causal_stats", "readiness"}
 
 __all__ = [*_EXPORTS, *_SUBMODULES]
 

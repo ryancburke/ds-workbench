@@ -429,11 +429,11 @@ def _render_model_selector(r: dict) -> str:
     top_model = recs[0].get("display_name", recs[0].get("model_family","")) if recs else ""
     subtitle  = f"top pick: {top_model}" if top_model else None
     if readiness == "insufficient":
-        hero = _verdict_hero("Model Selector", "NOT READY", "danger", subtitle=subtitle)
+        hero = _verdict_hero("Model Selector", "INSUFFICIENT DATA", "danger", subtitle=subtitle)
     elif readiness == "needs_prep":
         hero = _verdict_hero("Model Selector", "PREP REQUIRED", "warning", subtitle=subtitle)
     else:
-        hero = _verdict_hero("Model Selector", "READY TO TRAIN", "success", subtitle=subtitle)
+        hero = _verdict_hero("Model Selector", "DATA SUFFICIENT", "success", subtitle=subtitle)
 
     rec_rows = ""
     for rec in recs[:3]:
@@ -717,13 +717,14 @@ def _render_mlops_reviewer(r: dict) -> str:
 
 
 def _render_preflight(r: dict) -> str:
-    verdict  = r.get("verdict", "ready")
+    verdict  = r.get("verdict", "incomplete")   # an unknown state is never shown as ready
     blockers = r.get("blockers", [])
     cautions = r.get("cautions", [])
     cleared  = r.get("cleared", [])
     summary  = r.get("summary", "")
     dq_ok    = r.get("dq_available", False)
     ld_ok    = r.get("leakage_available", False)
+    failed   = {f["skill"]: f["error"] for f in r.get("failed", [])}
 
     if verdict == "blocked":
         hero = _verdict_hero(
@@ -739,15 +740,21 @@ def _render_preflight(r: dict) -> str:
             items=[f'<span class="wr-mono">{c["column"]}</span> [{c["source"]}] — {c["reason"]}'
                    for c in cautions[:3]],
         )
+    elif verdict == "ready_for_review":
+        hero = _verdict_hero("Pre-flight Check", "READY FOR REVIEW", "success")
     else:
-        hero = _verdict_hero("Pre-flight Check", "READY TO TRAIN", "success")
+        hero = _verdict_hero(
+            "Pre-flight Check", "INCOMPLETE", "warning",
+            items=[f"{s.replace('_', ' ')} not run" for s in r.get("missing", [])]
+                  + [f"{s.replace('_', ' ')} failed: {e[:80]}" for s, e in failed.items()],
+        )
 
-    source_badges = (
-        (_badge("DQ ✓",       "success")   if dq_ok   else _badge("DQ — not run", "secondary"))
-        + " "
-        + (_badge("Leakage ✓", "success")  if ld_ok   else _badge("Leakage — not run", "secondary"))
-    )
-    vc = {"blocked": "danger", "caution": "warning", "ready": "success"}.get(verdict, "secondary")
+    def _src(skill, ok, label):
+        if skill in failed:
+            return _badge(f"{label} — failed", "danger")
+        return _badge(f"{label} ✓", "success") if ok else _badge(f"{label} — not run", "secondary")
+    source_badges = _src("data_quality", dq_ok, "DQ") + " " + _src("leakage_detector", ld_ok, "Leakage")
+    vc = {"blocked": "danger", "caution": "warning", "ready_for_review": "success"}.get(verdict, "warning")
 
     blockers_html = ""
     if blockers:
@@ -827,18 +834,29 @@ def _render_preflight(r: dict) -> str:
     )
 
 
+def _gaps_html(r: dict) -> str:
+    """Required checks that didn't run or failed — shown before anything else."""
+    items = [f"{m.replace('_', ' ')} not run" for m in r.get("missing", [])]
+    items += [f"{f['skill'].replace('_', ' ')} failed: {f['error'][:100]}" for f in r.get("failed", [])]
+    if not items:
+        return ""
+    return ('<div style="background:#fff3cd;border-left:4px solid #e0a800;border-radius:4px;'
+            'padding:6px 12px;margin:6px 0;font-size:12px"><strong>Incomplete — required checks:</strong> '
+            + "; ".join(items) + "</div>")
+
+
 def _render_session_digest(r: dict) -> str:
-    verdict  = r.get("overall_verdict", "in_progress")
+    verdict  = r.get("overall_verdict", "incomplete")
     blockers = r.get("blockers", [])
     cautions = r.get("cautions", [])
     cleared  = r.get("cleared", [])
     next_step = r.get("next_step", "")
     skills   = r.get("skills_run", [])
 
-    vc = {"blocked": "danger", "caution": "warning",
-          "ready": "success", "in_progress": "secondary"}.get(verdict, "secondary")
-    vl = {"blocked": "BLOCKED", "caution": "CAUTION",
-          "ready": "READY", "in_progress": "IN PROGRESS"}.get(verdict, "PENDING")
+    vc = {"blocked": "danger", "caution": "warning", "incomplete": "warning",
+          "ready_for_review": "success"}.get(verdict, "warning")
+    vl = {"blocked": "BLOCKED", "caution": "CAUTION", "incomplete": "INCOMPLETE",
+          "ready_for_review": "READY FOR REVIEW"}.get(verdict, "INCOMPLETE")
 
     # Blockers table
     blockers_html = ""
@@ -918,6 +936,7 @@ def _render_session_digest(r: dict) -> str:
         f'{_badge(vl, vc)}'
         f'</div>'
         f'<div class="wr-body">'
+        + _gaps_html(r)
         + blockers_html
         + cautions_html
         + cleared_html

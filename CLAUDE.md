@@ -11,6 +11,15 @@
    benchmarks.
 4. **Feature branches + pull requests.** Never commit or push directly to `main`. Branch,
    commit there, and open a PR.
+5. **A failed or missing check never counts as passed.** A skill result with `{"error": ...}`
+   is a failed check and a mandatory check that never ran is a missing one; both make the work
+   *incomplete*. Never default an unknown or absent verdict to ready, clean or cleared.
+6. **Readiness is computed in one place:** `ds_workbench.core.readiness.assess()`. Preflight,
+   the Sessions page, the Workbench strip, pipeline-health card and session digest all call it
+   and only decide how to display the result. Don't add readiness rules anywhere else.
+   Statuses: `blocked` (critical findings) > `incomplete` (missing/failed mandatory check) >
+   `caution` (warnings) > `ready_for_review` (every mandatory check ran clean). Mandatory checks:
+   data quality + leakage for modelling work; data quality + causal for causal-only work.
 
 ## What this is
 
@@ -128,6 +137,7 @@ ds_workbench/              # Notebook import surface: `from ds_workbench import 
     leakage.py            #   leakage_profile(df, target) — AUC, null/zero patterns, single-class values
     joins.py              #   join_stats(left, right, keys, how) — exact rows, fan-out, data loss, verdict
     causal_stats.py       #   SRM, balance, IPW, CUPED, DiD, event study, pre-trend, E-value
+    readiness.py          #   assess(results) — the one readiness policy (see project rule 6)
 
 skills/                   # Pure Python — no Dash dependency. Called by pages, agents,
                           # AND importable directly from Databricks notebooks.

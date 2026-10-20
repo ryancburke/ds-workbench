@@ -184,6 +184,11 @@ def build_digest(results: dict) -> dict:
     ``results`` is a plain-dict mapping of skill name → result dict.
     Returns a dict suitable for SkillResult(…, skill='session_digest').
     """
+    from ds_workbench.core.readiness import CHECK_LABEL, assess
+    readiness = assess(results)
+    # A failed check is never narrated as cleared: drop it before building the narrative
+    failed = {f["skill"] for f in readiness["failed"]}
+    results = {k: v for k, v in results.items() if k not in failed and v is not None}
     skills_run = list(results.keys())
     blockers: list[dict] = []
     cautions: list[dict] = []
@@ -299,20 +304,18 @@ def build_digest(results: dict) -> dict:
         cleared.append({"skill": "feature_engineering",
                         "summary": f"{n_feat} features planned · {n_drop} dropped"})
 
-    # ── Overall verdict ───────────────────────────────────────────────────────
-    if blockers:
-        overall = "blocked"
-    elif cautions:
-        overall = "caution"
-    elif len(skills_run) < 3:
-        overall = "in_progress"
-    else:
-        overall = "ready"
+    # ── Overall verdict: from the readiness policy, never computed here ───────
+    overall = readiness["status"]
 
     # ── Next step ─────────────────────────────────────────────────────────────
     ld_blockers = [b for b in blockers if b["source"] == "leakage"]
     dq_blockers = [b for b in blockers if b["source"] == "data_quality"]
-    if ld_blockers:
+    if readiness["failed"]:
+        f = readiness["failed"][0]
+        next_step = f"Re-run {CHECK_LABEL.get(f['skill'], f['skill'])} — it failed: {f['error'][:100]}"
+    elif readiness["missing"] and not blockers:
+        next_step = f"Run {CHECK_LABEL.get(readiness['missing'][0], readiness['missing'][0])} — required before this is ready"
+    elif ld_blockers:
         n = len(ld_blockers)
         cols = ", ".join(b["column"] for b in ld_blockers[:3] if b["column"] != "—")
         next_step = f"Drop {n} leaking column{'s' if n > 1 else ''}{f' ({cols})' if cols else ''}, then re-run leakage_detector"
@@ -333,6 +336,8 @@ def build_digest(results: dict) -> dict:
     return {
         "skills_run":      skills_run,
         "overall_verdict": overall,
+        "missing":         readiness["missing"],
+        "failed":          readiness["failed"],
         "blockers":        blockers,
         "cautions":        cautions,
         "cleared":         cleared,
