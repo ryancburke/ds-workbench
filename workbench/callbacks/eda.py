@@ -19,6 +19,8 @@ from workbench.renderers.eda import _eda_render
     prevent_initial_call=True,
 )
 def wb_run_eda(_, dataset, store):
+    if not _:  # a click, not a page load: Dash Pages can fire this when the page mounts
+        raise PreventUpdate
     from databricks_client import load_sample_dataset
     from skills.eda import analyze
 

@@ -216,6 +216,8 @@ def store_upload(contents, filename):
     prevent_initial_call=True,
 )
 def run_dq(_, active_tab, sample_name, table_name, upload_data, sample_size, store):
+    if not _:  # a click, not a page load: Dash Pages can fire this when the page mounts
+        raise PreventUpdate
     from databricks_client import get_table_sample, load_sample_dataset
     from skills.data_quality import assess, build_profile
 

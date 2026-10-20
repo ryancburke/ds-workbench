@@ -197,8 +197,11 @@ Model IDs are never hardcoded outside `config.py`; skills ask for a role via
 
 ```bash
 .venv/bin/pip install -r requirements-dev.txt
-.venv/bin/python -m pytest          # offline suite (~1s, no API calls)
+.venv/bin/python -m pytest          # offline suite (a few seconds, no API calls)
+RUN_BROWSER_TESTS=1 .venv/bin/python -m pytest tests/test_browser.py   # headless Chrome (~1 min)
 ```
+
+Set `DEBUG=false` in `.env` to run the app without Dash's dev tools, for demos.
 
 - Work on a feature branch and open a pull request; don't push to `main`.
 - Always use the virtualenv (`.venv/bin/python`); the shell doesn't activate it.

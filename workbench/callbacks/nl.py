@@ -38,6 +38,8 @@ def wb_nl_load_tables(dataset):
     prevent_initial_call=True,
 )
 def wb_run_nl(_, question, tables, dataset, store):
+    if not _:  # a click, not a page load: Dash Pages can fire this when the page mounts
+        raise PreventUpdate
     from skills.nl_to_spark import generate
 
     if not question or not question.strip():
