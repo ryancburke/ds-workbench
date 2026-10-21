@@ -1,0 +1,31 @@
+{
+  "_meta": {
+    "dataset": "framing",
+    "skill": "problem_framer",
+    "schema_version": "1.0",
+    "description": "Randomised experiment readout plus a ship decision."
+  },
+  "input": {
+    "question": "The checkout A/B test finished yesterday. Did variant B improve conversion, and should we ship it?",
+    "context": "Users were randomly assigned 50/50."
+  },
+  "primary_type": [
+    "causal"
+  ],
+  "required_types": [],
+  "answerability": [
+    "answerable",
+    "answerable_with_gaps"
+  ],
+  "must_mention": [],
+  "concepts": {
+    "exposure_concept": [
+      "variant",
+      "b",
+      "checkout"
+    ],
+    "outcome_concept": [
+      "conversion"
+    ]
+  }
+}

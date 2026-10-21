@@ -83,10 +83,38 @@ class WorkflowSession:
         self.prediction_point = (prediction_point or "").strip()
         self.column_notes = dict(column_notes or {})
         self.confirmations: list[dict] = []
+        self.spec: dict | None = None
         self.required_checks = list(required_checks) if required_checks is not None else None
         if self.required_checks is not None:
             _validate({}, self.required_checks)      # fail fast on an unknown or empty list
         self._runs: list[dict] = []
+
+    # ── Problem spec (problem_framer.frame drafts it; a person confirms it) ────
+
+    def set_spec(self, spec: dict) -> None:
+        """Attach a ProblemSpec (called by problem_framer.frame). Its required checks become
+        this session's declared checks; its question becomes the context if none was set."""
+        if spec.get("error"):
+            return
+        self.spec = dict(spec)
+        self.required_checks = list(spec.get("required_checks") or []) or None
+        if not self.context:
+            self.context = spec.get("question", "")
+        if self.persist:
+            self._save()
+
+    def confirm_spec(self, note: str = "") -> dict:
+        """Confirm the problem spec as the definition of this work (recommended before data
+        discovery). Records who confirmed it and when; the model can never confirm a spec."""
+        from ds_workbench.core.problem_spec import confirm
+        from skills import usage
+        from skills.api_retry import _call_ctx
+        if not self.spec:
+            raise ValueError("No problem spec yet: run problem_framer.frame(question, session=session) first")
+        self.spec = confirm(self.spec, user=usage.current_user(dict(_call_ctx.get())), note=note)
+        if self.persist:
+            self._save()
+        return self.spec
 
     # ── Availability confirmations (the user's judgment, never the model's) ───
 
@@ -151,7 +179,7 @@ class WorkflowSession:
                 self.id, owner=usage.current_user(dict(_call_ctx.get())), question=self.context,
                 datasets=self.datasets, results=dict(self._results), runs=self._runs, source="notebook",
                 prediction_point=self.prediction_point, confirmations=self.confirmations,
-                required_checks=self.required_checks)
+                required_checks=self.required_checks, spec=self.spec)
         except Exception:
             pass  # persistence must never break an analysis
 

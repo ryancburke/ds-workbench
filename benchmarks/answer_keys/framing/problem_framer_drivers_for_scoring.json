@@ -1,0 +1,33 @@
+{
+  "_meta": {
+    "dataset": "framing",
+    "skill": "problem_framer",
+    "schema_version": "1.0",
+    "description": "'Drivers' wording, but the use is scoring at signup: predictive primary (a causal reading is a secondary question at most)."
+  },
+  "input": {
+    "question": "Which factors drive customer lifetime value? We want to score new customers at signup.",
+    "context": ""
+  },
+  "primary_type": [
+    "predictive"
+  ],
+  "required_types": [],
+  "answerability": [
+    "answerable",
+    "answerable_with_gaps"
+  ],
+  "must_mention": [
+    {
+      "id": "signup_point",
+      "any_of": [
+        "signup",
+        "sign-up",
+        "sign up",
+        "at registration",
+        "prediction point"
+      ]
+    }
+  ],
+  "concepts": {}
+}

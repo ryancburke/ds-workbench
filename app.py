@@ -20,7 +20,7 @@ def _preload_skills() -> None:
     import ds_workbench.core
     for module in [*ds_workbench._SKILLS.values(), "skills.session", "skills.team_sessions",
                    "skills.usage", "skills.notebook_generator", "agents.simulation",
-                   "ds_workbench.core.joins", "ds_workbench.core.leakage", "ds_workbench.core.causal_stats"]:
+                   *(f"ds_workbench.core.{m}" for m in sorted(ds_workbench.core._SUBMODULES))]:
         importlib.import_module(module)
 
 

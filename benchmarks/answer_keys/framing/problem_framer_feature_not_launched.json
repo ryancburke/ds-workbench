@@ -1,0 +1,35 @@
+{
+  "_meta": {
+    "dataset": "framing",
+    "skill": "problem_framer",
+    "schema_version": "1.0",
+    "description": "NEGATIVE: an effect of something that hasn't happened can't be measured; must recommend a test."
+  },
+  "input": {
+    "question": "Will the new loyalty tier increase revenue?",
+    "context": "The loyalty tier hasn't launched yet and there is no pilot or test planned."
+  },
+  "primary_type": [
+    "causal"
+  ],
+  "required_types": [],
+  "answerability": [
+    "not_answerable_as_posed",
+    "needs_clarification",
+    "answerable_with_gaps"
+  ],
+  "must_mention": [
+    {
+      "id": "needs_experiment",
+      "any_of": [
+        "experiment",
+        "pilot",
+        "test",
+        "holdout",
+        "a/b",
+        "randomi"
+      ]
+    }
+  ],
+  "concepts": {}
+}

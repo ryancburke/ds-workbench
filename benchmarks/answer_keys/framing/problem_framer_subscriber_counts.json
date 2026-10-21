@@ -1,0 +1,26 @@
+{
+  "_meta": {
+    "dataset": "framing",
+    "skill": "problem_framer",
+    "schema_version": "1.0",
+    "description": "Pure description."
+  },
+  "input": {
+    "question": "How many active subscribers did we have each month last year, broken down by plan?",
+    "context": ""
+  },
+  "primary_type": [
+    "descriptive"
+  ],
+  "required_types": [],
+  "answerability": [
+    "answerable",
+    "answerable_with_gaps"
+  ],
+  "must_mention": [],
+  "concepts": {
+    "outcome_concept": [
+      "subscriber"
+    ]
+  }
+}

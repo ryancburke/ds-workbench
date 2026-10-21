@@ -56,6 +56,22 @@ def _delta(d):
     return html.Span(f"{d:+d} blocker{'s' if abs(d) != 1 else ''} vs last", className="small", style={"color": color})
 
 
+def _framing_line(f: dict | None):
+    if not f:
+        return html.Div()
+    status = (f"confirmed by {f['confirmed_by']}" if f["status"] == "confirmed" else "draft — not confirmed")
+    return html.Div([
+        html.Strong("Framing: ", className="small"),
+        dbc.Badge(f["type"], color="info", className="me-1"),
+        dbc.Badge(f["answerability"].replace("_", " "),
+                  color={"answerable": "success", "answerable_with_gaps": "warning"}.get(f["answerability"], "danger"),
+                  className="me-1"),
+        html.Span(f"{f['question']} · {status}", className="small"),
+        html.Div("Blocking gaps: " + "; ".join(f["blocking_gaps"]), className="small text-warning")
+        if f["blocking_gaps"] else html.Div(),
+    ], className="mb-2")
+
+
 def _session_item(row: dict) -> dbc.AccordionItem:
     color = _ATTENTION[row["attention"]][0]
     label = "Not started" if row["attention"] == "grey" else row["verdict_label"]
@@ -78,6 +94,7 @@ def _session_item(row: dict) -> dbc.AccordionItem:
     body = html.Div([
         html.Div([html.Strong("Data: ", className="small"),
                   html.Span(", ".join(row["datasets"] or []) or "—", className="small")], className="mb-2"),
+        _framing_line(row.get("framing")),
         html.Div([html.Strong("Prediction point: ", className="small"),
                   html.Span(row.get("prediction_point") or "not set", className="small")], className="mb-2"),
         html.Div(row["leakage_caveat"], className="small text-warning mb-2") if row.get("leakage_caveat") else html.Div(),

@@ -76,6 +76,23 @@ The skills take pandas DataFrames. Put the repo on `sys.path` (for example as a
 Databricks Repo) and make sure the API key is available to `config.py` through a `.env`
 file or an environment variable.
 
+**Start from the question.** `problem_framer.frame()` turns a business question into a
+structured spec before any data is touched. It separates the decision ("should we expand?")
+from the analytical questions ("did it work?"), types each question (descriptive, diagnostic,
+predictive, causal, optimisation), names what must be measured, and lists assumptions, missing
+information and whether the question is answerable as posed. The checks the work must pass
+follow from the question types: a causal question needs data quality and the causal analysis,
+not a leakage scan.
+
+```python
+from ds_workbench import WorkflowSession, problem_framer
+
+session = WorkflowSession()
+spec = problem_framer.frame("Did our spring campaign increase sales, and should we expand it?",
+                            context="Marketing chose which customers received it", session=session)
+session.confirm_spec(note="Exposure = received the campaign email")   # recommended
+```
+
 ```python
 from ds_workbench import WorkflowSession, data_quality, leakage_detector, feature_engineering, model_selector, preflight
 
@@ -200,7 +217,9 @@ Everything is read from `.env` by `config.py`; see `.env.example`.
 
 | Setting | Default | Purpose |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | required | API access |
+| `ANTHROPIC_API_KEY` | required for the Anthropic API | API access |
+| `ANTHROPIC_PROVIDER` | `anthropic` | route to Claude: `anthropic`, `aws`, `bedrock`, `vertex`, `google_cloud`, `foundry` (platform routes use their own credentials and model IDs) |
+| `ANTHROPIC_BASE_URL` | — | an approved gateway or proxy |
 | `LOCAL_DEV_MODE` | `true` | synthetic data instead of Databricks |
 | `SIM_INTERVAL_HOURS` | `0` (manual) | scheduled simulations |
 | `REASONING_MODEL` / `_EFFORT` | Sonnet 5.5 / high | data quality |
