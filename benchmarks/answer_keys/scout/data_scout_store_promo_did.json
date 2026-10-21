@@ -1,0 +1,80 @@
+{
+ "_meta": {
+  "dataset": "scout",
+  "skill": "data_scout",
+  "schema_version": "1.0",
+  "description": "Store promotion effect (difference-in-differences shape). Needs the weekly store panel and the promotion calendar; the forecast table is a look-alike for 'weekly store sales'."
+ },
+ "input": {
+  "catalog": "retail_marketing",
+  "spec": {
+   "question": "Did the spring store promotion raise weekly store revenue?",
+   "decision": {
+    "statement": "",
+    "options": [],
+    "criteria": "",
+    "inputs_needed": []
+   },
+   "questions": [
+    {
+     "id": "q1",
+     "type": "causal",
+     "statement": "Effect of running the spring promotion on store revenue",
+     "primary": true,
+     "unit_of_analysis": "store",
+     "population": "all stores",
+     "outcome_concept": "weekly revenue per store",
+     "exposure_concept": "store ran the spring promotion",
+     "comparison": "stores without the promotion, before vs after",
+     "time_window": "Feb-Jun 2026"
+    }
+   ],
+   "assumptions": [],
+   "missing": [],
+   "clarifying_questions": [],
+   "answerability": {
+    "status": "answerable_with_gaps",
+    "reason": "benchmark input"
+   },
+   "status": "confirmed",
+   "required_checks": [
+    "data_quality",
+    "causal_inference"
+   ],
+   "confirmed_by": "benchmark",
+   "note": "",
+   "confirmed_at": "2026-10-21T00:00:00+00:00"
+  }
+ },
+ "required_tables": [
+  "demo.sales.store_weekly_sales",
+  "demo.marketing.promo_calendar"
+ ],
+ "forbidden_tables": [
+  "demo.sales.sales_forecast",
+  "demo.sales.sales_daily_v1",
+  "demo.sales.tmp_orders_copy"
+ ],
+ "required_roles": [
+  {
+   "concept_kind": "outcome",
+   "table": "demo.sales.store_weekly_sales"
+  },
+  {
+   "concept_kind": "exposure",
+   "table": "demo.marketing.promo_calendar"
+  }
+ ],
+ "required_joins": [
+  [
+   "demo.marketing.promo_calendar",
+   "demo.sales.store_weekly_sales"
+  ]
+ ],
+ "forbidden_joins": [],
+ "required_gaps": [],
+ "acceptable_feasibility": [
+  "covered",
+  "partially_covered"
+ ]
+}

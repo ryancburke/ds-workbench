@@ -1,0 +1,667 @@
+{
+ "name": "retail_marketing",
+ "description": "Synthetic retail catalog for demos and Data Scout benchmarks. All names are invented.",
+ "tables": [
+  {
+   "name": "demo.marketing.campaign_exposure",
+   "comment": "Who received each digital campaign: one row per recipient per campaign send. Recipients are chosen by the marketing targeting model.",
+   "tags": {
+    "domain": "marketing",
+    "pii": "hashed"
+   },
+   "owner": "marketing-analytics",
+   "updated_at": "2026-10-18",
+   "row_count": 1840000,
+   "columns": [
+    {
+     "name": "email_hash",
+     "type": "string",
+     "comment": "SHA-256 of the lower-cased email address"
+    },
+    {
+     "name": "campaign_id",
+     "type": "string",
+     "comment": ""
+    },
+    {
+     "name": "sent_at",
+     "type": "timestamp",
+     "comment": "when the message was sent"
+    },
+    {
+     "name": "channel",
+     "type": "string",
+     "comment": "email | paid_social | display"
+    },
+    {
+     "name": "opened",
+     "type": "boolean",
+     "comment": ""
+    },
+    {
+     "name": "clicked",
+     "type": "boolean",
+     "comment": ""
+    }
+   ]
+  },
+  {
+   "name": "demo.marketing.campaign_plan",
+   "comment": "Planned audiences and budgets for upcoming and past campaigns, as drafted by the campaign team before launch.",
+   "tags": {
+    "domain": "marketing",
+    "status": "planning"
+   },
+   "owner": "campaign-team",
+   "updated_at": "2026-10-18",
+   "row_count": 420,
+   "columns": [
+    {
+     "name": "campaign_id",
+     "type": "string",
+     "comment": ""
+    },
+    {
+     "name": "segment",
+     "type": "string",
+     "comment": ""
+    },
+    {
+     "name": "planned_audience_size",
+     "type": "bigint",
+     "comment": ""
+    },
+    {
+     "name": "planned_budget_eur",
+     "type": "decimal(12,2)",
+     "comment": ""
+    },
+    {
+     "name": "planned_start",
+     "type": "date",
+     "comment": ""
+    }
+   ]
+  },
+  {
+   "name": "demo.marketing.campaign_costs",
+   "comment": "Actual campaign spend by channel and period, from invoices.",
+   "tags": {
+    "domain": "marketing",
+    "source": "finance"
+   },
+   "owner": "marketing-finance",
+   "updated_at": "2026-10-18",
+   "row_count": 3100,
+   "columns": [
+    {
+     "name": "campaign_id",
+     "type": "string",
+     "comment": ""
+    },
+    {
+     "name": "channel",
+     "type": "string",
+     "comment": ""
+    },
+    {
+     "name": "spend_eur",
+     "type": "decimal(12,2)",
+     "comment": ""
+    },
+    {
+     "name": "period_start",
+     "type": "date",
+     "comment": ""
+    },
+    {
+     "name": "period_end",
+     "type": "date",
+     "comment": ""
+    }
+   ]
+  },
+  {
+   "name": "demo.marketing.email_deliverability",
+   "comment": "Bounce and spam-complaint rates per campaign and sending domain.",
+   "tags": {
+    "domain": "marketing"
+   },
+   "owner": "email-ops",
+   "updated_at": "2026-10-18",
+   "row_count": 12000,
+   "columns": [
+    {
+     "name": "campaign_id",
+     "type": "string",
+     "comment": ""
+    },
+    {
+     "name": "sending_domain",
+     "type": "string",
+     "comment": ""
+    },
+    {
+     "name": "bounce_rate",
+     "type": "double",
+     "comment": ""
+    },
+    {
+     "name": "complaint_rate",
+     "type": "double",
+     "comment": ""
+    },
+    {
+     "name": "report_date",
+     "type": "date",
+     "comment": ""
+    }
+   ]
+  },
+  {
+   "name": "demo.marketing.promo_calendar",
+   "comment": "Store promotions: which stores ran which promotion and when.",
+   "tags": {
+    "domain": "marketing",
+    "grain": "store x promotion"
+   },
+   "owner": "trade-marketing",
+   "updated_at": "2026-10-18",
+   "row_count": 2600,
+   "columns": [
+    {
+     "name": "store_id",
+     "type": "string",
+     "comment": ""
+    },
+    {
+     "name": "promo_id",
+     "type": "string",
+     "comment": ""
+    },
+    {
+     "name": "start_date",
+     "type": "date",
+     "comment": ""
+    },
+    {
+     "name": "end_date",
+     "type": "date",
+     "comment": ""
+    },
+    {
+     "name": "promo_type",
+     "type": "string",
+     "comment": ""
+    }
+   ]
+  },
+  {
+   "name": "demo.sales.customer_orders",
+   "comment": "Order lines from the e-commerce site and store tills, one row per order line.",
+   "tags": {
+    "domain": "sales",
+    "certified": "true"
+   },
+   "owner": "sales-data",
+   "updated_at": "2026-10-18",
+   "row_count": 48000000,
+   "columns": [
+    {
+     "name": "order_id",
+     "type": "string",
+     "comment": ""
+    },
+    {
+     "name": "customer_id",
+     "type": "string",
+     "comment": "null for anonymous till purchases"
+    },
+    {
+     "name": "order_date",
+     "type": "date",
+     "comment": ""
+    },
+    {
+     "name": "store_id",
+     "type": "string",
+     "comment": "null for online orders"
+    },
+    {
+     "name": "sku",
+     "type": "string",
+     "comment": ""
+    },
+    {
+     "name": "quantity",
+     "type": "int",
+     "comment": ""
+    },
+    {
+     "name": "net_amount_eur",
+     "type": "decimal(12,2)",
+     "comment": "after discounts, excl. VAT"
+    }
+   ]
+  },
+  {
+   "name": "demo.sales.sales_forecast",
+   "comment": "Weekly sales forecast per store from the demand-planning model.",
+   "tags": {
+    "domain": "sales",
+    "type": "forecast"
+   },
+   "owner": "demand-planning",
+   "updated_at": "2026-10-18",
+   "row_count": 310000,
+   "columns": [
+    {
+     "name": "store_id",
+     "type": "string",
+     "comment": ""
+    },
+    {
+     "name": "week_start",
+     "type": "date",
+     "comment": ""
+    },
+    {
+     "name": "forecast_units",
+     "type": "double",
+     "comment": ""
+    },
+    {
+     "name": "forecast_revenue_eur",
+     "type": "double",
+     "comment": ""
+    },
+    {
+     "name": "model_version",
+     "type": "string",
+     "comment": ""
+    }
+   ]
+  },
+  {
+   "name": "demo.sales.sales_daily_v1",
+   "comment": "DEPRECATED \u2014 replaced by customer_orders in 2024. Do not use for new work.",
+   "tags": {
+    "domain": "sales",
+    "deprecated": "true"
+   },
+   "owner": "sales-data",
+   "updated_at": "2024-02-01",
+   "row_count": 21000000,
+   "columns": [
+    {
+     "name": "sale_date",
+     "type": "date",
+     "comment": ""
+    },
+    {
+     "name": "store_id",
+     "type": "string",
+     "comment": ""
+    },
+    {
+     "name": "customer_id",
+     "type": "string",
+     "comment": ""
+    },
+    {
+     "name": "amount",
+     "type": "double",
+     "comment": ""
+    }
+   ]
+  },
+  {
+   "name": "demo.sales.store_weekly_sales",
+   "comment": "Units and revenue per store per week, aggregated from order lines.",
+   "tags": {
+    "domain": "sales",
+    "grain": "store x week",
+    "certified": "true"
+   },
+   "owner": "sales-data",
+   "updated_at": "2026-10-18",
+   "row_count": 95000,
+   "columns": [
+    {
+     "name": "store_id",
+     "type": "string",
+     "comment": ""
+    },
+    {
+     "name": "week_start",
+     "type": "date",
+     "comment": ""
+    },
+    {
+     "name": "units_sold",
+     "type": "bigint",
+     "comment": ""
+    },
+    {
+     "name": "revenue_eur",
+     "type": "decimal(14,2)",
+     "comment": ""
+    }
+   ]
+  },
+  {
+   "name": "demo.sales.tmp_orders_copy",
+   "comment": "temp copy of orders for debugging a pipeline issue",
+   "tags": {},
+   "owner": "j.doe",
+   "updated_at": "2025-06-11",
+   "row_count": 500000,
+   "columns": [
+    {
+     "name": "order_id",
+     "type": "string",
+     "comment": ""
+    },
+    {
+     "name": "customer_id",
+     "type": "string",
+     "comment": ""
+    },
+    {
+     "name": "order_date",
+     "type": "date",
+     "comment": ""
+    },
+    {
+     "name": "net_amount_eur",
+     "type": "double",
+     "comment": ""
+    }
+   ]
+  },
+  {
+   "name": "demo.crm.customers",
+   "comment": "Customer master: one row per registered customer.",
+   "tags": {
+    "domain": "customer",
+    "certified": "true",
+    "pii": "hashed"
+   },
+   "owner": "crm-data",
+   "updated_at": "2026-10-18",
+   "row_count": 2300000,
+   "columns": [
+    {
+     "name": "customer_id",
+     "type": "string",
+     "comment": ""
+    },
+    {
+     "name": "email_hash",
+     "type": "string",
+     "comment": "SHA-256 of the lower-cased email address"
+    },
+    {
+     "name": "signup_date",
+     "type": "date",
+     "comment": ""
+    },
+    {
+     "name": "loyalty_member",
+     "type": "boolean",
+     "comment": ""
+    },
+    {
+     "name": "region",
+     "type": "string",
+     "comment": ""
+    },
+    {
+     "name": "birth_year",
+     "type": "int",
+     "comment": ""
+    }
+   ]
+  },
+  {
+   "name": "demo.crm.customer_features_daily",
+   "comment": "Daily snapshot of per-customer aggregates computed from order history.",
+   "tags": {
+    "domain": "customer",
+    "grain": "customer x day"
+   },
+   "owner": "crm-data",
+   "updated_at": "2026-10-18",
+   "row_count": 410000000,
+   "columns": [
+    {
+     "name": "customer_id",
+     "type": "string",
+     "comment": ""
+    },
+    {
+     "name": "snapshot_date",
+     "type": "date",
+     "comment": ""
+    },
+    {
+     "name": "spend_prior_90d_eur",
+     "type": "decimal(12,2)",
+     "comment": "net spend in the 90 days before snapshot_date"
+    },
+    {
+     "name": "orders_prior_90d",
+     "type": "int",
+     "comment": ""
+    },
+    {
+     "name": "tenure_days",
+     "type": "int",
+     "comment": ""
+    }
+   ]
+  },
+  {
+   "name": "demo.crm.support_tickets",
+   "comment": "Customer support tickets.",
+   "tags": {
+    "domain": "customer"
+   },
+   "owner": "support-ops",
+   "updated_at": "2026-10-18",
+   "row_count": 5600000,
+   "columns": [
+    {
+     "name": "ticket_id",
+     "type": "string",
+     "comment": ""
+    },
+    {
+     "name": "customer_id",
+     "type": "string",
+     "comment": ""
+    },
+    {
+     "name": "opened_at",
+     "type": "timestamp",
+     "comment": ""
+    },
+    {
+     "name": "category",
+     "type": "string",
+     "comment": ""
+    }
+   ]
+  },
+  {
+   "name": "demo.crm.subscriptions",
+   "comment": "Subscription contracts: one row per subscription, with start and end.",
+   "tags": {
+    "domain": "customer"
+   },
+   "owner": "crm-data",
+   "updated_at": "2026-10-18",
+   "row_count": 880000,
+   "columns": [
+    {
+     "name": "subscription_id",
+     "type": "string",
+     "comment": ""
+    },
+    {
+     "name": "customer_id",
+     "type": "string",
+     "comment": ""
+    },
+    {
+     "name": "plan",
+     "type": "string",
+     "comment": ""
+    },
+    {
+     "name": "start_date",
+     "type": "date",
+     "comment": ""
+    },
+    {
+     "name": "end_date",
+     "type": "date",
+     "comment": "null while active"
+    },
+    {
+     "name": "status",
+     "type": "string",
+     "comment": "active | cancelled | paused"
+    }
+   ]
+  },
+  {
+   "name": "demo.ops.stores",
+   "comment": "Store master: format, region and opening date.",
+   "tags": {
+    "domain": "operations"
+   },
+   "owner": "ops-data",
+   "updated_at": "2026-10-18",
+   "row_count": 640,
+   "columns": [
+    {
+     "name": "store_id",
+     "type": "string",
+     "comment": ""
+    },
+    {
+     "name": "region",
+     "type": "string",
+     "comment": ""
+    },
+    {
+     "name": "format",
+     "type": "string",
+     "comment": ""
+    },
+    {
+     "name": "opened_date",
+     "type": "date",
+     "comment": ""
+    }
+   ]
+  },
+  {
+   "name": "demo.web.web_sessions",
+   "comment": "Website sessions from the analytics tag (cookie level, no customer login).",
+   "tags": {
+    "domain": "digital"
+   },
+   "owner": "web-analytics",
+   "updated_at": "2026-10-18",
+   "row_count": 160000000,
+   "columns": [
+    {
+     "name": "session_id",
+     "type": "string",
+     "comment": ""
+    },
+    {
+     "name": "cookie_id",
+     "type": "string",
+     "comment": ""
+    },
+    {
+     "name": "started_at",
+     "type": "timestamp",
+     "comment": ""
+    },
+    {
+     "name": "pages_viewed",
+     "type": "int",
+     "comment": ""
+    },
+    {
+     "name": "device",
+     "type": "string",
+     "comment": ""
+    },
+    {
+     "name": "utm_campaign",
+     "type": "string",
+     "comment": "campaign parameter on the landing URL"
+    }
+   ]
+  },
+  {
+   "name": "demo.finance.product_margins",
+   "comment": "Gross margin percentage per SKU, effective-dated.",
+   "tags": {
+    "domain": "finance"
+   },
+   "owner": "finance-data",
+   "updated_at": "2026-10-18",
+   "row_count": 18000,
+   "columns": [
+    {
+     "name": "sku",
+     "type": "string",
+     "comment": ""
+    },
+    {
+     "name": "margin_pct",
+     "type": "double",
+     "comment": ""
+    },
+    {
+     "name": "valid_from",
+     "type": "date",
+     "comment": ""
+    }
+   ]
+  }
+ ],
+ "lineage": {
+  "demo.sales.store_weekly_sales": {
+   "upstream": [
+    "demo.sales.customer_orders"
+   ],
+   "downstream": [
+    "demo.sales.sales_forecast"
+   ]
+  },
+  "demo.crm.customer_features_daily": {
+   "upstream": [
+    "demo.sales.customer_orders",
+    "demo.crm.customers"
+   ]
+  },
+  "demo.sales.sales_forecast": {
+   "upstream": [
+    "demo.sales.store_weekly_sales"
+   ]
+  },
+  "demo.sales.customer_orders": {
+   "downstream": [
+    "demo.sales.store_weekly_sales",
+    "demo.crm.customer_features_daily"
+   ]
+  }
+ }
+}

@@ -1066,6 +1066,92 @@ def score_problem_framer(output: dict, answer_key: dict, benchmark_id: str | Non
         notes=notes)
 
 
+# ── Data Scout scoring ───────────────────────────────────────────────────────
+
+def scout_baseline(answer_key: dict, k: int = 5) -> dict:
+    """What plain catalog keyword search finds for the same spec: top-k recall of the required
+    tables and how many look-alikes it ranks in its top k."""
+    from ds_workbench.core.catalog import SyntheticCatalog
+    from ds_workbench.core.scout import search_terms
+    cat = SyntheticCatalog.load(answer_key["input"]["catalog"])
+    top = [h["name"] for h in cat.search(search_terms(answer_key["input"]["spec"]), limit=k)]
+    req = answer_key["required_tables"]
+    hit = [any(t in top for t in (r["any_of"] if isinstance(r, dict) else [r])) for r in req]
+    return {"top": top, "recall": (sum(hit) / len(req)) if req else 1.0,
+            "lookalikes_in_top": sum(t in top for t in answer_key["forbidden_tables"])}
+
+
+def score_data_scout(output: dict, answer_key: dict, benchmark_id: str | None = None) -> ScoreResult:
+    """Recall of required tables as 'investigate' (40) + no look-alike recommended (25) +
+    required roles (20) + required joins (15). Fails on a missed required table, a recommended
+    look-alike, a forbidden join, or a missing required coverage gap."""
+    bid = benchmark_id or "scout/data_scout"
+    notes: list[str] = []
+    cands = output.get("candidates", [])
+    investigate = {c["table"] for c in cands if c["recommendation"] == "investigate"}
+
+    # A requirement is a table, or {"any_of": [...]} when several tables serve equally well
+    req = answer_key["required_tables"]
+    def _met(r):
+        return any(t in investigate for t in r["any_of"]) if isinstance(r, dict) else r in investigate
+    missed = [r if isinstance(r, str) else " | ".join(r["any_of"]) for r in req if not _met(r)]
+    for t in missed:
+        notes.append(f"MISSED TABLE {t}")
+    recall = (len(req) - len(missed)) / len(req) if req else 1.0
+
+    fps = [t for t in answer_key["forbidden_tables"] if t in investigate]
+    for t in fps:
+        notes.append(f"LOOK-ALIKE RECOMMENDED {t}")
+
+    role_hits = []
+    for r in answer_key.get("required_roles", []):
+        ok = any(c["table"] == r["table"] and c["recommendation"] == "investigate"
+                 and any(m["concept"].endswith("." + r["concept_kind"]) for m in c["role_matches"]) for c in cands)
+        role_hits.append(ok)
+        if not ok:
+            notes.append(f"ROLE MISSED: {r['concept_kind']} from {r['table']}")
+    role_frac = sum(role_hits) / len(role_hits) if role_hits else 1.0
+
+    pairs = {tuple(sorted((j["left_table"], j["right_table"]))) for c in cands for j in c["join_keys"]}
+    # A join requirement is a table pair, or {"any_of": [pairs]}
+    req_joins = [r["any_of"] if isinstance(r, dict) else [r] for r in answer_key.get("required_joins", [])]
+    join_hits = [any(tuple(sorted(p)) in pairs for p in opts) for opts in req_joins]
+    for opts, ok in zip(req_joins, join_hits):
+        if not ok:
+            notes.append("JOIN MISSED: " + " or ".join(f"{p[0]} ↔ {p[1]}" for p in opts))
+    join_frac = sum(join_hits) / len(join_hits) if join_hits else 1.0
+    bad_joins = [p for p in answer_key.get("forbidden_joins", []) if tuple(p) in pairs]
+    for p in bad_joins:
+        notes.append(f"FORBIDDEN JOIN PROPOSED: {p[0]} ↔ {p[1]}")
+
+    gaps = output.get("coverage_gaps", [])
+    missing_gaps = [g for g in answer_key.get("required_gaps", []) if not any(x.endswith("." + g) for x in gaps)]
+    for g in missing_gaps:
+        notes.append(f"COVERAGE GAP NOT REPORTED: {g}")
+    feas_ok = answer_key.get("acceptable_feasibility") is None or output.get("feasibility") in answer_key["acceptable_feasibility"]
+    if not feas_ok:
+        notes.append(f"FEASIBILITY {output.get('feasibility')!r}, expected one of {answer_key['acceptable_feasibility']}")
+
+    dropped = len((output.get("validation") or {}).get("dropped", []))
+    if dropped:
+        notes.append(f"{dropped} ungrounded claim(s) were removed by validation")
+    baseline = scout_baseline(answer_key)
+
+    overall = max(0.0, 40 * recall + max(0, 25 - 12.5 * len(fps)) + 20 * role_frac + 15 * join_frac - 5 * dropped)
+    passed = (not missed and not fps and not bad_joins and not missing_gaps and feas_ok and overall >= 70)
+    return ScoreResult(
+        benchmark_id=bid, overall=round(overall, 1), passed=passed,
+        components={"recall": round(recall, 3), "lookalikes_recommended": len(fps), "roles": round(role_frac, 3),
+                    "joins": round(join_frac, 3), "ungrounded_claims": dropped,
+                    "catalog_calls": len(output.get("catalog_calls", [])),
+                    "baseline_recall": round(baseline["recall"], 3),
+                    "baseline_lookalikes_in_top5": baseline["lookalikes_in_top"],
+                    "verdict_correct": not missing_gaps and feas_ok},
+        matched_findings=[r if isinstance(r, str) else " | ".join(r["any_of"]) for r in req if _met(r)],
+        missed_findings=missed,
+        false_positives=fps + [f"{a}↔{b}" for a, b in bad_joins], severity_violations=[], notes=notes)
+
+
 def load_answer_key(dataset: str, benchmark: str) -> dict:
     """Load an answer key JSON file. benchmark is the filename stem, e.g. 'data_quality'."""
     path = Path(__file__).parent / "answer_keys" / dataset / f"{benchmark}.json"
@@ -1093,4 +1179,6 @@ def score(skill_output: dict, dataset: str, benchmark: str) -> ScoreResult:
         return score_causal_inference(skill_output, key, benchmark_id=canonical_id)
     if skill == "problem_framer":
         return score_problem_framer(skill_output, key, benchmark_id=canonical_id)
+    if skill == "data_scout":
+        return score_data_scout(skill_output, key, benchmark_id=canonical_id)
     raise ValueError(f"No scorer implemented for skill '{skill}'")

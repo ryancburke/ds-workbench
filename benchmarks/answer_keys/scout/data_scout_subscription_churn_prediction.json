@@ -1,0 +1,88 @@
+{
+ "_meta": {
+  "dataset": "scout",
+  "skill": "data_scout",
+  "schema_version": "1.0",
+  "description": "Predictive: who cancels a subscription next month. Needs subscriptions (outcome) and customers; sales forecasts and campaign plans are irrelevant look-alikes. Either the customer master or the point-in-time customer snapshot serves as the customer-level source (key revised after the first live run: requiring the master alone was too narrow)."
+ },
+ "input": {
+  "catalog": "retail_marketing",
+  "spec": {
+   "question": "Which subscribers will cancel next month?",
+   "decision": {
+    "statement": "",
+    "options": [],
+    "criteria": "",
+    "inputs_needed": []
+   },
+   "questions": [
+    {
+     "id": "q1",
+     "type": "predictive",
+     "statement": "Probability a subscriber cancels next month",
+     "primary": true,
+     "unit_of_analysis": "subscriber",
+     "population": "active subscriptions",
+     "outcome_concept": "subscription cancelled",
+     "prediction_point": "1st of each month"
+    }
+   ],
+   "assumptions": [],
+   "missing": [],
+   "clarifying_questions": [],
+   "answerability": {
+    "status": "answerable_with_gaps",
+    "reason": "benchmark input"
+   },
+   "status": "confirmed",
+   "required_checks": [
+    "data_quality",
+    "leakage_detector"
+   ],
+   "confirmed_by": "benchmark",
+   "note": "",
+   "confirmed_at": "2026-10-21T00:00:00+00:00"
+  }
+ },
+ "required_tables": [
+  "demo.crm.subscriptions",
+  {
+   "any_of": [
+    "demo.crm.customers",
+    "demo.crm.customer_features_daily"
+   ]
+  }
+ ],
+ "forbidden_tables": [
+  "demo.sales.sales_forecast",
+  "demo.sales.sales_daily_v1",
+  "demo.sales.tmp_orders_copy",
+  "demo.marketing.campaign_plan"
+ ],
+ "required_roles": [
+  {
+   "concept_kind": "outcome",
+   "table": "demo.crm.subscriptions"
+  }
+ ],
+ "required_joins": [
+  {
+   "any_of": [
+    [
+     "demo.crm.customers",
+     "demo.crm.subscriptions"
+    ],
+    [
+     "demo.crm.customer_features_daily",
+     "demo.crm.subscriptions"
+    ]
+   ]
+  }
+ ],
+ "forbidden_joins": [],
+ "required_gaps": [],
+ "acceptable_feasibility": [
+  "covered",
+  "partially_covered"
+ ]
+}

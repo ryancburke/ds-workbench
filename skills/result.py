@@ -1084,7 +1084,54 @@ def _render_problem_framer(r: dict) -> str:
     )
 
 
+def _render_data_scout(r: dict) -> str:
+    from html import escape as e
+    feas = r.get("feasibility", "not_covered")
+    style = {"covered": "success", "partially_covered": "warning"}.get(feas, "danger")
+    gaps = [g for g in r.get("coverage", []) if not g["covered"]]
+    hero = _verdict_hero("Data Scout", feas.replace("_", " ").upper(), style,
+                         items=[f"No data found for {g['kind'].replace('_', ' ')}: {e(g['text'])}"
+                                for g in gaps if g["required"]] or None,
+                         subtitle=f"{sum(c['recommendation'] == 'investigate' for c in r.get('candidates', []))} "
+                                  f"to investigate · {e(r.get('catalog', ''))} catalog · metadata only")
+    rec_style = {"investigate": "success", "maybe": "warning", "reject": "danger"}
+    rows = ""
+    for c in r.get("candidates", []):
+        roles = "<br>".join(f'<span class="wr-mono">{e(x["column"])}</span> → {e(x["concept"])}'
+                            for x in c["role_matches"])
+        joins = "<br>".join(f'{e(j["left_table"].split(".")[-1])}.{e(j["left_column"])} = '
+                            f'{e(j["right_table"].split(".")[-1])}.{e(j["right_column"])} '
+                            f'{_badge(j["status"].replace("_", " "), "secondary")}' for j in c["join_keys"])
+        notes = "".join(f"<li>{e(x)}</li>" for x in c["concerns"]) + \
+            "".join(f"<li>🧑‍🔬 {e(x)}</li>" for x in c["expert_assumptions"])
+        rows += (f'<tr><td>{_badge(c["recommendation"].upper(), rec_style[c["recommendation"]])}</td>'
+                 f'<td><span class="wr-mono">{e(c["table"])}</span><br><span class="wr-muted">'
+                 f'{e(c["grain"]["value"])} · updated {e(str(c.get("freshness") or "?"))}</span></td>'
+                 f'<td>{e(c["why"])}' + (f'<ul style="margin:2px 0">{notes}</ul>' if notes else "") + "</td>"
+                 f"<td>{roles}</td><td>{joins}</td></tr>")
+    cov = "".join(f'<li>{"✓" if g["covered"] else "✗"} {e(g["kind"].replace("_", " "))}: {e(g["text"])}'
+                  + (f' <span class="wr-muted">({e(", ".join(g["by"]))})</span>' if g["by"] else "") + "</li>"
+                  for g in r.get("coverage", []))
+    dropped = r.get("validation", {}).get("dropped", [])
+    return (
+        hero
+        + f'<div class="wr-header"><span>🔭 Data Scout</span>{_badge("metadata only", "secondary")}</div>'
+        + '<div class="wr-body">'
+        + "".join(f'<div class="wr-muted">⚠ {e(w)}</div>' for w in r.get("warnings", []))
+        + (f"<p>{e(r['summary'])}</p>" if r.get("summary") else "")
+        + '<table class="wr-tbl"><thead><tr><th></th><th>Table</th><th>Why / concerns</th>'
+          f'<th>Measures</th><th>Join keys</th></tr></thead><tbody>{rows}</tbody></table>'
+        + f"<p><strong>Coverage</strong></p><ul>{cov}</ul>"
+        + (f'<p class="wr-muted">Removed {len(dropped)} claim(s) not grounded in the catalog: '
+           + e("; ".join(f"{d['claim']} ({d['reason']})" for d in dropped[:5])) + "</p>" if dropped else "")
+        + '<p class="wr-muted">Evidence is metadata (names, types, comments). Join keys are '
+          "unverified until audited; pick the shortlist, then verify it against the data.</p>"
+        + "</div>"
+    )
+
+
 _RENDERERS = {
+    "data_scout":          _render_data_scout,
     "problem_framer":      _render_problem_framer,
     "data_quality":        _render_data_quality,
     "leakage_detector":    _render_leakage_detector,

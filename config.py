@@ -28,6 +28,13 @@ class Config:
     )
     # Dash debug mode (dev tools, error overlay, hot reload). Set DEBUG=false for demos.
     debug: bool = field(default_factory=lambda: os.getenv("DEBUG", "true").lower() == "true")
+    # Data discovery: where the Data Scout searches. "synthetic" = a JSON catalog fixture in
+    # ds_workbench/catalogs (repeatable tests, demos); "unity_catalog" arrives with the adapter.
+    catalog_backend: str = _env("CATALOG_BACKEND", "synthetic")
+    catalog_fixture: str = _env("CATALOG_FIXTURE", "retail_marketing")
+    # Require session.confirm_spec() before the Data Scout runs (default: recommended only).
+    require_confirmed_spec: bool = field(
+        default_factory=lambda: os.getenv("REQUIRE_CONFIRMED_SPEC", "false").lower() == "true")
     # 0 = manual: simulations run only from the Feedback page or run_sim.py, so each
     # run can be tied to a change. Set e.g. 6 to run on a schedule.
     sim_interval_hours: float = field(
@@ -45,6 +52,7 @@ class Config:
     # incl. disguised and precision cases) at ~40% of the cost — see PR for the sweep.
     leakage_model: str = _env("LEAKAGE_MODEL", "claude-opus-5-5")
     structured_model: str = _env("STRUCTURED_MODEL", "claude-haiku-5-5") # all Pass 2 (forced tool call)
+    scout_model: str = _env("SCOUT_MODEL", "claude-sonnet-5-5")          # Data Scout search loop
     # Agents
     sim_model: str = _env("SIM_MODEL", "claude-sonnet-5-5")              # persona think/interpret
     sim_judge_model: str = _env("SIM_JUDGE_MODEL", "claude-opus-5-5")    # debrief, rating, reflection
@@ -57,6 +65,7 @@ class Config:
     analysis_effort: str = _env("ANALYSIS_EFFORT", "high")
     general_effort: str = _env("GENERAL_EFFORT", "high")
     leakage_effort: str = _env("LEAKAGE_EFFORT", "medium")
+    scout_effort: str = _env("SCOUT_EFFORT", "medium")
     sim_effort: str = _env("SIM_EFFORT", "low")
     sim_judge_effort: str = _env("SIM_JUDGE_EFFORT", "low")
     code_effort: str = _env("CODE_EFFORT", "medium")
