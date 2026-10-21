@@ -159,6 +159,8 @@ ds_workbench/              # Notebook import surface: `from ds_workbench import 
     decision.py           #   decision_readiness (status, conclusion, ROI, evidence ledger) + validate_narrative
   catalogs/               # synthetic catalog fixtures (retail_marketing.json: 17 tables incl. decoys)
                           # + retail_marketing_data.py: rows with planted problems for verification
+    unity_catalog.py      # UnityCatalogAdapter: same interface over Databricks SQL (read-only SELECTs,
+                          # allow-list, bound params, timeout, query tags); databricks_executor (OAuth M2M)
 
 skills/                   # Pure Python — no Dash dependency. Called by pages, agents,
                           # AND importable directly from Databricks notebooks.
@@ -187,6 +189,7 @@ benchmarks/               # Skill quality testing infrastructure
   scoring.py              # Compare skill output vs answer key → precision/recall metrics
   runner.py               # Run full benchmark suite, write results to benchmark_history.json
   model_compare.py        # Model/effort sweeps on the real skills (--arms, --efforts, --trials)
+  pilot.py                # Scout vs catalog search on real questions: blinded rating sheets → scores
   history.py              # Suite history summary for the Benchmarks page
   benchmark_history.json  # Time-series of benchmark scores (gitignored)
 
@@ -313,8 +316,13 @@ file and the README in the same PR as the change they describe.
   (`dq=True`). Each is recorded with who and when.
 - **No rows before selection.** The scout reads metadata only; verification uses aggregates
   (`Catalog.profile` / `join_profile`); `sample()` is capped and used only by opt-in skills.
-- **One catalog interface** (`core/catalog.py`): `SyntheticCatalog` for tests and demos, a Unity
-  Catalog adapter later, with the same methods. The public repo stays organisation-agnostic.
+- **One catalog interface** (`core/catalog.py`): `SyntheticCatalog` for tests and demos,
+  `UnityCatalogAdapter` for real catalogs, with the same methods; `tests/test_unity_catalog.py`
+  runs the adapter's SQL on SQLite and requires identical answers. Join statistics come from one
+  function (`core/joins.stats_from_counts`) whether the counts came from pandas or SQL. The
+  public repo stays organisation-agnostic: company allow-lists, credentials and questions live in
+  `.env` and `runs/`, never in the repo. Databricks libraries are optional
+  (`requirements-databricks.txt`); importing the adapter never touches the network.
 
 ## Benchmark suite architecture
 

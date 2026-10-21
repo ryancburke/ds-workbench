@@ -31,15 +31,33 @@ def join_stats(left: pd.DataFrame, right: pd.DataFrame, keys: list[str], how: st
     lc, rc = _key_counts(left, keys), _key_counts(right, keys)
     common = lc.index.intersection(rc.index)
     l_common, r_common = lc.loc[common], rc.loc[common]
+    return stats_from_counts(
+        left_name=left_name, right_name=right_name, keys=keys, how=how,
+        n_left=len(left), n_right=len(right),
+        inner_rows=int((l_common * r_common).sum()),
+        matched_left=int(l_common.sum()), matched_right=int(r_common.sum()),
+        left_null_rows=int(left[keys].isnull().any(axis=1).sum()),
+        right_null_rows=int(right[keys].isnull().any(axis=1).sum()),
+        left_key_duplicates=int((lc - 1).clip(lower=0).sum()),
+        right_key_duplicates=int((rc - 1).clip(lower=0).sum()),
+        left_distinct_keys=len(lc), right_distinct_keys=len(rc), common_keys=len(common),
+        many_to_many_keys=int(((l_common > 1) & (r_common > 1)).sum()),
+        max_rows_from_one_key=int((l_common * r_common).max()) if len(common) else 0)
 
-    inner_rows = int((l_common * r_common).sum())
-    matched_left, matched_right = int(l_common.sum()), int(r_common.sum())
-    n_left, n_right = len(left), len(right)
+
+def stats_from_counts(*, left_name: str, right_name: str, keys: list[str], how: str, n_left: int, n_right: int,
+                      inner_rows: int, matched_left: int, matched_right: int, left_null_rows: int,
+                      right_null_rows: int, left_key_duplicates: int, right_key_duplicates: int,
+                      left_distinct_keys: int, right_distinct_keys: int, common_keys: int,
+                      many_to_many_keys: int, max_rows_from_one_key: int) -> dict:
+    """Join statistics from per-key counts — however they were computed (pandas here, SQL
+    aggregates in a catalog adapter), the metrics and the verdict come from this one function."""
+    if how not in _JOIN_TYPES:
+        raise ValueError(f"how must be one of {sorted(_JOIN_TYPES)}, got {how!r}")
     unmatched_left, unmatched_right = n_left - matched_left, n_right - matched_right
     result_rows = inner_rows + (unmatched_left if how in ("left", "outer") else 0) \
                              + (unmatched_right if how in ("right", "outer") else 0)
     left_dropped = unmatched_left if how in ("inner", "right") else 0
-
     stats = {
         "left_name": left_name, "right_name": right_name, "join_type": how, "join_keys": list(keys),
         "left_rows": n_left, "right_rows": n_right, "result_rows": result_rows,
@@ -47,14 +65,14 @@ def join_stats(left: pd.DataFrame, right: pd.DataFrame, keys: list[str], how: st
         "row_ratio": round(result_rows / n_left, 4) if n_left else 0.0,
         "left_rows_dropped": left_dropped,
         "left_rows_dropped_pct": round(left_dropped / n_left * 100, 2) if n_left else 0.0,
-        "left_key_null_rows": int(left[keys].isnull().any(axis=1).sum()),
-        "right_key_null_rows": int(right[keys].isnull().any(axis=1).sum()),
-        "left_key_duplicates": int((lc - 1).clip(lower=0).sum()),
-        "right_key_duplicates": int((rc - 1).clip(lower=0).sum()),
-        "unmatched_keys_in_left": int(len(lc) - len(common)),
-        "unmatched_keys_in_right": int(len(rc) - len(common)),
-        "many_to_many_keys": int(((l_common > 1) & (r_common > 1)).sum()),
-        "max_rows_from_one_key": int((l_common * r_common).max()) if len(common) else 0,
+        "left_key_null_rows": left_null_rows,
+        "right_key_null_rows": right_null_rows,
+        "left_key_duplicates": left_key_duplicates,
+        "right_key_duplicates": right_key_duplicates,
+        "unmatched_keys_in_left": left_distinct_keys - common_keys,
+        "unmatched_keys_in_right": right_distinct_keys - common_keys,
+        "many_to_many_keys": many_to_many_keys,
+        "max_rows_from_one_key": max_rows_from_one_key,
     }
     stats["verdict"], stats["verdict_reasons"] = join_verdict(stats)
     return stats

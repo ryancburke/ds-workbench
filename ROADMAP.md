@@ -52,7 +52,7 @@ carry responsibility. Notebook first; the Workbench and Sessions pages are the v
 | M3 | **Verification**: the tables a person selects, checked as aggregates (freshness, fill, join match and cardinality, causal timing) | shipped (#41) |
 | M4 | **Planner**: steps per question type, method choice, analysis-table recipe and contract, `run_next` | shipped (#42) |
 | M5 | **Decision synthesis**: decision readiness computed in code (separate from analytical readiness), a cited narrative, optional cost/ROI | shipped (#44) |
-| M6 | **Unity Catalog adapter + pilot harness**: the catalog interface over Unity Catalog, read-only, scoped credentials | next |
+| M6 | **Unity Catalog adapter + pilot harness**: the catalog interface over Unity Catalog (read-only, allow-listed, service principal), contract-tested against the synthetic catalog; blinded Scout-vs-search pilot scoring | shipped (#45) |
 
 Decisions taken: an organisation-approved Anthropic model (the client route is a setting);
 pilot access through a read-only service principal on an allow-listed sandbox first, moving
@@ -65,7 +65,7 @@ past questions where data scientists know the right tables; compare the Scout wi
 catalog search for the same terms (recall@5, expert-rated relevance and suitability notes,
 time to a shortlist, confident-but-wrong claims), rated blind.
 
-**Open for later:** lineage access in the pilot environment; when to require spec
+**Next: run the pilot** in the approved sandbox (read-only service principal, allow-listed schemas, 15–25 real past questions). **Open for later:** lineage access in the pilot environment; when to require spec
 confirmation; a Workbench view of investigations (and the confirm-availability button, #36).
 
 ### Phase 1 — Causal inference (shipped)

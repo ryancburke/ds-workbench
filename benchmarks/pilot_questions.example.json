@@ -1,0 +1,10 @@
+[
+ {"id": "q01",
+  "question": "Did the spring digital campaign increase customer purchases?",
+  "context": "Marketing's targeting model chose the recipients.",
+  "expert_tables": ["demo.marketing.campaign_exposure", "demo.sales.customer_orders", "demo.crm.customers"]},
+ {"id": "q02",
+  "question": "Which subscribers are likely to cancel next month?",
+  "context": "Retention calls go out on the 1st of each month.",
+  "expert_tables": ["demo.crm.subscriptions", "demo.crm.customers", "demo.crm.support_tickets"]}
+]

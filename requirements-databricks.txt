@@ -1,0 +1,5 @@
+# Optional: Unity Catalog access for the Data Scout (CATALOG_BACKEND=unity_catalog).
+# Checked against these versions; the adapter uses connect(credentials_provider=...,
+# session_configuration=...) and cursor.execute(sql, parameters=..., query_tags=...).
+databricks-sql-connector>=4.7,<5
+databricks-sdk>=0.155,<1

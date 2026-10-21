@@ -23,6 +23,9 @@ class Config:
     databricks_host: str = _env("DATABRICKS_HOST", "")
     databricks_token: str = _env("DATABRICKS_TOKEN", "")
     databricks_http_path: str = _env("DATABRICKS_HTTP_PATH", "")
+    # Service principal (OAuth M2M) for the catalog adapter; preferred over a personal token
+    databricks_client_id: str = _env("DATABRICKS_CLIENT_ID", "")
+    databricks_client_secret: str = _env("DATABRICKS_CLIENT_SECRET", "")
     local_dev_mode: bool = field(
         default_factory=lambda: os.getenv("LOCAL_DEV_MODE", "true").lower() == "true"
     )
@@ -32,6 +35,11 @@ class Config:
     # ds_workbench/catalogs (repeatable tests, demos); "unity_catalog" arrives with the adapter.
     catalog_backend: str = _env("CATALOG_BACKEND", "synthetic")
     catalog_fixture: str = _env("CATALOG_FIXTURE", "retail_marketing")
+    # unity_catalog only: comma-separated catalog.schema entries (catalog.* for a whole catalog).
+    # Nothing outside them is searched, described or read. Required.
+    catalog_allowlist: str = _env("CATALOG_ALLOWLIST", "")
+    catalog_lineage: bool = field(default_factory=lambda: os.getenv("CATALOG_LINEAGE", "false").lower() == "true")
+    catalog_statement_timeout: int = field(default_factory=lambda: int(os.getenv("CATALOG_STATEMENT_TIMEOUT", "120")))
     # Require session.confirm_spec() before the Data Scout runs (default: recommended only).
     require_confirmed_spec: bool = field(
         default_factory=lambda: os.getenv("REQUIRE_CONFIRMED_SPEC", "false").lower() == "true")
