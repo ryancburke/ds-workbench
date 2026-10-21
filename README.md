@@ -5,8 +5,12 @@ that tracks how good those skills are.
 
 - **Skills library** (`skills/`, imported as `ds_workbench`): data quality, EDA, leakage
   detection, feature engineering, model selection, join auditing, NL → PySpark, MLOps
-  review, experiment interpretation. Each call returns a result that renders as a
-  scannable report in a notebook cell and is a plain `dict` everywhere else.
+  review, experiment interpretation, causal inference. Each call returns a result that renders
+  as a scannable report in a notebook cell and is a plain `dict` everywhere else.
+- **Investigation workflow** (notebook first): frame a business question, scout a data catalog
+  for the tables that could answer it, verify the ones you pick against the data, and follow a
+  plan that runs the right analysis for the question type and stops when the evidence doesn't
+  support going on. See "Using the skills in a notebook".
 - **Dash app** (`app.py`, `pages/`): a Workbench page that runs the skills on a session,
   a Benchmarks page with answer-key scores over time, and agent simulations whose
   critiques feed a recommendation backlog.
@@ -15,8 +19,8 @@ Skills are built to speak up at the right moment in a data scientist's workflow:
 before modelling, target leakage before training. They lead with the verdict and then
 give the evidence.
 
-Where the tool stands and what's next — causal inference, recommenders, optimisation — is in
-[ROADMAP.md](ROADMAP.md).
+Where the tool stands and what's next — decision synthesis, a Unity Catalog pilot, then
+recommenders and optimisation — is in [ROADMAP.md](ROADMAP.md).
 
 ## Quick start
 
@@ -272,6 +276,7 @@ Everything is read from `.env` by `config.py`; see `.env.example`.
 | `ANTHROPIC_PROVIDER` | `anthropic` | route to Claude: `anthropic`, `aws`, `bedrock`, `vertex`, `google_cloud`, `foundry` (platform routes use their own credentials and model IDs) |
 | `ANTHROPIC_BASE_URL` | — | an approved gateway or proxy |
 | `LOCAL_DEV_MODE` | `true` | synthetic data instead of Databricks |
+| `DATABRICKS_HOST` / `DATABRICKS_TOKEN` / `DATABRICKS_HTTP_PATH` | — | SQL warehouse connection when `LOCAL_DEV_MODE=false` |
 | `SIM_INTERVAL_HOURS` | `0` (manual) | scheduled simulations |
 | `CATALOG_BACKEND` / `CATALOG_FIXTURE` | `synthetic` / `retail_marketing` | where the Data Scout searches |
 | `REQUIRE_CONFIRMED_SPEC` | `false` | require `session.confirm_spec()` before scouting |
@@ -281,7 +286,7 @@ Everything is read from `.env` by `config.py`; see `.env.example`.
 | `ANALYSIS_MODEL` / `_EFFORT` | Sonnet 5.5 / high | model selection, join auditing |
 | `GENERAL_MODEL` / `_EFFORT` | Sonnet 5.5 / high | EDA, FE, NL → PySpark, MLOps, tracker |
 | `STRUCTURED_MODEL` | Haiku 5.5 | structured extraction (second pass) |
-| `SIM_MODEL`, `SIM_JUDGE_MODEL`, `CODE_MODEL` | Sonnet / Opus / Sonnet 5.5 | simulation and drafting |
+| `SIM_MODEL` / `_EFFORT`, `SIM_JUDGE_MODEL` / `_EFFORT`, `CODE_MODEL` / `_EFFORT` | Sonnet low / Opus low / Sonnet medium | simulation and drafting |
 
 Model IDs are never hardcoded outside `config.py`; skills ask for a role via
 `skills.models.role()`.
