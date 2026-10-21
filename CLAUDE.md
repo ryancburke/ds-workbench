@@ -248,7 +248,7 @@ the go/no-go decision is always front and center before charts or tables.
 
 ## Skills — built and planned
 
-### Built (10 skills)
+### Built
 | Key | Skill | Entry point | Benchmarked |
 |-----|-------|-------------|-------------|
 | `data_quality` | Data Quality Assessor | `skills/data_quality.assess()` | ✓ |
@@ -266,8 +266,8 @@ the go/no-go decision is always front and center before charts or tables.
 | `data_scout` | Data Scout (spec → candidate datasets, metadata only) | `skills/data_scout.scout()` | ✓ |
 | `data_verification` | Data verification (selected tables vs. the data; deterministic) | `skills/data_verification.verify()` | offline tests |
 
-The first 8 skills plus `experiment_tracker` (training metrics come from the notebook) and
-`preflight` are importable via `from ds_workbench import <skill>` (see `ds_workbench/__init__.py`).
+Every skill except `notebook_generator`, plus `preflight`, is importable via
+`from ds_workbench import <skill>` (see `ds_workbench/__init__.py`; loaded lazily).
 `notebook_generator` is workbench-only (it consumes the session store). Every notebook skill
 returns `{"error": ...}` instead of raising (tested).
 
@@ -282,17 +282,43 @@ Start session → data_quality (auto-run on all datasets)
              → back to session
 ```
 
+The investigation workflow (notebook first) wraps these skills:
+```
+problem_framer.frame(question)      → ProblemSpec draft      (session.confirm_spec — recommended)
+data_scout.scout(session)           → shortlist, metadata    (session.select_tables — a person)
+data_verification.verify(session)   → checks on the data     (readiness check)
+session.plan() / run_next(df)       → analysis table (a person, from the recipe) → DQ → analysis
+session.digest()                    → readiness; decision synthesis is M5
+```
+
 ### Planned (next)
-See `ROADMAP.md`: causal inference has shipped (A/B, observational, DiD); next are
-recommenders, then optimisation, plus a real-data pilot and benchmark cases for the untested
-archetypes. Keep it updated as skills land.
+See `ROADMAP.md` ("Current priority"): decision synthesis (M5), then the Unity Catalog adapter
+and an enterprise pilot (M6); after that recommenders and optimisation. Update ROADMAP.md, this
+file and the README in the same PR as the change they describe.
+
+## Investigation workflow (settled architecture — don't revisit without reason)
+
+- **Deterministic controller, selective agency.** Framing, scout ranking and synthesis are
+  structured model calls; the Data Scout's catalog search is the only agent loop (bounded,
+  read-only tools). Planning, verification, readiness and status decisions are code.
+- **Code enforces the rules, the model never sets a status.** ProblemSpec rules
+  (`core/problem_spec.py`), scout claims validated against what the catalog returned
+  (`core/scout.py`), only verification marks a join verified (`core/verify.py`), the plan is
+  recomputed from state (`core/plan.py`), readiness in one place (`core/readiness.py`).
+- **People make the responsible calls:** confirming the spec, selecting tables, building the
+  analysis table from the recipe, confirming column availability, approving paid steps
+  (`dq=True`). Each is recorded with who and when.
+- **No rows before selection.** The scout reads metadata only; verification uses aggregates
+  (`Catalog.profile` / `join_profile`); `sample()` is capped and used only by opt-in skills.
+- **One catalog interface** (`core/catalog.py`): `SyntheticCatalog` for tests and demos, a Unity
+  Catalog adapter later, with the same methods. The public repo stays organisation-agnostic.
 
 ## Benchmark suite architecture
 
 Ground truth answer keys live in `benchmarks/answer_keys/<dataset>/<skill>.json`. Each key
 specifies the expected findings, scores, and recommendations for a given (dataset, skill) pair.
 
-Benchmark cases (30, all synthetic; `.venv/bin/python benchmarks/runner.py --list`):
+Benchmark cases (49, all synthetic; `.venv/bin/python benchmarks/runner.py --list`):
 
 | Dataset | Skills | What it tests |
 |---|---|---|
