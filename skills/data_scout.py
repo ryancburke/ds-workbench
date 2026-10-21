@@ -140,13 +140,27 @@ How to work:
 You have at most {max_calls} catalog calls. When done, call report_candidates once."""
 
 
+_CATALOG = {}
+
+
 def get_catalog(backend: str | None = None, fixture: str | None = None):
-    """The catalog to scout, from CATALOG_BACKEND / CATALOG_FIXTURE."""
+    """The catalog to scout, from CATALOG_BACKEND: "synthetic" (CATALOG_FIXTURE) or
+    "unity_catalog" (read-only, CATALOG_ALLOWLIST, credentials from .env). Reused per process."""
     from config import config
     backend = (backend or config.catalog_backend).strip().lower()
     if backend == "synthetic":
         return SyntheticCatalog.load(fixture or config.catalog_fixture)
-    raise ValueError(f"CATALOG_BACKEND={backend!r} isn't available yet (supported: synthetic)")
+    if backend == "unity_catalog":
+        if "uc" not in _CATALOG:
+            from ds_workbench.catalogs.unity_catalog import UnityCatalogAdapter, databricks_executor
+            execute = databricks_executor(
+                config.databricks_host, config.databricks_http_path, token=config.databricks_token,
+                client_id=config.databricks_client_id, client_secret=config.databricks_client_secret,
+                timeout_s=config.catalog_statement_timeout)
+            _CATALOG["uc"] = UnityCatalogAdapter(execute, config.catalog_allowlist.split(","),
+                                                 lineage=config.catalog_lineage)
+        return _CATALOG["uc"]
+    raise ValueError(f"CATALOG_BACKEND={backend!r} isn't supported (synthetic | unity_catalog)")
 
 
 def _spec_block(spec: dict) -> str:

@@ -217,6 +217,41 @@ Without a session, pass the earlier results yourself, for example
 A failed call returns `{"error": "..."}` with the reason (a refusal, a reply cut off at
 `max_tokens`, or a missing tool call) rather than raising.
 
+## Connecting the Data Scout to Unity Catalog
+
+```bash
+.venv/bin/pip install -r requirements-databricks.txt
+# .env: CATALOG_BACKEND=unity_catalog, CATALOG_ALLOWLIST=sandbox.marketing,sandbox.sales,
+#       DATABRICKS_HOST, DATABRICKS_HTTP_PATH, DATABRICKS_CLIENT_ID, DATABRICKS_CLIENT_SECRET
+```
+
+The adapter (`ds_workbench/catalogs/unity_catalog.py`) answers the same questions as the
+synthetic catalog, and a test runs its SQL against the same data to prove the answers match.
+It runs **single read-only SELECT statements only** (anything else is refused before it is sent),
+only on **allow-listed** schemas, with bound parameters, a statement timeout and query tags
+(`app: ds-workbench`) so the platform team can see what ran. It runs as whoever the credentials
+belong to: a scoped, read-only service principal for a pilot, so Unity Catalog grants apply.
+
+What reaches the model, step by step:
+
+| Step | Sent to the model |
+|---|---|
+| Problem framing | the question and context you type |
+| Data Scout | table and column names, types, comments, tags, owners, last-change dates (no rows) |
+| Verification | nothing: it's code (aggregates such as row counts, null rates and date ranges stay local) |
+| Data quality (`dq=True`) | a profile of a capped sample of each selected table |
+| Analysis skills | profiles and statistics of the analysis table you built |
+| Decision summary | the findings and estimates in the evidence ledger |
+
+**Pilot evaluation.** `benchmarks/pilot.py` compares the Scout with plain catalog search on real
+past questions, rated blind by the people who know the data:
+
+```bash
+.venv/bin/python benchmarks/pilot.py prepare questions.json --out runs/pilot   # see pilot_questions.example.json
+# experts fill runs/pilot/relevance_sheet.csv (lists A/B, no method names) and scout_notes_sheet.csv
+.venv/bin/python benchmarks/pilot.py score runs/pilot   # recall@5, precision@5, relevance, confident-but-wrong, cost
+```
+
 ## Benchmarks: is a skill actually good?
 
 Ground-truth cases live in `benchmarks/answer_keys/<dataset>/<benchmark>.json`. Each one
@@ -294,7 +329,10 @@ Everything is read from `.env` by `config.py`; see `.env.example`.
 | `LOCAL_DEV_MODE` | `true` | synthetic data instead of Databricks |
 | `DATABRICKS_HOST` / `DATABRICKS_TOKEN` / `DATABRICKS_HTTP_PATH` | — | SQL warehouse connection when `LOCAL_DEV_MODE=false` |
 | `SIM_INTERVAL_HOURS` | `0` (manual) | scheduled simulations |
-| `CATALOG_BACKEND` / `CATALOG_FIXTURE` | `synthetic` / `retail_marketing` | where the Data Scout searches |
+| `CATALOG_BACKEND` / `CATALOG_FIXTURE` | `synthetic` / `retail_marketing` | where the Data Scout searches (`synthetic` or `unity_catalog`) |
+| `CATALOG_ALLOWLIST` | — (required for Unity Catalog) | `catalog.schema` entries (or `catalog.*`); nothing else is searched or read |
+| `CATALOG_LINEAGE` / `CATALOG_STATEMENT_TIMEOUT` | `false` / `120` | lineage from system tables; seconds per catalog query |
+| `DATABRICKS_CLIENT_ID` / `DATABRICKS_CLIENT_SECRET` | — | service principal (OAuth M2M) for Unity Catalog, preferred over a token |
 | `REQUIRE_CONFIRMED_SPEC` | `false` | require `session.confirm_spec()` before scouting |
 | `SCOUT_MODEL` / `_EFFORT` | Sonnet 5.5 / medium | Data Scout search loop |
 | `REASONING_MODEL` / `_EFFORT` | Sonnet 5.5 / high | data quality |
