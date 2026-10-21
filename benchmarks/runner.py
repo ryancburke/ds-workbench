@@ -259,7 +259,7 @@ def _get_benchmarks() -> list[dict]:
             "run_kwargs": {},
         }
         for case in ("leakage", "overfitting", "imbalance", "healthy")
-    ] + _causal_benchmarks() + _framing_benchmarks() + _scout_benchmarks()
+    ] + _causal_benchmarks() + _framing_benchmarks() + _scout_benchmarks() + _decision_benchmarks()
 
 
 def _causal_benchmarks() -> list[dict]:
@@ -296,6 +296,22 @@ def _scout_benchmarks() -> list[dict]:
         out.append({"id": f"scout/{path.stem}", "dataset": "scout", "benchmark": path.stem,
                     "skill": "data_scout", "df_fn": lambda ci=case_input: ci, "run_fn": _run_ds, "run_kwargs": {}})
     return out
+
+
+def _decision_benchmarks() -> list[dict]:
+    """Decision synthesis cases: a fixed session state (spec + results) and decision inputs."""
+    out = []
+    for path in sorted((BENCHMARKS_DIR / "answer_keys" / "decision").glob("decision_synthesis_*.json")):
+        case_input = json.loads(path.read_text())["input"]
+        out.append({"id": f"decision/{path.stem}", "dataset": "decision", "benchmark": path.stem,
+                    "skill": "decision_synthesis", "df_fn": lambda ci=case_input: ci, "run_fn": _run_dsyn,
+                    "run_kwargs": {}})
+    return out
+
+
+def _run_dsyn(case_input: dict) -> dict:
+    from skills.decision_synthesis import synthesize
+    return synthesize(state=case_input["state"], inputs=case_input["inputs"])
 
 
 def _run_ds(case_input: dict) -> dict:

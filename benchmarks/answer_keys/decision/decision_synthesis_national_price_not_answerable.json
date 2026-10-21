@@ -1,0 +1,86 @@
+{
+ "_meta": {
+  "dataset": "decision",
+  "skill": "decision_synthesis",
+  "schema_version": "1.0",
+  "description": "Everyone treated at once, no comparison: not answerable as posed. Must say why and suggest a comparison (staggered/regional rollout, holdout)."
+ },
+ "input": {
+  "state": {
+   "spec": {
+    "question": "Did the nationwide price increase on 1 March cause the drop in volume?",
+    "decision": {
+     "statement": "Reverse the price increase",
+     "options": [
+      "reverse",
+      "keep"
+     ],
+     "criteria": "",
+     "inputs_needed": []
+    },
+    "questions": [
+     {
+      "id": "q1",
+      "type": "causal",
+      "statement": "Did the nationwide price increase on 1 March cause the drop in volume?",
+      "primary": true,
+      "unit_of_analysis": "store",
+      "population": "all stores",
+      "outcome_concept": "weekly volume",
+      "exposure_concept": "price increase",
+      "comparison": "none available",
+      "assignment": "not_randomized"
+     }
+    ],
+    "assumptions": [],
+    "missing": [],
+    "clarifying_questions": [],
+    "answerability": {
+     "status": "not_answerable_as_posed",
+     "reason": "Every store was treated on the same day; there is no comparison group."
+    },
+    "status": "confirmed",
+    "required_checks": [
+     "data_quality",
+     "causal_inference"
+    ],
+    "confirmed_by": "benchmark",
+    "note": "",
+    "confirmed_at": "2026-10-21T00:00:00+00:00"
+   },
+   "results": {}
+  },
+  "inputs": {}
+ },
+ "expected_status": "not_answerable",
+ "expected_conclusion": [
+  "none"
+ ],
+ "must_mention": [
+  {
+   "id": "no_comparison",
+   "any_of": [
+    "comparison",
+    "control",
+    "counterfactual",
+    "every store",
+    "all stores"
+   ]
+  },
+  {
+   "id": "fix",
+   "any_of": [
+    "staggered",
+    "regional",
+    "holdout",
+    "test",
+    "experiment",
+    "pilot"
+   ]
+  }
+ ],
+ "forbidden_phrases": [
+  "the price increase caused",
+  "caused the drop"
+ ]
+}

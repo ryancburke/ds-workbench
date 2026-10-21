@@ -88,6 +88,7 @@ class WorkflowSession:
         self.selection: dict | None = None
         self.analysis_table = None            # the DataFrame you built from the plan's recipe
         self.method_override: str | None = None
+        self.decision: dict | None = None
         self.required_checks = list(required_checks) if required_checks is not None else None
         if self.required_checks is not None:
             _validate({}, self.required_checks)      # fail fast on an unknown or empty list
@@ -120,7 +121,7 @@ class WorkflowSession:
     def _state(self) -> dict:
         df = self.analysis_table
         return {"spec": self.spec, "scout": self.scout, "selection": self.selection,
-                "results": dict(self._results),
+                "results": dict(self._results), "decision": self.decision,
                 "analysis_table": ({"name": "analysis_table", "columns": list(df.columns), "rows": len(df)}
                                    if df is not None else None)}
 
@@ -166,6 +167,20 @@ class WorkflowSession:
                 raise ValueError("Build the analysis table from the plan's recipe, then run_next(df)")
             return self.set_analysis_table(df)
         return _run_step(self, step, p, df, kwargs)
+
+    def decide(self, inputs: dict | None = None):
+        """Decision summary: status computed in code (is the evidence enough?), plus a narrative
+        where every claim cites the evidence. Works at any point — "insufficient evidence" is a
+        valid result. inputs (optional): cost, units, value_per_outcome_unit, roi_threshold."""
+        from skills.decision_synthesis import synthesize
+        return synthesize(session=self, inputs=inputs)
+
+    def set_decision(self, result: dict) -> None:
+        if result.get("error"):
+            return
+        self.decision = dict(result)
+        if self.persist:
+            self._save()
 
     def set_analysis_table(self, df):
         """Register the analysis table you built; its columns must meet the plan's contract."""
@@ -279,7 +294,8 @@ class WorkflowSession:
                 datasets=self.datasets, results=dict(self._results), runs=self._runs, source="notebook",
                 prediction_point=self.prediction_point, confirmations=self.confirmations,
                 required_checks=self.required_checks, spec=self.spec, scout=self.scout,
-                selection=self.selection, analysis_table=self._state()["analysis_table"])
+                selection=self.selection, analysis_table=self._state()["analysis_table"],
+                decision=self.decision)
         except Exception:
             pass  # persistence must never break an analysis
 
@@ -378,6 +394,8 @@ def _run_step(session, step: dict, plan: dict, df, overrides: dict):
     if sk == "data_verification":
         from skills.data_verification import verify
         return verify(session=session, **overrides)
+    if sk == "decision_synthesis":
+        return session.decide(inputs=overrides.pop("inputs", None))
     if table is None:
         raise ValueError("No analysis table yet: build it from the plan's recipe and run_next(df)")
     if sk == "data_quality":

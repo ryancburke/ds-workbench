@@ -1206,7 +1206,51 @@ def _render_investigation_plan(r: dict) -> str:
     )
 
 
+def _render_decision_synthesis(r: dict) -> str:
+    from html import escape as e
+    status = r.get("status", "insufficient_evidence")
+    style = {"supported": "success", "supported_with_caveats": "warning"}.get(status, "danger")
+    n = r.get("narrative") or {}
+    head = (n.get("headline") or {}).get("text")
+    hero = _verdict_hero("Decision", e(r.get("label", status)).upper(), style,
+                         items=[e(x) for x in r.get("reasons", [])] or None,
+                         subtitle=e(head) if head else None)
+
+    def cites(c):
+        return " ".join(f'<span class="wr-badge wr-secondary">{e(x)}</span>' for x in c.get("cites", []))
+    titles = {"established": "What the evidence shows", "not_established": "What it doesn't show",
+              "alternative_explanations": "Other explanations", "assumptions_and_limitations": "Assumptions and limits",
+              "options_and_tradeoffs": "Options and trade-offs", "next_steps": "Next steps"}
+    body = "".join(f"<p><strong>{t}</strong></p><ul>" + "".join(f"<li>{e(c['text'])} {cites(c)}</li>" for c in n.get(k, []))
+                   + "</ul>" for k, t in titles.items() if n.get(k))
+    est = r.get("estimate") or {}
+    facts = (f'<p>Conclusion: <strong>{e(r.get("conclusion", "none").replace("_", " "))}</strong>'
+             + (f' · estimate {est["effect"]:+.4g} [{est.get("ci_low", 0):+.4g}, {est.get("ci_high", 0):+.4g}]'
+                if est.get("effect") is not None else "") + "</p>")
+    roi = r.get("roi")
+    if roi:
+        facts += (f'<table class="wr-tbl"><tr><th>Incremental value</th><th>Cost</th><th>ROI</th><th>Interval</th>'
+                  f'<th>Threshold</th></tr><tr><td>{roi["incremental_value"]:,.0f}</td><td>{roi["cost"]:,.0f}</td>'
+                  f'<td>{roi["roi"]:+.0%}</td><td>' + (f'{roi["roi_low"]:+.0%} to {roi["roi_high"]:+.0%}'
+                  if roi["roi_low"] is not None else "—") + "</td><td>"
+                  + (f'{roi["threshold"]:+.0%}: {roi["clears_threshold"]}' if "threshold" in roi else "—")
+                  + "</td></tr></table>")
+    caveats = "".join(f"<li>{e(c)}</li>" for c in r.get("caveats", []))
+    ledger = "".join(f'<li><span class="wr-mono">{e(x["id"])}</span> <span class="wr-muted">[{e(x["source"])}]</span> '
+                     f"{e(x['text'])}</li>" for x in r.get("evidence", []))
+    dropped = r.get("dropped", [])
+    return (
+        hero + '<div class="wr-header"><span>⚖ Decision summary</span>'
+        + _badge("status computed in code", "secondary") + '</div><div class="wr-body">'
+        + facts + (f"<p><strong>Caveats</strong></p><ul>{caveats}</ul>" if caveats else "") + body
+        + f'<details><summary class="wr-muted">Evidence ({len(r.get("evidence", []))})</summary><ul>{ledger}</ul></details>'
+        + (f'<p class="wr-muted">Removed {len(dropped)} uncited claim(s).</p>' if dropped else "")
+        + "</div>"
+    )
+
+
 _RENDERERS = {
+    "decision_synthesis":  _render_decision_synthesis,
     "investigation_plan":  _render_investigation_plan,
     "data_verification":   _render_data_verification,
     "data_scout":          _render_data_scout,

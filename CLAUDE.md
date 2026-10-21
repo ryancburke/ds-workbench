@@ -156,6 +156,7 @@ ds_workbench/              # Notebook import surface: `from ds_workbench import 
     verify.py             #   verify_tables: freshness, column fill, join match/cardinality, temporal alignment
     plan.py               #   build_plan(state): steps per question type, status, next action, causal method,
                           #   analysis-table recipe + column contract (deterministic, recomputed each time)
+    decision.py           #   decision_readiness (status, conclusion, ROI, evidence ledger) + validate_narrative
   catalogs/               # synthetic catalog fixtures (retail_marketing.json: 17 tables incl. decoys)
                           # + retail_marketing_data.py: rows with planted problems for verification
 
@@ -174,6 +175,7 @@ skills/                   # Pure Python — no Dash dependency. Called by pages,
   problem_framer.py       # frame(question, context) → ProblemSpec draft (types, gaps, answerability)
   data_scout.py           # scout(spec, catalog) → ranked shortlist, roles, join keys, coverage (metadata only)
   data_verification.py    # verify(session) → checks the selected tables against the data (readiness check)
+  decision_synthesis.py   # synthesize(session, inputs) → decision status (code) + cited narrative (model)
   api_retry.py            # shared client, api_call/check_response, strict_tool, tool_input, call_context
   models.py               # role() → model + effort per role; override_roles() for sweeps
   usage.py                # usage ledger (every call: user, skill, run, tokens, cost); Delta export
@@ -265,6 +267,7 @@ the go/no-go decision is always front and center before charts or tables.
 | `problem_framer` | Problem Framer (question → ProblemSpec) | `skills/problem_framer.frame()` | ✓ |
 | `data_scout` | Data Scout (spec → candidate datasets, metadata only) | `skills/data_scout.scout()` | ✓ |
 | `data_verification` | Data verification (selected tables vs. the data; deterministic) | `skills/data_verification.verify()` | offline tests |
+| `decision_synthesis` | Decision synthesis (evidence → decision status + cited summary) | `skills/decision_synthesis.synthesize()` / `session.decide()` | ✓ |
 
 Every skill except `notebook_generator`, plus `preflight`, is importable via
 `from ds_workbench import <skill>` (see `ds_workbench/__init__.py`; loaded lazily).
@@ -288,7 +291,7 @@ problem_framer.frame(question)      → ProblemSpec draft      (session.confirm_
 data_scout.scout(session)           → shortlist, metadata    (session.select_tables — a person)
 data_verification.verify(session)   → checks on the data     (readiness check)
 session.plan() / run_next(df)       → analysis table (a person, from the recipe) → DQ → analysis
-session.digest()                    → readiness; decision synthesis is M5
+session.decide(inputs={...})        → decision status (code) + cited narrative; ROI inputs optional
 ```
 
 ### Planned (next)
@@ -318,7 +321,7 @@ file and the README in the same PR as the change they describe.
 Ground truth answer keys live in `benchmarks/answer_keys/<dataset>/<skill>.json`. Each key
 specifies the expected findings, scores, and recommendations for a given (dataset, skill) pair.
 
-Benchmark cases (49, all synthetic; `.venv/bin/python benchmarks/runner.py --list`):
+Benchmark cases (54, all synthetic; `.venv/bin/python benchmarks/runner.py --list`):
 
 | Dataset | Skills | What it tests |
 |---|---|---|
@@ -335,6 +338,7 @@ Benchmark cases (49, all synthetic; `.venv/bin/python benchmarks/runner.py --lis
 | `clinical_small_wide` | model | n/p ≈ 3.4: regularised model + CV, not boosting + holdout |
 | `experiment_metrics` (×4) | experiment tracker | leakage, overfitting, imbalance, healthy (no false alarms) |
 | `scout` (×5) | data scout | `retail_marketing` catalog: shortlist recall, look-alikes rejected (forecast, plan, deprecated, temp), bridge join via the customer master, coverage gap when the data doesn't exist. Each case also scores plain keyword search as a baseline |
+| `decision` (×5) | decision synthesis | confounded campaign (insufficient evidence, no ROI), clean A/B with ROI, a supported null, not answerable, valid without costs. A wrong status or conclusion, or a forbidden claim (asserting an effect the status says isn't established), fails the case |
 | `framing` (×12) | problem framer | question type and answerability; negatives must stop or ask (not launched, no comparison group, too vague). A wrong type or answerability fails the case |
 | `ab_test_clean`, `ab_test_srm`, `ab_test_bad_control`, `ab_test_underpowered` | causal | clean, sample-ratio mismatch, post-treatment control, underpowered — known true effects |
 | `observational_coupon` | causal | confounded targeting; naive gap ~9× the truth |

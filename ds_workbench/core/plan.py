@@ -186,6 +186,8 @@ def _status(step: dict, results: dict, state: dict) -> str:
         return "done" if state.get("analysis_table") else "ready"
     if sk == "unavailable":
         return "unavailable"
+    if sk == "decision_synthesis":
+        return "done" if state.get("decision") else "ready"
     r = results.get(sk)
     if r is None:
         return "ready"
@@ -226,6 +228,8 @@ def build_plan(state: dict) -> dict:
     elif qtype == "optimization":
         steps.append({"id": "optimize", "skill": "unavailable", "mandatory": True,
                       "why": "no optimisation skill yet (ROADMAP.md, phase 3): the analysis can't be completed here"})
+    steps.append({"id": "decide", "skill": "decision_synthesis", "mandatory": True,
+                  "why": "is the evidence enough for the decision? (session.decide(inputs=...))"})
     for i, s in enumerate(steps):
         s["depends_on"] = steps[i - 1]["id"] if i else None
 
@@ -266,13 +270,18 @@ def next_action(steps: list[dict], state: dict) -> dict:
                 "data_verification": "Resolve the critical verification findings, or change the selection "
                                      "(session.select_tables), then verify again.",
             }.get(s["skill"], f"{s['skill']} failed: fix the cause and run it again.")
-            return {"step": s["id"], "kind": "fix", "text": fix}
+            # Stopping here is a legitimate outcome: the decision summary records why
+            return {"step": s["id"], "kind": "fix",
+                    "text": fix + " Or record where things stand: session.decide() (insufficient evidence is a valid result)."}
         if s["status"] == "unavailable":
-            return {"step": s["id"], "kind": "stop", "text": s["why"]}
+            return {"step": s["id"], "kind": "stop", "text": s["why"] + " Record it with session.decide()."}
         if s.get("human"):
             text = ("Choose the tables: session.select_tables([...], note=...)" if s["id"] == "select" else
                     "Build the analysis table from the recipe, then session.run_next(df)")
             return {"step": s["id"], "kind": "human", "text": text}
+        if s["skill"] == "decision_synthesis":
+            return {"step": s["id"], "kind": "run",
+                    "text": "session.decide(inputs={...}) — decision status and a cited summary (cost/ROI inputs optional)"}
         return {"step": s["id"], "kind": "run", "text": f"session.run_next() runs {s['skill']}"
                 + (f" ({s['method']})" if s.get("method") else "")}
     return {"step": None, "kind": "complete", "text": "Every step has run. Review the digest (session.digest())."}

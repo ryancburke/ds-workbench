@@ -72,6 +72,16 @@ def _framing_line(f: dict | None):
     ], className="mb-2")
 
 
+def _decision_line(d: dict | None):
+    if not d:
+        return html.Div()
+    colour = {"supported": "success", "supported_with_caveats": "warning"}.get(d["status"], "danger")
+    return html.Div([html.Strong("Decision: ", className="small"),
+                     dbc.Badge(d["label"], color=colour, className="me-1"),
+                     html.Span(d.get("headline") or "; ".join(d.get("reasons") or []), className="small")],
+                    className="mb-2")
+
+
 def _plan_line(p: dict | None):
     if not p:
         return html.Div()
@@ -122,6 +132,7 @@ def _session_item(row: dict) -> dbc.AccordionItem:
         _framing_line(row.get("framing")),
         _scout_line(row.get("scout")),
         _plan_line(row.get("plan")),
+        _decision_line(row.get("decision")),
         html.Div([html.Strong("Prediction point: ", className="small"),
                   html.Span(row.get("prediction_point") or "not set", className="small")], className="mb-2"),
         html.Div(row["leakage_caveat"], className="small text-warning mb-2") if row.get("leakage_caveat") else html.Div(),

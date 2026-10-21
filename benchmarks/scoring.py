@@ -1156,6 +1156,70 @@ def score_data_scout(output: dict, answer_key: dict, benchmark_id: str | None = 
         false_positives=fps + [f"{a}↔{b}" for a, b in bad_joins], severity_violations=[], notes=notes)
 
 
+# ── Decision synthesis scoring ───────────────────────────────────────────────
+
+_HEDGES = ("whether", "not ", "n't", "cannot", "no evidence", "unclear", "unknown", "if ", "doesn't show",
+           "can't tell", "rather than", "instead of")
+
+
+def asserted(phrase: str, text: str) -> bool:
+    """True if `phrase` occurs in `text` as a claim: not hedged earlier in its own sentence
+    ("we can't say whether the campaign increased purchases" doesn't claim it did)."""
+    import re as _re
+    phrase, text = phrase.lower(), text.lower()
+    for m in _re.finditer(_re.escape(phrase), text):
+        start = max(text.rfind(".", 0, m.start()), text.rfind(";", 0, m.start()), text.rfind(":", 0, m.start())) + 1
+        if not any(h in text[start:m.start()] for h in _HEDGES):
+            return True
+    return False
+
+
+def score_decision_synthesis(output: dict, answer_key: dict, benchmark_id: str | None = None) -> ScoreResult:
+    """Status (30) + conclusion (20) + required points made (30) + clean citations (20). Fails on
+    a wrong status or conclusion, or any forbidden claim (e.g. asserting an effect the status
+    says isn't established)."""
+    from ds_workbench.core.decision import SECTIONS
+    bid = benchmark_id or "decision/decision_synthesis"
+    notes: list[str] = []
+    n = output.get("narrative") or {}
+    text = " ".join([(n.get("headline") or {}).get("text", "")]
+                    + [c["text"] for s in SECTIONS for c in n.get(s, [])]).lower()
+    status_ok = output.get("status") == answer_key["expected_status"]
+    if not status_ok:
+        notes.append(f"STATUS WRONG: {output.get('status')!r}, expected {answer_key['expected_status']!r}")
+    concl_ok = output.get("conclusion") in answer_key["expected_conclusion"]
+    if not concl_ok:
+        notes.append(f"CONCLUSION WRONG: {output.get('conclusion')!r}, expected {answer_key['expected_conclusion']}")
+    matched, missed = [], []
+    for m in answer_key.get("must_mention", []):
+        (matched if any(k.lower() in text for k in m["any_of"]) else missed).append(m["id"])
+    for x in missed:
+        notes.append(f"NOT SAID: {x}")
+    # Claims, not mentions: "can't say whether X caused Y" doesn't assert that X caused Y
+    # Only where the narrative asserts: what isn't established, other explanations and assumptions
+    # spell out unproven claims on purpose
+    sentences = [(n.get("headline") or {}).get("text", "")] + \
+        [c["text"] for s in ("established", "options_and_tradeoffs") for c in n.get(s, [])]
+    forbidden = [p for p in answer_key.get("forbidden_phrases", []) if any(asserted(p, t) for t in sentences)]
+    for p in forbidden:
+        notes.append(f"FORBIDDEN CLAIM: {p!r}")
+    dropped = len(output.get("dropped", []))
+    if dropped:
+        notes.append(f"{dropped} uncited claim(s) removed")
+    if not n.get("headline"):
+        notes.append("NO HEADLINE (missing or uncited)")
+    frac = len(matched) / len(answer_key["must_mention"]) if answer_key.get("must_mention") else 1.0
+    overall = 30 * status_ok + 20 * concl_ok + 30 * frac + max(0, 20 - 5 * dropped)
+    passed = status_ok and concl_ok and not forbidden and bool(n.get("headline")) and overall >= 70
+    return ScoreResult(
+        benchmark_id=bid, overall=round(overall, 1), passed=passed,
+        components={"status_correct": status_ok, "conclusion_correct": concl_ok, "recall": round(frac, 3),
+                    "uncited_claims": dropped, "forbidden_claims": len(forbidden),
+                    "verdict_correct": status_ok and concl_ok},
+        matched_findings=matched, missed_findings=missed, false_positives=forbidden, severity_violations=[],
+        notes=notes)
+
+
 def load_answer_key(dataset: str, benchmark: str) -> dict:
     """Load an answer key JSON file. benchmark is the filename stem, e.g. 'data_quality'."""
     path = Path(__file__).parent / "answer_keys" / dataset / f"{benchmark}.json"
@@ -1185,4 +1249,6 @@ def score(skill_output: dict, dataset: str, benchmark: str) -> ScoreResult:
         return score_problem_framer(skill_output, key, benchmark_id=canonical_id)
     if skill == "data_scout":
         return score_data_scout(skill_output, key, benchmark_id=canonical_id)
+    if skill == "decision_synthesis":
+        return score_decision_synthesis(skill_output, key, benchmark_id=canonical_id)
     raise ValueError(f"No scorer implemented for skill '{skill}'")

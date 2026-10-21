@@ -148,6 +148,22 @@ session.run_next()        # causal inference: analyze(..., randomized from the s
 session.digest()
 ```
 
+**Then decide, honestly.** `session.decide()` separates *analytical* readiness (did the
+required checks pass?) from *decision* readiness (is the evidence enough for the decision?).
+The status is computed in code: not answerable as posed, insufficient evidence, supported with
+caveats, or supported. So is the conclusion (a positive or negative effect, no detectable
+effect, or not established) and, if you pass costs, the return on investment across the
+estimate's confidence interval. ROI is only computed when the effect is established. The model
+writes the summary (what was and wasn't established, other explanations, assumptions, options,
+next steps), and every claim must cite the numbered evidence: uncited claims are removed.
+Insufficient evidence is a valid result, and you can call `decide()` at any point to record it.
+
+```python
+session.decide(inputs={"cost": 85_000,                  # all optional
+                       "value_per_outcome_unit": 0.35,  # e.g. margin rate when the outcome is revenue
+                       "roi_threshold": 0.2})
+```
+
 ```python
 from ds_workbench import WorkflowSession, data_quality, leakage_detector, feature_engineering, model_selector, preflight
 
