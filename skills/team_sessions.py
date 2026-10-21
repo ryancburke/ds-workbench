@@ -39,7 +39,7 @@ def _read() -> dict:
 def save_session(session_id: str, *, owner: str, question: str, datasets: list[str],
                  results: dict, runs: list[dict], source: str, started_at: str | None = None,
                  prediction_point: str = "", confirmations: list[dict] | None = None,
-                 required_checks: list[str] | None = None) -> dict:
+                 required_checks: list[str] | None = None, spec: dict | None = None) -> dict:
     """Create or update one session. `results` maps skill → its latest result dict;
     `runs` lists every run in order ({skill, label, ts, status, run_id}); `confirmations` are
     people's availability confirmations, kept apart from the skill results."""
@@ -56,6 +56,7 @@ def save_session(session_id: str, *, owner: str, question: str, datasets: list[s
             "prediction_point": prediction_point,
             "confirmations": list(confirmations or []),
             "required_checks": list(required_checks) if required_checks is not None else None,
+            "spec": _jsonable(spec) if spec else None,
         }
         if existing:
             sessions[sessions.index(existing)] = record
@@ -117,6 +118,18 @@ def headline(skill: str, result: dict) -> str:
     return (result.get("summary") or "")[:90]
 
 
+def _framing(spec: dict | None) -> dict | None:
+    """One-line view of the problem spec for the Sessions page."""
+    if not spec:
+        return None
+    from ds_workbench.core.problem_spec import primary_question
+    q = primary_question(spec)
+    return {"type": q.get("type", "?"), "question": q.get("statement", ""),
+            "answerability": spec.get("answerability", {}).get("status", "?"),
+            "status": spec.get("status", "draft"), "confirmed_by": spec.get("confirmed_by"),
+            "blocking_gaps": [m["item"] for m in spec.get("missing", []) if m.get("blocking")]}
+
+
 # check state (readiness policy) → gate chip
 _GATE_FROM_STATE = {"missing": "skipped", "failed": "error", "blocked": "blocked",
                     "caution": "warn", "clean": "clear"}
@@ -144,6 +157,7 @@ def summarize_session(session: dict) -> dict:
         "n_cautions": len(readiness["cautions"]), "summary": readiness["summary"],
         "confirmed": readiness["confirmed"], "prediction_point": session.get("prediction_point", ""),
         "leakage_caveat": (results.get("leakage_detector") or {}).get("caveat", ""),
+        "framing": _framing(session.get("spec")),
         "headlines": [{"skill": s, "line": headline(s, results[s])} for s in seen if s in results],
     }
 

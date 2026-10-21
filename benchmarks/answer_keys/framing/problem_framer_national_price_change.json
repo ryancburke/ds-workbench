@@ -1,0 +1,34 @@
+{
+  "_meta": {
+    "dataset": "framing",
+    "skill": "problem_framer",
+    "schema_version": "1.0",
+    "description": "NEGATIVE-ish: everyone treated at once; must flag that the causal effect isn't identifiable without a comparison."
+  },
+  "input": {
+    "question": "Did the nationwide price increase on 1 March cause the drop in sales volume?",
+    "context": "The increase applied to every store on the same day. There is no comparison group."
+  },
+  "primary_type": [
+    "causal"
+  ],
+  "required_types": [],
+  "answerability": [
+    "not_answerable_as_posed",
+    "answerable_with_gaps",
+    "needs_clarification"
+  ],
+  "must_mention": [
+    {
+      "id": "no_comparison",
+      "any_of": [
+        "comparison",
+        "control",
+        "counterfactual",
+        "untreated",
+        "holdout"
+      ]
+    }
+  ],
+  "concepts": {}
+}

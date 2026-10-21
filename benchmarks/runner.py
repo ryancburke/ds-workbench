@@ -259,7 +259,7 @@ def _get_benchmarks() -> list[dict]:
             "run_kwargs": {},
         }
         for case in ("leakage", "overfitting", "imbalance", "healthy")
-    ] + _causal_benchmarks()
+    ] + _causal_benchmarks() + _framing_benchmarks()
 
 
 def _causal_benchmarks() -> list[dict]:
@@ -274,6 +274,23 @@ def _causal_benchmarks() -> list[dict]:
                     "run_fn": _run_did if key["input"].get("entry") == "did" else _run_ci,
                     "run_kwargs": kwargs})
     return out
+
+
+def _framing_benchmarks() -> list[dict]:
+    """Problem Framer cases: the input (question + context) lives in each key's "input"; only
+    that reaches the skill."""
+    out = []
+    for path in sorted((BENCHMARKS_DIR / "answer_keys" / "framing").glob("problem_framer_*.json")):
+        case_input = json.loads(path.read_text())["input"]
+        out.append({"id": f"framing/{path.stem}", "dataset": "framing", "benchmark": path.stem,
+                    "skill": "problem_framer", "df_fn": lambda ci=case_input: ci,
+                    "run_fn": _run_pf, "run_kwargs": {}})
+    return out
+
+
+def _run_pf(case_input: dict) -> dict:
+    from skills.problem_framer import frame
+    return frame(case_input["question"], context=case_input.get("context", ""))
 
 
 def _run_did(df, **kwargs) -> dict:

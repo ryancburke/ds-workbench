@@ -1,0 +1,38 @@
+{
+  "_meta": {
+    "dataset": "framing",
+    "skill": "problem_framer",
+    "schema_version": "1.0",
+    "description": "Per-customer scoring for action: predictive, with the timing of scoring as a gap."
+  },
+  "input": {
+    "question": "Which customers are likely to cancel next month so the retention team can call them?",
+    "context": ""
+  },
+  "primary_type": [
+    "predictive"
+  ],
+  "required_types": [],
+  "answerability": [
+    "answerable",
+    "answerable_with_gaps"
+  ],
+  "must_mention": [
+    {
+      "id": "prediction_point",
+      "any_of": [
+        "prediction point",
+        "when",
+        "score",
+        "as of",
+        "snapshot"
+      ]
+    }
+  ],
+  "concepts": {
+    "outcome_concept": [
+      "cancel",
+      "churn"
+    ]
+  }
+}

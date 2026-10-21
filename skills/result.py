@@ -1035,7 +1035,57 @@ def _render_causal_inference(r: dict) -> str:
     )
 
 
+def _render_problem_framer(r: dict) -> str:
+    from html import escape as e
+    from ds_workbench.core.problem_spec import primary_question
+    ans = r.get("answerability", {}) or {}
+    status = ans.get("status", "needs_clarification")
+    style = {"answerable": "success", "answerable_with_gaps": "warning"}.get(status, "danger")
+    pq = primary_question(r)
+    blocking = [m for m in r.get("missing", []) if m.get("blocking")]
+    hero = _verdict_hero("Problem framing", status.replace("_", " ").upper(), style,
+                         items=[f"Blocking: {e(m['item'])}" for m in blocking] or None,
+                         subtitle=f"{pq.get('type', '?')} question · {e(ans.get('reason', ''))[:120]}")
+    dec = r.get("decision", {}) or {}
+    rows = "".join(
+        f'<tr><td>{_badge(q.get("type", "?"), "info")}{" ★" if q.get("primary") else ""}</td>'
+        f'<td>{e(q.get("statement", ""))}<br><span class="wr-muted">'
+        + " · ".join(f"{k.replace('_concept', '').replace('_', ' ')}: {e(q[k])}" for k in
+                     ("outcome_concept", "exposure_concept", "comparison", "unit_of_analysis",
+                      "population", "time_window", "prediction_point") if q.get(k))
+        + "</span></td></tr>"
+        for q in r.get("questions", []))
+    gaps = "".join(f'<li>{"⛔ " if m.get("blocking") else ""}{e(m["item"])} '
+                   f'<span class="wr-muted">— {e(m.get("why_it_matters", ""))}</span></li>'
+                   for m in r.get("missing", []))
+    assumptions = "".join(f'<li>{e(a["statement"])} <span class="wr-muted">({a["source"]}'
+                          f'{", confirm" if a.get("must_confirm") else ""})</span></li>'
+                          for a in r.get("assumptions", []))
+    asks = "".join(f"<li>{e(c)}</li>" for c in r.get("clarifying_questions", []))
+    confirmed = (f'{_badge("CONFIRMED", "success")} by {e(r["confirmed_by"])} on {r.get("confirmed_at", "")[:10]}'
+                 if r.get("status") == "confirmed" else
+                 f'{_badge("DRAFT", "warning")} <span class="wr-muted">review it, then '
+                 f'<code>session.confirm_spec(note=...)</code></span>')
+    return (
+        hero
+        + f'<div class="wr-header"><span>🧭 Problem Framer</span>{confirmed}</div><div class="wr-body">'
+        + (f'<p><strong>Decision:</strong> {e(dec.get("statement", ""))}'
+           + (f' <span class="wr-muted">options: {e("; ".join(dec.get("options", [])))}</span>' if dec.get("options") else "")
+           + (f'<br><span class="wr-muted">criteria: {e(dec["criteria"])}</span>' if dec.get("criteria") else "")
+           + (f'<br><span class="wr-muted">decision inputs (optional — costs, ROI): '
+              f'{e("; ".join(dec["inputs_needed"]))}</span>' if dec.get("inputs_needed") else "")
+           + "</p>" if dec.get("statement") else "")
+        + f'<table class="wr-tbl"><thead><tr><th>Type</th><th>Question</th></tr></thead><tbody>{rows}</tbody></table>'
+        + (f"<p><strong>Missing information</strong></p><ul>{gaps}</ul>" if gaps else "")
+        + (f"<p><strong>Assumptions</strong></p><ul>{assumptions}</ul>" if assumptions else "")
+        + (f"<p><strong>Questions to answer first</strong></p><ol>{asks}</ol>" if asks else "")
+        + f'<p class="wr-muted">Required checks: {", ".join(r.get("required_checks", []))}</p>'
+        + "</div>"
+    )
+
+
 _RENDERERS = {
+    "problem_framer":      _render_problem_framer,
     "data_quality":        _render_data_quality,
     "leakage_detector":    _render_leakage_detector,
     "feature_engineering": _render_feature_engineering,

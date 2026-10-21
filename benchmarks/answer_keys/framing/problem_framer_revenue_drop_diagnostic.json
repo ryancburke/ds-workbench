@@ -1,0 +1,26 @@
+{
+  "_meta": {
+    "dataset": "framing",
+    "skill": "problem_framer",
+    "schema_version": "1.0",
+    "description": "Explaining a past change by decomposition: diagnostic, not causal."
+  },
+  "input": {
+    "question": "Why did Q3 revenue fall in the North region?",
+    "context": ""
+  },
+  "primary_type": [
+    "diagnostic"
+  ],
+  "required_types": [],
+  "answerability": [
+    "answerable",
+    "answerable_with_gaps"
+  ],
+  "must_mention": [],
+  "concepts": {
+    "outcome_concept": [
+      "revenue"
+    ]
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "_meta": {
+    "dataset": "framing",
+    "skill": "problem_framer",
+    "schema_version": "1.0",
+    "description": "Forecast for planning: predictive."
+  },
+  "input": {
+    "question": "How many units will each store sell next quarter so we can plan inventory?",
+    "context": ""
+  },
+  "primary_type": [
+    "predictive"
+  ],
+  "required_types": [],
+  "answerability": [
+    "answerable",
+    "answerable_with_gaps"
+  ],
+  "must_mention": [],
+  "concepts": {
+    "outcome_concept": [
+      "unit",
+      "sales"
+    ]
+  }
+}

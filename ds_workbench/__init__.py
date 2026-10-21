@@ -28,6 +28,7 @@ _SKILLS = {
     "preflight": "skills.preflight",
     "experiment_tracker": "skills.experiment_tracker",
     "causal_inference": "skills.causal_inference",
+    "problem_framer": "skills.problem_framer",
 }
 
 __all__ = [*_SKILLS, "WorkflowSession", "core"]

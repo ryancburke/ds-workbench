@@ -1,0 +1,52 @@
+{
+  "_meta": {
+    "dataset": "framing",
+    "skill": "problem_framer",
+    "schema_version": "1.0",
+    "description": "Causal question plus a separate expansion decision; targeted (not randomised) exposure must be flagged; costs are a decision input."
+  },
+  "input": {
+    "question": "Did our digital campaign increase sales, and should we expand it?",
+    "context": "Marketing chose which customers received the campaign."
+  },
+  "primary_type": [
+    "causal"
+  ],
+  "required_types": [],
+  "answerability": [
+    "answerable",
+    "answerable_with_gaps"
+  ],
+  "must_mention": [
+    {
+      "id": "cost_for_decision",
+      "any_of": [
+        "cost",
+        "spend",
+        "margin",
+        "roi",
+        "return"
+      ]
+    },
+    {
+      "id": "targeting_selection",
+      "any_of": [
+        "random",
+        "target",
+        "select",
+        "chose",
+        "confound"
+      ]
+    }
+  ],
+  "concepts": {
+    "exposure_concept": [
+      "campaign"
+    ],
+    "outcome_concept": [
+      "sales",
+      "revenue",
+      "purchase"
+    ]
+  }
+}

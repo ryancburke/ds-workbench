@@ -1013,6 +1013,59 @@ def score_causal_inference(output: dict, answer_key: dict, benchmark_id: str | N
 
 # ── Answer key loader ─────────────────────────────────────────────────────────
 
+# ── Problem Framer scoring ───────────────────────────────────────────────────
+
+def score_problem_framer(output: dict, answer_key: dict, benchmark_id: str | None = None) -> ScoreResult:
+    """Type (40) + answerability (25) + required mentions (20) + concept naming (15).
+    A wrong primary type or answerability fails the case whatever the other points: they
+    decide which analysis runs and whether it should run at all."""
+    from ds_workbench.core.problem_spec import primary_question
+    bid = benchmark_id or "framing/problem_framer"
+    notes: list[str] = []
+    pq = primary_question(output)
+    types = {q.get("type") for q in output.get("questions", [])}
+
+    type_ok = pq.get("type") in answer_key["primary_type"]
+    if not type_ok:
+        notes.append(f"PRIMARY TYPE WRONG: got {pq.get('type')!r}, expected one of {answer_key['primary_type']}")
+    missing_types = [t for t in answer_key.get("required_types", []) if t not in types]
+    if missing_types:
+        notes.append(f"MISSING QUESTION TYPES: {missing_types}")
+    ans = (output.get("answerability") or {}).get("status")
+    ans_ok = ans in answer_key["answerability"]
+    if not ans_ok:
+        notes.append(f"ANSWERABILITY WRONG: got {ans!r}, expected one of {answer_key['answerability']}")
+
+    text = " ".join([*(m.get("item", "") + " " + m.get("why_it_matters", "") for m in output.get("missing", [])),
+                     *(a.get("statement", "") for a in output.get("assumptions", [])),
+                     *output.get("clarifying_questions", []),
+                     " ".join((output.get("decision") or {}).get("inputs_needed", [])),
+                     (output.get("answerability") or {}).get("reason", "")]).lower()
+    matched, missed = [], []
+    for m in answer_key.get("must_mention", []):
+        (matched if any(k.lower() in text for k in m["any_of"]) else missed).append(m["id"])
+    for mid in missed:
+        notes.append(f"NOT RAISED '{mid}'")
+    mention_frac = len(matched) / len(answer_key["must_mention"]) if answer_key.get("must_mention") else 1.0
+
+    concepts = answer_key.get("concepts", {})
+    concept_hits = [f for f, kws in concepts.items() if any(k.lower() in (pq.get(f) or "").lower() for k in kws)]
+    for f in set(concepts) - set(concept_hits):
+        notes.append(f"CONCEPT '{f}' not named as expected: got {pq.get(f)!r}")
+    concept_frac = len(concept_hits) / len(concepts) if concepts else 1.0
+
+    overall = (40 * type_ok * (0.75 if missing_types else 1.0) + 25 * ans_ok
+               + 20 * mention_frac + 15 * concept_frac)
+    passed = type_ok and ans_ok and overall >= 70
+    return ScoreResult(
+        benchmark_id=bid, overall=round(overall, 1), passed=passed,
+        components={"type_correct": type_ok, "answerability_correct": ans_ok,
+                    "recall": round(mention_frac, 3), "concepts": round(concept_frac, 3),
+                    "verdict_correct": type_ok and ans_ok},
+        matched_findings=matched, missed_findings=missed, false_positives=[], severity_violations=[],
+        notes=notes)
+
+
 def load_answer_key(dataset: str, benchmark: str) -> dict:
     """Load an answer key JSON file. benchmark is the filename stem, e.g. 'data_quality'."""
     path = Path(__file__).parent / "answer_keys" / dataset / f"{benchmark}.json"
@@ -1038,4 +1091,6 @@ def score(skill_output: dict, dataset: str, benchmark: str) -> ScoreResult:
         return score_experiment_tracker(skill_output, key, benchmark_id=canonical_id)
     if skill == "causal_inference":
         return score_causal_inference(skill_output, key, benchmark_id=canonical_id)
+    if skill == "problem_framer":
+        return score_problem_framer(skill_output, key, benchmark_id=canonical_id)
     raise ValueError(f"No scorer implemented for skill '{skill}'")

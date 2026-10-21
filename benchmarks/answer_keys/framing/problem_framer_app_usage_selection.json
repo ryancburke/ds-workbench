@@ -1,0 +1,44 @@
+{
+  "_meta": {
+    "dataset": "framing",
+    "skill": "problem_framer",
+    "schema_version": "1.0",
+    "description": "Looks like an observed association but the decision is an intervention: causal, with self-selection risk."
+  },
+  "input": {
+    "question": "Customers who use our mobile app churn less. Should we push every customer onto the app?",
+    "context": ""
+  },
+  "primary_type": [
+    "causal"
+  ],
+  "required_types": [],
+  "answerability": [
+    "answerable",
+    "answerable_with_gaps",
+    "needs_clarification"
+  ],
+  "must_mention": [
+    {
+      "id": "self_selection",
+      "any_of": [
+        "select",
+        "confound",
+        "engaged",
+        "reverse",
+        "already",
+        "correlat"
+      ]
+    }
+  ],
+  "concepts": {
+    "exposure_concept": [
+      "app"
+    ],
+    "outcome_concept": [
+      "churn",
+      "retention",
+      "cancel"
+    ]
+  }
+}

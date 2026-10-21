@@ -1,0 +1,34 @@
+{
+  "_meta": {
+    "dataset": "framing",
+    "skill": "problem_framer",
+    "schema_version": "1.0",
+    "description": "Optimisation under constraints; needs a demand model; no optimisation skill yet so not fully answerable."
+  },
+  "input": {
+    "question": "What price should we set for each SKU to maximise margin, given limited production capacity?",
+    "context": ""
+  },
+  "primary_type": [
+    "optimization"
+  ],
+  "required_types": [
+    "optimization"
+  ],
+  "answerability": [
+    "answerable_with_gaps",
+    "needs_clarification"
+  ],
+  "must_mention": [
+    {
+      "id": "demand_response",
+      "any_of": [
+        "elastic",
+        "demand",
+        "price response",
+        "sensitiv"
+      ]
+    }
+  ],
+  "concepts": {}
+}

@@ -1,0 +1,36 @@
+{
+  "_meta": {
+    "dataset": "framing",
+    "skill": "problem_framer",
+    "schema_version": "1.0",
+    "description": "NEGATIVE: too vague to plan; must ask what decision or goal."
+  },
+  "input": {
+    "question": "Use our data to improve the business.",
+    "context": ""
+  },
+  "primary_type": [
+    "descriptive",
+    "diagnostic",
+    "predictive",
+    "causal",
+    "optimization"
+  ],
+  "required_types": [],
+  "answerability": [
+    "needs_clarification"
+  ],
+  "must_mention": [
+    {
+      "id": "which_decision",
+      "any_of": [
+        "decision",
+        "goal",
+        "objective",
+        "which",
+        "what"
+      ]
+    }
+  ],
+  "concepts": {}
+}
