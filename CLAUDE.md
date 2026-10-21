@@ -23,8 +23,11 @@
    never the model's: they're passed to `assess()` separately, need a note, and apply only to
    the exact (column, dataset, prediction point) they were made for.
    Statuses: `blocked` (critical findings) > `incomplete` (missing/failed mandatory check) >
-   `caution` (warnings) > `ready_for_review` (every mandatory check ran clean). Mandatory checks:
-   data quality + leakage for modelling work; data quality + causal for causal-only work.
+   `caution` (warnings) > `ready_for_review` (every mandatory check ran clean). Mandatory checks
+   (`required_checks()`): inferred from what ran — data quality + leakage for modelling work,
+   data quality + causal for causal-only work — unless the work declares them
+   (`WorkflowSession(required_checks=...)`, later the investigation plan). A declaration adds
+   checks but never removes the floor set by what ran: any modelling skill still requires leakage.
 
 ## What this is
 
@@ -89,7 +92,10 @@ shows quality trends per skill over time.
   `allow_duplicate=True` for multiple callbacks writing to the same output
 - **Dash Bootstrap Components** — DARKLY theme throughout; never introduce a different theme
 - **Anthropic SDK** — model IDs and per-role effort levels are settings in `config.py`
-  (overridable in `.env`; see `.env.example`). Calls use `**role("<role>")` from
+  (overridable in `.env`; see `.env.example`). `ANTHROPIC_PROVIDER` picks the route
+  (Anthropic API, Claude Platform on AWS, Bedrock, Vertex, Google Cloud, Foundry) and
+  `ANTHROPIC_BASE_URL` an approved gateway; `api_retry.build_client` maps it to the SDK class,
+  and platform clients use their own credential chains. Costs match platform model IDs by name. Calls use `**role("<role>")` from
   `skills/models.py` (model + effort, read at call time); `override_roles()` swaps a role
   for sweeps. Sonnet 5.5 for data quality, Opus 5.5 for leakage, Sonnet 5.5 for general analysis and simulation personas, Opus 5.5 for
   simulation judging, Haiku 5.5 for structured extraction (Pass 2). Every call uses the

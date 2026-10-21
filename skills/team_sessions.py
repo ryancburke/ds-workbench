@@ -38,7 +38,8 @@ def _read() -> dict:
 
 def save_session(session_id: str, *, owner: str, question: str, datasets: list[str],
                  results: dict, runs: list[dict], source: str, started_at: str | None = None,
-                 prediction_point: str = "", confirmations: list[dict] | None = None) -> dict:
+                 prediction_point: str = "", confirmations: list[dict] | None = None,
+                 required_checks: list[str] | None = None) -> dict:
     """Create or update one session. `results` maps skill → its latest result dict;
     `runs` lists every run in order ({skill, label, ts, status, run_id}); `confirmations` are
     people's availability confirmations, kept apart from the skill results."""
@@ -54,6 +55,7 @@ def save_session(session_id: str, *, owner: str, question: str, datasets: list[s
             "runs": runs,
             "prediction_point": prediction_point,
             "confirmations": list(confirmations or []),
+            "required_checks": list(required_checks) if required_checks is not None else None,
         }
         if existing:
             sessions[sessions.index(existing)] = record
@@ -126,7 +128,8 @@ def summarize_session(session: dict) -> dict:
     """The session's readiness comes from the shared policy (ds_workbench.core.readiness);
     this only adds presentation: gate chips, attention colour and per-step headlines."""
     results = session.get("results", {})
-    readiness = assess(results, confirmations=session.get("confirmations"))
+    readiness = assess(results, confirmations=session.get("confirmations"),
+                       declared=session.get("required_checks"))
     checks = readiness["checks"]
     gate_skills = [*GATES, *(["causal_inference"] if "causal_inference" in results else [])]
     gates = {g: _GATE_FROM_STATE[checks[g]["state"]] if g in checks else "skipped" for g in gate_skills}

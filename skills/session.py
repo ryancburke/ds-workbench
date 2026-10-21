@@ -59,7 +59,8 @@ class WorkflowSession:
     """
 
     def __init__(self, context: str = "", *, datasets: list[str] | None = None, persist: bool = True,
-                 prediction_point: str = "", column_notes: dict[str, str] | None = None) -> None:
+                 prediction_point: str = "", column_notes: dict[str, str] | None = None,
+                 required_checks: list[str] | None = None) -> None:
         """
         Args:
             context: The business question (shown on the team Sessions page).
@@ -68,7 +69,11 @@ class WorkflowSession:
             prediction_point: When the model will score, e.g. "1st of each month, predicting
                 churn in the next 30 days". Leakage checks use it to reason about timing.
             column_notes: When/how columns are recorded, e.g. {"tickets_mtd": "opened 1st-14th"}.
+            required_checks: Checks this work must pass, e.g. ["data_quality", "causal_inference"]
+                for a causal question. Default: inferred from what runs. Modelling skills always
+                add data quality + leakage (see ds_workbench.core.readiness.required_checks).
         """
+        from ds_workbench.core.readiness import required_checks as _validate
         import uuid
         self._results: dict[str, object] = {}
         self.context = context
@@ -78,6 +83,9 @@ class WorkflowSession:
         self.prediction_point = (prediction_point or "").strip()
         self.column_notes = dict(column_notes or {})
         self.confirmations: list[dict] = []
+        self.required_checks = list(required_checks) if required_checks is not None else None
+        if self.required_checks is not None:
+            _validate({}, self.required_checks)      # fail fast on an unknown or empty list
         self._runs: list[dict] = []
 
     # ── Availability confirmations (the user's judgment, never the model's) ───
@@ -142,7 +150,8 @@ class WorkflowSession:
             team_sessions.save_session(
                 self.id, owner=usage.current_user(dict(_call_ctx.get())), question=self.context,
                 datasets=self.datasets, results=dict(self._results), runs=self._runs, source="notebook",
-                prediction_point=self.prediction_point, confirmations=self.confirmations)
+                prediction_point=self.prediction_point, confirmations=self.confirmations,
+                required_checks=self.required_checks)
         except Exception:
             pass  # persistence must never break an analysis
 
@@ -213,7 +222,8 @@ class WorkflowSession:
                 {"error": "No skills have been run in this session yet."},
                 skill="session_digest",
             )
-        data = build_digest(dict(self._results), confirmations=self.confirmations)
+        data = build_digest(dict(self._results), confirmations=self.confirmations,
+                            required_checks=self.required_checks)
         return SkillResult(data, skill="session_digest")
 
     # ── Repr ──────────────────────────────────────────────────────────────────
@@ -226,7 +236,8 @@ class WorkflowSession:
 
 # ── Standalone digest builder (used by WorkflowSession.digest and Dash card) ──
 
-def build_digest(results: dict, confirmations: list | None = None) -> dict:
+def build_digest(results: dict, confirmations: list | None = None,
+                 required_checks: list | None = None) -> dict:
     """Synthesise a dict of {skill: result} into a structured digest.
 
     ``results`` is a plain-dict mapping of skill name → result dict; ``confirmations`` are
@@ -234,7 +245,7 @@ def build_digest(results: dict, confirmations: list | None = None) -> dict:
     Returns a dict suitable for SkillResult(…, skill='session_digest').
     """
     from ds_workbench.core.readiness import CHECK_LABEL, assess
-    readiness = assess(results, confirmations=confirmations)
+    readiness = assess(results, confirmations=confirmations, declared=required_checks)
     confirmed_cols = {c["column"] for c in readiness["confirmed"]}
     # A failed check is never narrated as cleared: drop it before building the narrative
     failed = {f["skill"] for f in readiness["failed"]}

@@ -13,6 +13,13 @@ def _env(name: str, default: str):
 @dataclass
 class Config:
     anthropic_api_key: str = _env("ANTHROPIC_API_KEY", "")
+    # Where Claude is reached: anthropic (default, the Anthropic API), aws (Claude Platform on
+    # AWS), bedrock, vertex, google_cloud or foundry. Platform clients read their own standard
+    # credentials (AWS profile/role, Google ADC, Azure). Model IDs above must be the IDs that
+    # platform expects. See skills/api_retry.get_client.
+    anthropic_provider: str = _env("ANTHROPIC_PROVIDER", "anthropic")
+    # Optional: an approved gateway or proxy in front of the chosen provider.
+    anthropic_base_url: str = _env("ANTHROPIC_BASE_URL", "")
     databricks_host: str = _env("DATABRICKS_HOST", "")
     databricks_token: str = _env("DATABRICKS_TOKEN", "")
     databricks_http_path: str = _env("DATABRICKS_HTTP_PATH", "")
@@ -74,9 +81,19 @@ CACHE_READ_MULTIPLIER: dict[str, float] = {
 CACHE_WRITE_MULTIPLIER = 1.25
 
 
+def price_key(model: str) -> str:
+    """The priced model an ID refers to. Platform IDs wrap the model name
+    (e.g. a Bedrock-style 'anthropic.claude-opus-5-5-...'), so match the longest known name inside it."""
+    if model in MODEL_PRICES:
+        return model
+    hits = [k for k in MODEL_PRICES if k in (model or "")]
+    return max(hits, key=len) if hits else model
+
+
 def call_cost(model: str, input_tokens: int, output_tokens: int,
               cache_read_tokens: int = 0, cache_write_tokens: int = 0) -> float:
     """Approximate list-price cost of one call in USD (0 for an unknown model)."""
+    model = price_key(model)
     price_in, price_out = MODEL_PRICES.get(model, (0.0, 0.0))
     read = price_in * CACHE_READ_MULTIPLIER.get(model, 0.1)
     return (input_tokens * price_in + output_tokens * price_out

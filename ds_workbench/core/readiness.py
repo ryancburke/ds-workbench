@@ -50,6 +50,27 @@ def mandatory_for(results: dict) -> tuple[str, ...]:
     return MODELLING_CHECKS
 
 
+def required_checks(results: dict, declared=None) -> tuple[str, ...]:
+    """Mandatory checks for this work.
+
+    Without a declaration: inferred from what ran (mandatory_for, unchanged behaviour).
+    With one (e.g. from an investigation plan): the declared checks plus a floor set by what
+    actually ran — any modelling skill requires DQ + leakage, a causal analysis requires DQ +
+    causal. A declaration can add checks but never remove that floor, so declaring less can't
+    make unchecked modelling work ready."""
+    if declared is None:
+        return mandatory_for(results)
+    declared = tuple(dict.fromkeys(declared))
+    unknown = [c for c in declared if c not in CHECK_LABEL]
+    if not declared or unknown:
+        raise ValueError(f"required checks must be a non-empty list of known checks "
+                         f"({', '.join(CHECK_LABEL)}); got {list(declared)}")
+    ran = {k for k, v in results.items() if v is not None}
+    floor = (MODELLING_CHECKS if ran & _MODELLING_SKILLS else ()) + \
+            (CAUSAL_CHECKS if "causal_inference" in ran else ())
+    return tuple(dict.fromkeys([*declared, *floor]))
+
+
 def _item(source: str, issue: str, column: str = "—", action: str = "") -> dict:
     return {"source": source, "column": column or "—", "issue": issue[:160], "action": action[:160]}
 
@@ -160,10 +181,14 @@ def check_state(skill: str, result: dict | None, confirmations: list | None = No
     return {"skill": skill, "state": state, "blockers": blockers, "cautions": cautions, "confirmed": confirmed}
 
 
-def assess(results: dict, mandatory: tuple[str, ...] | None = None, confirmations: list | None = None) -> dict:
-    """Readiness of a set of results ({skill: result dict or None}). `confirmations` are people's
+def assess(results: dict, mandatory: tuple[str, ...] | None = None, confirmations: list | None = None,
+           declared: list | tuple | None = None) -> dict:
+    """Readiness of a set of results ({skill: result dict or None}).
+
+    `mandatory` fixes the required checks exactly (preflight's training check uses it);
+    otherwise they come from required_checks(results, declared). `confirmations` are people's
     availability confirmations (make_confirmation); they never come from a skill result."""
-    mandatory = tuple(mandatory) if mandatory is not None else mandatory_for(results)
+    mandatory = tuple(mandatory) if mandatory is not None else required_checks(results, declared)
     checks = {s: check_state(s, results.get(s), confirmations) for s in dict.fromkeys([*mandatory, *results])}
 
     missing = [s for s in mandatory if checks[s]["state"] == "missing"]

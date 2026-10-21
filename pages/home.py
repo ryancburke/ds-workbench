@@ -423,6 +423,8 @@ def render_session(store):
             critical = s.get("critical", 0)
             clr      = "danger" if critical else "warning" if score < 75 else "success"
             lbl      = f"{score}/100" + (f" · {critical} crit" if critical else "")
+        elif any(r.get("label") == ds and r.get("status") == "error" for r in store.get("data_quality", [])):
+            clr, lbl = "danger", "DQ failed"
         else:
             clr, lbl = "secondary", "DQ not run"
         chips.append(html.Div([
@@ -504,9 +506,13 @@ def start_session(_, problem, datasets, store):
     first_ds = datasets[0]
 
     for ds in datasets:
+        # A failed check is recorded as failed (project rule 5), never dropped: readiness then
+        # reports the session as incomplete and shows the error.
         try:
             df       = load_sample_dataset(ds)
             result   = assess(df, table_name=ds)
+            if result.get("error"):
+                raise RuntimeError(result["error"])
             findings = result.get("findings", [])
             dq_runs.append({
                 "id":        f"dq_{int(time.time() * 1000)}_{ds}",
@@ -522,8 +528,14 @@ def start_session(_, problem, datasets, store):
                     "info":     sum(1 for f in findings if f["severity"] == "info"),
                 },
             })
-        except Exception:
-            pass
+        except Exception as exc:
+            dq_runs.append({
+                "id":        f"dq_{int(time.time() * 1000)}_{ds}",
+                "label":     ds,
+                "timestamp": datetime.now().strftime("%H:%M"),
+                "status":    "error",
+                "error":     f"{type(exc).__name__}: {exc}"[:300],
+            })
 
     updated["data_quality"] = dq_runs
     updated["session"] = {
@@ -564,7 +576,10 @@ def update_skill_titles(store):
         count_badge = dbc.Badge(f"{n} run{'s' if n != 1 else ''}",
                                 color="secondary", className="ms-2",
                                 style={"fontSize": "0.65rem"})
-        status_badge = badge_fn(runs[-1])
+        # A failed run has no summary: never let a badge's default ("clean", "0/100") stand in for it
+        status_badge = (badge_fn(runs[-1]) if runs[-1].get("status", "complete") == "complete"
+                        else dbc.Badge("failed", color="danger", style={"fontSize": "0.65rem"},
+                                       title=str(runs[-1].get("error", ""))[:200]))
         return html.Span([base, count_badge, status_badge],
                          className="d-flex align-items-center gap-1")
 
