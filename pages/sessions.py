@@ -72,6 +72,16 @@ def _framing_line(f: dict | None):
     ], className="mb-2")
 
 
+def _plan_line(p: dict | None):
+    if not p:
+        return html.Div()
+    colour = {"fix": "danger", "stop": "danger", "complete": "success"}.get(p["kind"], "info")
+    return html.Div([html.Strong("Plan: ", className="small"),
+                     dbc.Badge(f"{p['done']}/{p['total']} steps", color=colour, className="me-1"),
+                     html.Span((f"method {p['method']} · " if p["method"] else "") + f"next: {p['next']}",
+                               className="small")], className="mb-2")
+
+
 def _scout_line(s: dict | None):
     if not s:
         return html.Div()
@@ -111,6 +121,7 @@ def _session_item(row: dict) -> dbc.AccordionItem:
                   html.Span(", ".join(row["datasets"] or []) or "—", className="small")], className="mb-2"),
         _framing_line(row.get("framing")),
         _scout_line(row.get("scout")),
+        _plan_line(row.get("plan")),
         html.Div([html.Strong("Prediction point: ", className="small"),
                   html.Span(row.get("prediction_point") or "not set", className="small")], className="mb-2"),
         html.Div(row["leakage_caveat"], className="small text-warning mb-2") if row.get("leakage_caveat") else html.Div(),

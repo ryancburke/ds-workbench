@@ -27,5 +27,8 @@
     "outcome_concept": [
       "conversion"
     ]
-  }
+  },
+  "assignment": [
+    "randomized"
+  ]
 }

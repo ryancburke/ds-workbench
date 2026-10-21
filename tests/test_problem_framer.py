@@ -208,6 +208,8 @@ def _perfect(key):
          **{f: kws[0] for f, kws in key["concepts"].items()}}
     if t == "causal":
         q.setdefault("exposure_concept", "x"); q.setdefault("outcome_concept", "y")
+        if key.get("assignment"):
+            q["assignment"] = key["assignment"][0]
     return {"questions": [q] + [{"type": rt, "statement": "x"} for rt in key["required_types"] if rt != t],
             "answerability": {"status": key["answerability"][0], "reason": ""},
             "missing": [{"item": m["any_of"][0], "why_it_matters": "", "blocking": False} for m in key["must_mention"]],
@@ -252,3 +254,12 @@ def test_blocking_gaps_are_listed_first():
     draft = {"questions": [{"type": "causal", "statement": "x", "outcome_concept": "y"}],
              "missing": [{"item": "minor", "why_it_matters": "", "blocking": False}]}
     assert normalize(draft)["missing"][0]["blocking"] is True
+
+
+def test_a_wrong_assignment_fails_the_case():
+    from benchmarks.scoring import score_problem_framer
+    key = json.loads((ROOT / "benchmarks/answer_keys/framing/problem_framer_ab_readout.json").read_text())
+    good = _perfect(key)
+    assert score_problem_framer(good, key).passed
+    good["questions"][0]["assignment"] = "not_randomized"
+    assert not score_problem_framer(good, key).passed

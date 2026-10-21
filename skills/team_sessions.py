@@ -40,7 +40,8 @@ def save_session(session_id: str, *, owner: str, question: str, datasets: list[s
                  results: dict, runs: list[dict], source: str, started_at: str | None = None,
                  prediction_point: str = "", confirmations: list[dict] | None = None,
                  required_checks: list[str] | None = None, spec: dict | None = None,
-                 scout: dict | None = None, selection: dict | None = None) -> dict:
+                 scout: dict | None = None, selection: dict | None = None,
+                 analysis_table: dict | None = None) -> dict:
     """Create or update one session. `results` maps skill → its latest result dict;
     `runs` lists every run in order ({skill, label, ts, status, run_id}); `confirmations` are
     people's availability confirmations, kept apart from the skill results."""
@@ -59,7 +60,9 @@ def save_session(session_id: str, *, owner: str, question: str, datasets: list[s
             "required_checks": list(required_checks) if required_checks is not None else None,
             "spec": _jsonable(spec) if spec else None,
             "scout": _scout_summary(scout),
+            "scout_report": _jsonable(scout) if scout else None,     # metadata only; the plan needs its roles
             "selection": selection,
+            "analysis_table": analysis_table,
         }
         if existing:
             sessions[sessions.index(existing)] = record
@@ -127,6 +130,17 @@ def headline(skill: str, result: dict) -> str:
     return (result.get("summary") or "")[:90]
 
 
+def _plan_summary(session: dict) -> dict | None:
+    """Plan progress for the Sessions page (recomputed from the saved state)."""
+    if not session.get("spec"):
+        return None
+    from ds_workbench.core.plan import build_plan
+    p = build_plan({k: session.get(k) for k in ("spec", "selection", "analysis_table")}
+                   | {"scout": session.get("scout_report"), "results": session.get("results", {})})
+    return {"done": p["done"], "total": p["total"], "next": p["next"]["text"], "kind": p["next"]["kind"],
+            "method": (p["method"] or {}).get("method")}
+
+
 def _scout_summary(report: dict | None) -> dict | None:
     """What the Sessions page needs from a scout report (the full report stays in the notebook)."""
     if not report:
@@ -178,6 +192,7 @@ def summarize_session(session: dict) -> dict:
         "leakage_caveat": (results.get("leakage_detector") or {}).get("caveat", ""),
         "framing": _framing(session.get("spec")),
         "scout": session.get("scout"),
+        "plan": _plan_summary(session),
         "headlines": [{"skill": s, "line": headline(s, results[s])} for s in seen if s in results],
     }
 

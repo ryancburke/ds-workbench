@@ -48,5 +48,8 @@
       "revenue",
       "purchase"
     ]
-  }
+  },
+  "assignment": [
+    "not_randomized"
+  ]
 }

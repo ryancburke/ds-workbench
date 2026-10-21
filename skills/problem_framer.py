@@ -54,6 +54,8 @@ _TOOL = {
                         "outcome_concept": {"type": "string"},
                         "exposure_concept": {"type": "string", "description": "causal questions: what was done"},
                         "comparison": {"type": "string", "description": "causal questions: compared with what"},
+                        "assignment": {"type": "string", "enum": ["randomized", "not_randomized", "unknown"],
+                                       "description": "causal questions: how the exposure was assigned"},
                         "time_window": {"type": "string"},
                         "prediction_point": {"type": "string", "description": "predictive questions: when the model scores"},
                     },
@@ -125,7 +127,9 @@ Work through it:
      answers a predictive question, not a causal one.
    - optimization: choosing the best action under constraints (allocation, pricing, scheduling)
    Mark one question primary. Name concepts (e.g. "weekly revenue per store"), never column names.
-   For causal questions state the exposure, the outcome, the comparison and the time window.
+   For causal questions state the exposure, the outcome, the comparison, the time window and the
+   assignment: randomized (an experiment), not_randomized (someone or something chose who got it),
+   or unknown. Only say randomized when the person said so.
    For predictive questions state the prediction point if it is known; if not, list it as missing.
 
 3. Assumptions. Separate what the person said (source=user) from what you are inferring
