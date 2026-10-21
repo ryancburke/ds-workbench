@@ -134,15 +134,42 @@ _client = None
 SDK_MAX_RETRIES = 4
 
 
+# ANTHROPIC_PROVIDER → SDK client class. Every class exposes the same messages API, so skills,
+# retries and the usage ledger don't change with the route.
+PROVIDERS = {
+    "anthropic":    "Anthropic",
+    "aws":          "AnthropicAWS",
+    "bedrock":      "AnthropicBedrock",
+    "vertex":       "AnthropicVertex",
+    "google_cloud": "AnthropicGoogleCloud",
+    "foundry":      "AnthropicFoundry",
+}
+
+
+def build_client(provider: str, *, api_key: str = "", base_url: str = ""):
+    """The SDK client for a provider. Only the Anthropic API takes ANTHROPIC_API_KEY; platform
+    clients find their own credentials (AWS/Google/Azure credential chains)."""
+    import anthropic
+    name = PROVIDERS.get((provider or "anthropic").strip().lower())
+    if name is None:
+        raise ValueError(f"Unknown ANTHROPIC_PROVIDER {provider!r}; use one of: {', '.join(PROVIDERS)}")
+    kwargs = {"max_retries": SDK_MAX_RETRIES}
+    if base_url:
+        kwargs["base_url"] = base_url
+    if name == "Anthropic":
+        kwargs["api_key"] = api_key
+    return getattr(anthropic, name)(**kwargs)
+
+
 def get_client():
-    """Shared Anthropic client (lazy, so importing a skill never needs a key)."""
+    """Shared client (lazy, so importing a skill never needs a key), routed by
+    ANTHROPIC_PROVIDER and instrumented by the usage ledger."""
     global _client
     if _client is None:
-        import anthropic
         from config import config
         from skills import usage
-        _client = usage.instrument(
-            anthropic.Anthropic(api_key=config.anthropic_api_key, max_retries=SDK_MAX_RETRIES))
+        _client = usage.instrument(build_client(config.anthropic_provider, api_key=config.anthropic_api_key,
+                                                base_url=config.anthropic_base_url))
     return _client
 
 

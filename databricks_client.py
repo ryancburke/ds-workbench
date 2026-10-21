@@ -79,23 +79,48 @@ def load_join_scenario(name: str) -> tuple[pd.DataFrame, pd.DataFrame, str]:
 
 # ── Databricks connections ─────────────────────────────────────────────────────
 
+def quote_name(name: str, parts: tuple[int, ...] = (1, 2, 3)) -> str:
+    """A safely quoted catalog/schema/table name. Identifiers can't be bound as SQL parameters,
+    so the name is parsed strictly — parts separated by single dots, each plain or `backtick
+    quoted` (`` inside for a literal backtick) — and every part is re-quoted. Anything else,
+    or a part count outside `parts`, is rejected."""
+    import re
+    part = re.compile(r"`((?:[^`]|``)+)`|([^.`;\s]+)")
+    out, pos, text = [], 0, name or ""
+    while True:
+        m = part.match(text, pos)
+        if not m:
+            raise ValueError(f"not a valid table name: {name!r}")
+        value = m.group(1).replace("``", "`") if m.group(1) is not None else m.group(2)
+        if not value.strip() or any(c in value for c in "\x00\n\r"):
+            raise ValueError(f"not a valid table name: {name!r}")
+        out.append("`" + value.replace("`", "``") + "`")
+        pos = m.end()
+        if pos == len(text):
+            break
+        if text[pos] != ".":
+            raise ValueError(f"not a valid table name: {name!r}")
+        pos += 1
+    if len(out) not in parts:
+        raise ValueError(f"expected {' or '.join(map(str, parts))}-part name, got {name!r}")
+    return ".".join(out)
+
+
 def list_tables(catalog: str = "hive_metastore", schema: str = "default") -> list[str]:
     if config.local_dev_mode:
         return list(SAMPLE_DATASETS.keys())
-    from databricks import sql
     with _get_connection() as conn:
         with conn.cursor() as cur:
-            cur.execute(f"SHOW TABLES IN {catalog}.{schema}")
+            cur.execute(f"SHOW TABLES IN {quote_name(f'{catalog}.{schema}', parts=(2,))}")
             return [row.tableName for row in cur.fetchall()]
 
 
 def get_table_sample(table: str, limit: int = 1000) -> pd.DataFrame:
     if config.local_dev_mode:
         return load_sample_dataset(table) if table in SAMPLE_DATASETS else _gen_orders_dirty()
-    from databricks import sql
     with _get_connection() as conn:
         with conn.cursor() as cur:
-            cur.execute(f"SELECT * FROM {table} LIMIT {limit}")
+            cur.execute(f"SELECT * FROM {quote_name(table)} LIMIT {max(1, int(limit))}")
             return cur.fetchall_arrow().to_pandas()
 
 
@@ -103,10 +128,9 @@ def get_table_schema(table: str) -> list[dict]:
     if config.local_dev_mode:
         df = load_sample_dataset(table) if table in SAMPLE_DATASETS else _gen_orders_dirty()
         return [{"column_name": col, "data_type": str(dtype)} for col, dtype in df.dtypes.items()]
-    from databricks import sql
     with _get_connection() as conn:
         with conn.cursor() as cur:
-            cur.execute(f"DESCRIBE {table}")
+            cur.execute(f"DESCRIBE {quote_name(table)}")
             return [{"column_name": r.col_name, "data_type": r.data_type} for r in cur.fetchall()]
 
 
