@@ -39,7 +39,8 @@ def _read() -> dict:
 def save_session(session_id: str, *, owner: str, question: str, datasets: list[str],
                  results: dict, runs: list[dict], source: str, started_at: str | None = None,
                  prediction_point: str = "", confirmations: list[dict] | None = None,
-                 required_checks: list[str] | None = None, spec: dict | None = None) -> dict:
+                 required_checks: list[str] | None = None, spec: dict | None = None,
+                 scout: dict | None = None) -> dict:
     """Create or update one session. `results` maps skill → its latest result dict;
     `runs` lists every run in order ({skill, label, ts, status, run_id}); `confirmations` are
     people's availability confirmations, kept apart from the skill results."""
@@ -57,6 +58,7 @@ def save_session(session_id: str, *, owner: str, question: str, datasets: list[s
             "confirmations": list(confirmations or []),
             "required_checks": list(required_checks) if required_checks is not None else None,
             "spec": _jsonable(spec) if spec else None,
+            "scout": _scout_summary(scout),
         }
         if existing:
             sessions[sessions.index(existing)] = record
@@ -118,6 +120,16 @@ def headline(skill: str, result: dict) -> str:
     return (result.get("summary") or "")[:90]
 
 
+def _scout_summary(report: dict | None) -> dict | None:
+    """What the Sessions page needs from a scout report (the full report stays in the notebook)."""
+    if not report:
+        return None
+    return {"investigate": [c["table"] for c in report.get("candidates", []) if c["recommendation"] == "investigate"],
+            "rejected": [c["table"] for c in report.get("candidates", []) if c["recommendation"] == "reject"],
+            "feasibility": report.get("feasibility"), "coverage_gaps": report.get("coverage_gaps", []),
+            "catalog": report.get("catalog"), "evidence_level": report.get("evidence_level")}
+
+
 def _framing(spec: dict | None) -> dict | None:
     """One-line view of the problem spec for the Sessions page."""
     if not spec:
@@ -158,6 +170,7 @@ def summarize_session(session: dict) -> dict:
         "confirmed": readiness["confirmed"], "prediction_point": session.get("prediction_point", ""),
         "leakage_caveat": (results.get("leakage_detector") or {}).get("caveat", ""),
         "framing": _framing(session.get("spec")),
+        "scout": session.get("scout"),
         "headlines": [{"skill": s, "line": headline(s, results[s])} for s in seen if s in results],
     }
 

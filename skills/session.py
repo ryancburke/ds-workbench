@@ -84,6 +84,7 @@ class WorkflowSession:
         self.column_notes = dict(column_notes or {})
         self.confirmations: list[dict] = []
         self.spec: dict | None = None
+        self.scout: dict | None = None
         self.required_checks = list(required_checks) if required_checks is not None else None
         if self.required_checks is not None:
             _validate({}, self.required_checks)      # fail fast on an unknown or empty list
@@ -100,6 +101,14 @@ class WorkflowSession:
         self.required_checks = list(spec.get("required_checks") or []) or None
         if not self.context:
             self.context = spec.get("question", "")
+        if self.persist:
+            self._save()
+
+    def set_scout(self, report: dict) -> None:
+        """Attach a Data Scout report (called by data_scout.scout)."""
+        if report.get("error"):
+            return
+        self.scout = dict(report)
         if self.persist:
             self._save()
 
@@ -179,7 +188,7 @@ class WorkflowSession:
                 self.id, owner=usage.current_user(dict(_call_ctx.get())), question=self.context,
                 datasets=self.datasets, results=dict(self._results), runs=self._runs, source="notebook",
                 prediction_point=self.prediction_point, confirmations=self.confirmations,
-                required_checks=self.required_checks, spec=self.spec)
+                required_checks=self.required_checks, spec=self.spec, scout=self.scout)
         except Exception:
             pass  # persistence must never break an analysis
 

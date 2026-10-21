@@ -25,6 +25,7 @@ ROLES = {
     # All Pass 2 extraction. Must accept forced tool_choice: Haiku 5.5 does;
     # Opus 5.5 / Sonnet 5.5 / Fable 5.1 return a 400. Runs at the model's default effort.
     "structured": ("structured_model", None),
+    "scout":      ("scout_model", "scout_effort"),            # Data Scout catalog-search loop
     "sim":        ("sim_model", "sim_effort"),                # persona think/interpret
     "sim_judge":  ("sim_judge_model", "sim_judge_effort"),    # debrief, rating, reflection
     "code":       ("code_model", "code_effort"),              # feedback-loop drafting
@@ -35,7 +36,7 @@ SKILL_ROLE = {
     "data_quality": "reasoning", "leakage_detector": "leakage", "model_selector": "analysis",
     "join_auditor": "analysis", "feature_engineering": "general", "eda": "general",
     "nl_to_spark": "general", "mlops_review": "general", "experiment_tracker": "general",
-    "causal_inference": "analysis",
+    "causal_inference": "analysis", "problem_framer": "analysis", "data_scout": "scout",
 }
 
 _overrides: contextvars.ContextVar[dict] = contextvars.ContextVar("role_overrides", default={})

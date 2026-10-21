@@ -1,0 +1,100 @@
+{
+ "_meta": {
+  "dataset": "scout",
+  "skill": "data_scout",
+  "schema_version": "1.0",
+  "description": "Customer-level campaign effect. Exposure is keyed by email_hash and orders by customer_id: the join must go through the customer master (bridge), never exposure\u2194orders directly. Plans, forecasts, deprecated and temp tables, deliverability and cookie-level web sessions are look-alikes."
+ },
+ "input": {
+  "catalog": "retail_marketing",
+  "spec": {
+   "question": "Did the spring digital campaign increase customer purchases?",
+   "decision": {
+    "statement": "Expand the campaign",
+    "options": [
+     "expand",
+     "keep",
+     "stop"
+    ],
+    "criteria": "incremental margin exceeds spend",
+    "inputs_needed": [
+     "campaign spend",
+     "product margins"
+    ]
+   },
+   "questions": [
+    {
+     "id": "q1",
+     "type": "causal",
+     "statement": "Effect of receiving the spring digital campaign on purchases",
+     "primary": true,
+     "unit_of_analysis": "customer",
+     "population": "registered customers",
+     "outcome_concept": "net purchase amount in the 90 days after the campaign",
+     "exposure_concept": "received the spring digital campaign",
+     "comparison": "customers who did not receive it",
+     "time_window": "spring 2026"
+    }
+   ],
+   "assumptions": [],
+   "missing": [],
+   "clarifying_questions": [],
+   "answerability": {
+    "status": "answerable_with_gaps",
+    "reason": "benchmark input"
+   },
+   "status": "confirmed",
+   "required_checks": [
+    "data_quality",
+    "causal_inference"
+   ],
+   "confirmed_by": "benchmark",
+   "note": "",
+   "confirmed_at": "2026-10-21T00:00:00+00:00"
+  }
+ },
+ "required_tables": [
+  "demo.marketing.campaign_exposure",
+  "demo.sales.customer_orders",
+  "demo.crm.customers"
+ ],
+ "forbidden_tables": [
+  "demo.sales.sales_forecast",
+  "demo.sales.sales_daily_v1",
+  "demo.sales.tmp_orders_copy",
+  "demo.marketing.campaign_plan",
+  "demo.marketing.email_deliverability",
+  "demo.web.web_sessions"
+ ],
+ "required_roles": [
+  {
+   "concept_kind": "exposure",
+   "table": "demo.marketing.campaign_exposure"
+  },
+  {
+   "concept_kind": "outcome",
+   "table": "demo.sales.customer_orders"
+  }
+ ],
+ "required_joins": [
+  [
+   "demo.crm.customers",
+   "demo.marketing.campaign_exposure"
+  ],
+  [
+   "demo.crm.customers",
+   "demo.sales.customer_orders"
+  ]
+ ],
+ "forbidden_joins": [
+  [
+   "demo.marketing.campaign_exposure",
+   "demo.sales.customer_orders"
+  ]
+ ],
+ "required_gaps": [],
+ "acceptable_feasibility": [
+  "covered",
+  "partially_covered"
+ ]
+}

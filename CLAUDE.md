@@ -150,6 +150,9 @@ ds_workbench/              # Notebook import surface: `from ds_workbench import 
     causal_stats.py       #   SRM, balance, IPW, CUPED, DiD, event study, pre-trend, E-value
     readiness.py          #   assess(results) — the one readiness policy (see project rule 6)
     problem_spec.py       #   ProblemSpec rules: normalize(draft), required_checks(spec), confirm()
+    catalog.py            #   Catalog interface (search/describe/lineage, metadata only) + SyntheticCatalog
+    scout.py              #   Data Scout rules: concepts_from_spec, validate_report (no invented names)
+  catalogs/               # synthetic catalog fixtures (retail_marketing.json: 17 tables incl. decoys)
 
 skills/                   # Pure Python — no Dash dependency. Called by pages, agents,
                           # AND importable directly from Databricks notebooks.
@@ -164,6 +167,7 @@ skills/                   # Pure Python — no Dash dependency. Called by pages,
   experiment_tracker.py   # interpret(metrics) → verdict, findings, next steps
   causal_inference.py     # analyze(df, treatment, outcome) / did(...) → verdict, estimate, findings
   problem_framer.py       # frame(question, context) → ProblemSpec draft (types, gaps, answerability)
+  data_scout.py           # scout(spec, catalog) → ranked shortlist, roles, join keys, coverage (metadata only)
   api_retry.py            # shared client, api_call/check_response, strict_tool, tool_input, call_context
   models.py               # role() → model + effort per role; override_roles() for sweeps
   usage.py                # usage ledger (every call: user, skill, run, tokens, cost); Delta export
@@ -253,6 +257,7 @@ the go/no-go decision is always front and center before charts or tables.
 | `experiment_tracker` | Experiment Tracker | `skills/experiment_tracker.interpret()` | ✓ |
 | `causal_inference` | Causal Inference (A/B + observational) | `skills/causal_inference.analyze()` | ✓ |
 | `problem_framer` | Problem Framer (question → ProblemSpec) | `skills/problem_framer.frame()` | ✓ |
+| `data_scout` | Data Scout (spec → candidate datasets, metadata only) | `skills/data_scout.scout()` | ✓ |
 
 The first 8 skills plus `experiment_tracker` (training metrics come from the notebook) and
 `preflight` are importable via `from ds_workbench import <skill>` (see `ds_workbench/__init__.py`).
@@ -296,6 +301,7 @@ Benchmark cases (30, all synthetic; `.venv/bin/python benchmarks/runner.py --lis
 | `renewal_timing` | leakage ×2 | same data and column notes, two prediction points: `support_tickets_mtd` leaks scoring on the 1st, legitimate on the 15th |
 | `clinical_small_wide` | model | n/p ≈ 3.4: regularised model + CV, not boosting + holdout |
 | `experiment_metrics` (×4) | experiment tracker | leakage, overfitting, imbalance, healthy (no false alarms) |
+| `scout` (×5) | data scout | `retail_marketing` catalog: shortlist recall, look-alikes rejected (forecast, plan, deprecated, temp), bridge join via the customer master, coverage gap when the data doesn't exist. Each case also scores plain keyword search as a baseline |
 | `framing` (×12) | problem framer | question type and answerability; negatives must stop or ask (not launched, no comparison group, too vague). A wrong type or answerability fails the case |
 | `ab_test_clean`, `ab_test_srm`, `ab_test_bad_control`, `ab_test_underpowered` | causal | clean, sample-ratio mismatch, post-treatment control, underpowered — known true effects |
 | `observational_coupon` | causal | confounded targeting; naive gap ~9× the truth |

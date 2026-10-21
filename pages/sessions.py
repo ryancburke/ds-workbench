@@ -72,6 +72,21 @@ def _framing_line(f: dict | None):
     ], className="mb-2")
 
 
+def _scout_line(s: dict | None):
+    if not s:
+        return html.Div()
+    colour = {"covered": "success", "partially_covered": "warning"}.get(s["feasibility"], "danger")
+    return html.Div([
+        html.Strong("Data: ", className="small"),
+        dbc.Badge((s["feasibility"] or "?").replace("_", " "), color=colour, className="me-1"),
+        html.Span(f"investigate {', '.join(t.split('.')[-1] for t in s['investigate']) or 'nothing'}"
+                  + (f" · rejected {len(s['rejected'])}" if s["rejected"] else "")
+                  + f" · {s['catalog']} catalog, metadata only", className="small"),
+        html.Div("No data found for: " + ", ".join(s["coverage_gaps"]), className="small text-warning")
+        if s["coverage_gaps"] else html.Div(),
+    ], className="mb-2")
+
+
 def _session_item(row: dict) -> dbc.AccordionItem:
     color = _ATTENTION[row["attention"]][0]
     label = "Not started" if row["attention"] == "grey" else row["verdict_label"]
@@ -95,6 +110,7 @@ def _session_item(row: dict) -> dbc.AccordionItem:
         html.Div([html.Strong("Data: ", className="small"),
                   html.Span(", ".join(row["datasets"] or []) or "—", className="small")], className="mb-2"),
         _framing_line(row.get("framing")),
+        _scout_line(row.get("scout")),
         html.Div([html.Strong("Prediction point: ", className="small"),
                   html.Span(row.get("prediction_point") or "not set", className="small")], className="mb-2"),
         html.Div(row["leakage_caveat"], className="small text-warning mb-2") if row.get("leakage_caveat") else html.Div(),

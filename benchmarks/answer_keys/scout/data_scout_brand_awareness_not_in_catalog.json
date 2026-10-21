@@ -1,0 +1,65 @@
+{
+ "_meta": {
+  "dataset": "scout",
+  "skill": "data_scout",
+  "schema_version": "1.0",
+  "description": "NEGATIVE: brand awareness (survey) and TV exposure aren't in the catalog. The scout must report both as not covered rather than mapping sales or web sessions onto them."
+ },
+ "input": {
+  "catalog": "retail_marketing",
+  "spec": {
+   "question": "Did the TV campaign raise brand awareness?",
+   "decision": {
+    "statement": "",
+    "options": [],
+    "criteria": "",
+    "inputs_needed": []
+   },
+   "questions": [
+    {
+     "id": "q1",
+     "type": "causal",
+     "statement": "Effect of the TV campaign on brand awareness",
+     "primary": true,
+     "unit_of_analysis": "region",
+     "population": "adults in the target regions",
+     "outcome_concept": "brand awareness measured by survey",
+     "exposure_concept": "TV campaign airing (GRPs) by region",
+     "comparison": "regions without TV airing",
+     "time_window": "Q2 2026"
+    }
+   ],
+   "assumptions": [],
+   "missing": [],
+   "clarifying_questions": [],
+   "answerability": {
+    "status": "answerable_with_gaps",
+    "reason": "benchmark input"
+   },
+   "status": "confirmed",
+   "required_checks": [
+    "data_quality",
+    "causal_inference"
+   ],
+   "confirmed_by": "benchmark",
+   "note": "",
+   "confirmed_at": "2026-10-21T00:00:00+00:00"
+  }
+ },
+ "required_tables": [],
+ "forbidden_tables": [
+  "demo.sales.sales_forecast",
+  "demo.sales.sales_daily_v1",
+  "demo.sales.tmp_orders_copy"
+ ],
+ "required_roles": [],
+ "required_joins": [],
+ "forbidden_joins": [],
+ "required_gaps": [
+  "outcome",
+  "exposure"
+ ],
+ "acceptable_feasibility": [
+  "not_covered"
+ ]
+}

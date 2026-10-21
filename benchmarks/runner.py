@@ -259,7 +259,7 @@ def _get_benchmarks() -> list[dict]:
             "run_kwargs": {},
         }
         for case in ("leakage", "overfitting", "imbalance", "healthy")
-    ] + _causal_benchmarks() + _framing_benchmarks()
+    ] + _causal_benchmarks() + _framing_benchmarks() + _scout_benchmarks()
 
 
 def _causal_benchmarks() -> list[dict]:
@@ -286,6 +286,22 @@ def _framing_benchmarks() -> list[dict]:
                     "skill": "problem_framer", "df_fn": lambda ci=case_input: ci,
                     "run_fn": _run_pf, "run_kwargs": {}})
     return out
+
+
+def _scout_benchmarks() -> list[dict]:
+    """Data Scout cases: a fixed, confirmed spec scouted against a synthetic catalog fixture."""
+    out = []
+    for path in sorted((BENCHMARKS_DIR / "answer_keys" / "scout").glob("data_scout_*.json")):
+        case_input = json.loads(path.read_text())["input"]
+        out.append({"id": f"scout/{path.stem}", "dataset": "scout", "benchmark": path.stem,
+                    "skill": "data_scout", "df_fn": lambda ci=case_input: ci, "run_fn": _run_ds, "run_kwargs": {}})
+    return out
+
+
+def _run_ds(case_input: dict) -> dict:
+    from ds_workbench.core.catalog import SyntheticCatalog
+    from skills.data_scout import scout
+    return scout(spec=case_input["spec"], catalog=SyntheticCatalog.load(case_input["catalog"]))
 
 
 def _run_pf(case_input: dict) -> dict:

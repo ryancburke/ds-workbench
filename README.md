@@ -93,6 +93,20 @@ spec = problem_framer.frame("Did our spring campaign increase sales, and should 
 session.confirm_spec(note="Exposure = received the campaign email")   # recommended
 ```
 
+**Then find the data.** `data_scout.scout()` searches the catalog for tables that could measure
+each concept in the spec, reading metadata only (names, types, comments, tags, owners,
+freshness, lineage), never rows. It returns a ranked shortlist (investigate / maybe / reject,
+with reasons for each rejected look-alike), the columns that would measure each concept,
+candidate join keys, assumptions a domain expert should confirm, and which concepts no table
+covers. Every table, column and join it reports is checked in code against what the catalog
+returned, so it can't invent one. Join keys are unverified until audited against the data.
+
+```python
+from ds_workbench import data_scout
+
+report = data_scout.scout(session=session)   # CATALOG_BACKEND=synthetic uses ds_workbench/catalogs/
+```
+
 ```python
 from ds_workbench import WorkflowSession, data_quality, leakage_detector, feature_engineering, model_selector, preflight
 
@@ -222,6 +236,9 @@ Everything is read from `.env` by `config.py`; see `.env.example`.
 | `ANTHROPIC_BASE_URL` | — | an approved gateway or proxy |
 | `LOCAL_DEV_MODE` | `true` | synthetic data instead of Databricks |
 | `SIM_INTERVAL_HOURS` | `0` (manual) | scheduled simulations |
+| `CATALOG_BACKEND` / `CATALOG_FIXTURE` | `synthetic` / `retail_marketing` | where the Data Scout searches |
+| `REQUIRE_CONFIRMED_SPEC` | `false` | require `session.confirm_spec()` before scouting |
+| `SCOUT_MODEL` / `_EFFORT` | Sonnet 5.5 / medium | Data Scout search loop |
 | `REASONING_MODEL` / `_EFFORT` | Sonnet 5.5 / high | data quality |
 | `LEAKAGE_MODEL` / `_EFFORT` | Opus 5.5 / medium | leakage detection |
 | `ANALYSIS_MODEL` / `_EFFORT` | Sonnet 5.5 / high | model selection, join auditing |

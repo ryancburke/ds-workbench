@@ -1,0 +1,67 @@
+{
+ "_meta": {
+  "dataset": "scout",
+  "skill": "data_scout",
+  "schema_version": "1.0",
+  "description": "Customer spend history for a descriptive question. The deprecated daily-sales table and the temp copy match the words best; the certified order lines are right."
+ },
+ "input": {
+  "catalog": "retail_marketing",
+  "spec": {
+   "question": "How much did each customer spend per month in 2025?",
+   "decision": {
+    "statement": "",
+    "options": [],
+    "criteria": "",
+    "inputs_needed": []
+   },
+   "questions": [
+    {
+     "id": "q1",
+     "type": "descriptive",
+     "statement": "Monthly net spend per customer in 2025",
+     "primary": true,
+     "unit_of_analysis": "customer",
+     "population": "registered customers",
+     "outcome_concept": "monthly net spend",
+     "time_window": "2025"
+    }
+   ],
+   "assumptions": [],
+   "missing": [],
+   "clarifying_questions": [],
+   "answerability": {
+    "status": "answerable_with_gaps",
+    "reason": "benchmark input"
+   },
+   "status": "confirmed",
+   "required_checks": [
+    "data_quality"
+   ],
+   "confirmed_by": "benchmark",
+   "note": "",
+   "confirmed_at": "2026-10-21T00:00:00+00:00"
+  }
+ },
+ "required_tables": [
+  "demo.sales.customer_orders"
+ ],
+ "forbidden_tables": [
+  "demo.sales.sales_forecast",
+  "demo.sales.sales_daily_v1",
+  "demo.sales.tmp_orders_copy"
+ ],
+ "required_roles": [
+  {
+   "concept_kind": "outcome",
+   "table": "demo.sales.customer_orders"
+  }
+ ],
+ "required_joins": [],
+ "forbidden_joins": [],
+ "required_gaps": [],
+ "acceptable_feasibility": [
+  "covered",
+  "partially_covered"
+ ]
+}
