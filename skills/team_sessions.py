@@ -37,9 +37,11 @@ def _read() -> dict:
 
 
 def save_session(session_id: str, *, owner: str, question: str, datasets: list[str],
-                 results: dict, runs: list[dict], source: str, started_at: str | None = None) -> dict:
+                 results: dict, runs: list[dict], source: str, started_at: str | None = None,
+                 prediction_point: str = "", confirmations: list[dict] | None = None) -> dict:
     """Create or update one session. `results` maps skill → its latest result dict;
-    `runs` lists every run in order ({skill, label, ts, status, run_id})."""
+    `runs` lists every run in order ({skill, label, ts, status, run_id}); `confirmations` are
+    people's availability confirmations, kept apart from the skill results."""
     with _lock:
         data = _read()
         sessions = data["sessions"]
@@ -50,6 +52,8 @@ def save_session(session_id: str, *, owner: str, question: str, datasets: list[s
             "updated_at": _now(),
             "results": {k: _jsonable(v) for k, v in results.items()},
             "runs": runs,
+            "prediction_point": prediction_point,
+            "confirmations": list(confirmations or []),
         }
         if existing:
             sessions[sessions.index(existing)] = record
@@ -122,7 +126,7 @@ def summarize_session(session: dict) -> dict:
     """The session's readiness comes from the shared policy (ds_workbench.core.readiness);
     this only adds presentation: gate chips, attention colour and per-step headlines."""
     results = session.get("results", {})
-    readiness = assess(results)
+    readiness = assess(results, confirmations=session.get("confirmations"))
     checks = readiness["checks"]
     gate_skills = [*GATES, *(["causal_inference"] if "causal_inference" in results else [])]
     gates = {g: _GATE_FROM_STATE[checks[g]["state"]] if g in checks else "skipped" for g in gate_skills}
@@ -135,6 +139,8 @@ def summarize_session(session: dict) -> dict:
         "gates": gates, "missing": readiness["missing"], "failed": readiness["failed"],
         "blockers": readiness["blockers"], "n_blockers": len(readiness["blockers"]),
         "n_cautions": len(readiness["cautions"]), "summary": readiness["summary"],
+        "confirmed": readiness["confirmed"], "prediction_point": session.get("prediction_point", ""),
+        "leakage_caveat": (results.get("leakage_detector") or {}).get("caveat", ""),
         "headlines": [{"skill": s, "line": headline(s, results[s])} for s in seen if s in results],
     }
 

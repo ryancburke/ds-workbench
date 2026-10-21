@@ -587,6 +587,11 @@ def _match_required_leakage_finding(output_finding: dict, spec: dict) -> bool:
     if acceptable_types and leakage_type not in acceptable_types:
         return False
 
+    # Timing cases: the leak must be established by timing, not only by its signal
+    evidence_types = spec.get("acceptable_evidence_types")
+    if evidence_types and output_finding.get("evidence_type", "statistical") not in evidence_types:
+        return False
+
     if "min_severity" in spec:
         if not _at_least_as_severe(sev, spec["min_severity"]):
             return False

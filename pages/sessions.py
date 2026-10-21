@@ -71,9 +71,16 @@ def _session_item(row: dict) -> dbc.AccordionItem:
     blockers = [html.Li([html.Code(b.get("source", ""), className="me-1"),
                          (b.get("column") + ": ") if b.get("column") not in (None, "—", "?") else "",
                          b.get("issue", "")], className="small") for b in row["blockers"][:5]]
+    confirmed = [html.Li([html.Code(c["column"], className="me-1"),
+                          f"confirmed available by {c['confirmed_by']} on {c['confirmed_at'][:10]}: “{c['note']}”",
+                          html.Span(f" (was {c['was']})", className="text-muted")], className="small")
+                 for c in row.get("confirmed", [])]
     body = html.Div([
         html.Div([html.Strong("Data: ", className="small"),
                   html.Span(", ".join(row["datasets"] or []) or "—", className="small")], className="mb-2"),
+        html.Div([html.Strong("Prediction point: ", className="small"),
+                  html.Span(row.get("prediction_point") or "not set", className="small")], className="mb-2"),
+        html.Div(row["leakage_caveat"], className="small text-warning mb-2") if row.get("leakage_caveat") else html.Div(),
         html.Div([html.Strong("Required checks: ", className="small text-warning"),
                   html.Span("; ".join([f"{m.replace('_', ' ')} not run" for m in row["missing"]]
                                       + [f"{f['skill'].replace('_', ' ')} failed — {f['error'][:90]}"
@@ -82,6 +89,8 @@ def _session_item(row: dict) -> dbc.AccordionItem:
         html.Div([html.Strong("Blocking", className="small text-danger"),
                   html.Ul(blockers, className="mb-2")]) if blockers else
         html.P("Nothing blocking.", className="small text-success mb-2"),
+        html.Div([html.Strong("Confirmed by a person (info)", className="small text-info"),
+                  html.Ul(confirmed, className="mb-2")]) if confirmed else html.Div(),
         html.Strong("What each step concluded", className="small"),
         html.Ol([html.Li([html.Code(h["skill"], className="me-2"), h["line"]], className="small")
                  for h in row["headlines"]], className="mb-1"),

@@ -15,6 +15,11 @@ _LD_ROW_STYLE     = {"critical": {"borderLeft": "3px solid #dc3545"},
                      "warning":  {"borderLeft": "3px solid #ffc107"}}
 
 
+def _detail(f: dict) -> str:
+    """Leakage findings carry their reasoning in `evidence` (older results used `description`)."""
+    return f.get("evidence") or f.get("description", "")
+
+
 def _ld_verdict_hero(result: dict) -> dbc.Alert:
     verdict  = result.get("verdict", "clean")
     risk     = result.get("risk_level", "none")
@@ -34,7 +39,7 @@ def _ld_verdict_hero(result: dict) -> dbc.Alert:
     ]
     if critical:
         children.append(html.Ul(
-            [html.Li(f.get("description", "")[:80], className="small") for f in critical[:3]],
+            [html.Li(f"{f.get('column', '')}: {_detail(f)}"[:80], className="small") for f in critical[:3]],
             className="mb-0 mt-1 ps-3",
         ))
     return dbc.Alert(children, color=color, className="py-2 mb-3")
@@ -53,7 +58,7 @@ def _ld_top_blockers(findings: list) -> dbc.Card | None:
                     className="text-muted small"),
             html.Td(f"{corr:.3f}" if corr is not None else "—",
                     className="small font-monospace"),
-            html.Td(f.get("description", ""), className="small"),
+            html.Td(_detail(f), className="small"),
             html.Td(f.get("recommendation", ""), className="small text-muted"),
         ], style={"borderLeft": "3px solid #dc3545"}))
     return dbc.Card([
@@ -96,7 +101,7 @@ def _ld_dq_xref(ld_findings: list, dq_findings: list) -> dbc.Card | None:
                               className="me-1 small")),
             html.Td(dbc.Badge(f"DQ: {dq_sev}", color=DQ_SEV_COLOR.get(dq_sev, "secondary"),
                               className="small")),
-            html.Td(ld_f.get("description", "")[:60], className="small"),
+            html.Td(_detail(ld_f)[:60], className="small"),
             html.Td(dq_f.get("description", "")[:60], className="small text-muted"),
         ]))
     return dbc.Card([
@@ -132,12 +137,13 @@ def _ld_render(result: dict, dq_findings: list | None = None) -> html.Div:
         rows.append(html.Tr([
             html.Td(dbc.Badge(sev.upper(), color=_LD_SEV_COLOR.get(sev, "secondary"))),
             html.Td(html.Code(f.get("column", "—"), style={"fontSize": "0.78rem"})),
-            html.Td(f.get("leakage_type", "").replace("_", " ").title(),
+            html.Td([f.get("leakage_type", "").replace("_", " ").title(),
+                     html.Div(f"{f.get('evidence_type', 'statistical')} evidence", style={"fontSize": "0.65rem"})],
                     className="text-muted small"),
             html.Td(f"{corr:.3f}" if corr is not None else "—",
                     className="small font-monospace"),
             html.Td([
-                html.Div(f.get("description", ""), className="small"),
+                html.Div(_detail(f), className="small"),
                 html.Div(f.get("recommendation", ""), className="small text-muted mt-1"),
             ]),
         ], style=_LD_ROW_STYLE.get(sev, {})))
@@ -147,6 +153,7 @@ def _ld_render(result: dict, dq_findings: list | None = None) -> html.Div:
 
     return html.Div([
         _ld_verdict_hero(result),
+        dbc.Alert(result["caveat"], color="warning", className="py-2 small mb-3") if result.get("caveat") else html.Div(),
         top_blockers or html.Div(),
         dq_xref      or html.Div(),
         html.P(summary, className="small mb-3") if summary else html.Div(),

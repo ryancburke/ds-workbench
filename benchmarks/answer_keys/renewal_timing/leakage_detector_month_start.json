@@ -1,0 +1,61 @@
+{
+  "_meta": {
+    "dataset": "renewal_timing",
+    "skill": "leakage_detector",
+    "schema_version": "1.0",
+    "target_col": "churned",
+    "generator": "databricks_client._gen_renewal_timing(n=2000)",
+    "prediction_point": "month_start",
+    "description": "Scored on the 1st: support_tickets_mtd counts tickets from the 1st-14th, which don't exist yet. It must be called critical leakage on timing evidence (the column notes plus the prediction point), not only on its signal. retention_offer_code leaks at any prediction point."
+  },
+  "expected_verdict": "leakage_detected",
+  "required_findings": [
+    {
+      "id": "tickets_mtd_temporal",
+      "column_hint": "support_tickets_mtd",
+      "acceptable_leakage_types": [
+        "temporal",
+        "proxy",
+        "high_correlation"
+      ],
+      "min_severity": "critical",
+      "acceptable_evidence_types": [
+        "timing"
+      ],
+      "note": "Tickets from the 1st-14th are recorded after a 1st-of-month prediction point."
+    },
+    {
+      "id": "retention_offer_proxy",
+      "column_hint": "retention_offer",
+      "acceptable_leakage_types": [
+        "proxy",
+        "temporal",
+        "direct",
+        "high_correlation"
+      ],
+      "min_severity": "critical",
+      "note": "Set by the cancellation flow: exists only after the outcome, at either prediction point."
+    }
+  ],
+  "forbidden_findings": [
+    {
+      "id": "tenure_not_leakage",
+      "column_hint": "tenure_months",
+      "max_severity": "warning",
+      "note": "Known before the prediction point at either time."
+    },
+    {
+      "id": "spend_not_leakage",
+      "column_hint": "monthly_spend",
+      "max_severity": "warning",
+      "note": "Plan price; known at either time."
+    },
+    {
+      "id": "last_login_not_leakage",
+      "column_hint": "last_login_days",
+      "max_severity": "warning",
+      "note": "Measured as of the 1st, so available at either prediction point."
+    }
+  ],
+  "max_total_findings": 6
+}

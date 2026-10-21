@@ -19,6 +19,9 @@
 6. **Readiness is computed in one place:** `ds_workbench.core.readiness.assess()`. Preflight,
    the Sessions page, the Workbench strip, pipeline-health card and session digest all call it
    and only decide how to display the result. Don't add readiness rules anywhere else.
+   Availability confirmations (`WorkflowSession.confirm_available`) are the user's judgment,
+   never the model's: they're passed to `assess()` separately, need a note, and apply only to
+   the exact (column, dataset, prediction point) they were made for.
    Statuses: `blocked` (critical findings) > `incomplete` (missing/failed mandatory check) >
    `caution` (warnings) > `ready_for_review` (every mandatory check ran clean). Mandatory checks:
    data quality + leakage for modelling work; data quality + causal for causal-only work.
@@ -281,6 +284,7 @@ Benchmark cases (30, all synthetic; `.venv/bin/python benchmarks/runner.py --lis
 | `customer_accounts` | DQ | hidden issues: '' / 'N/A' placeholders, sentinels, future dates, padded codes, units |
 | `ecommerce_leakage` | leakage | two planted leaks |
 | `subscription_churn` | leakage | disguised leaks: neutral-named status code, non-linear index (r=0.11, AUC=1.0), zero-for-one-class credit |
+| `renewal_timing` | leakage ×2 | same data and column notes, two prediction points: `support_tickets_mtd` leaks scoring on the 1st, legitimate on the 15th |
 | `clinical_small_wide` | model | n/p ≈ 3.4: regularised model + CV, not boosting + holdout |
 | `experiment_metrics` (×4) | experiment tracker | leakage, overfitting, imbalance, healthy (no false alarms) |
 | `ab_test_clean`, `ab_test_srm`, `ab_test_bad_control`, `ab_test_underpowered` | causal | clean, sample-ratio mismatch, post-treatment control, underpowered — known true effects |
