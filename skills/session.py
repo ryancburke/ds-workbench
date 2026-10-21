@@ -86,6 +86,8 @@ class WorkflowSession:
         self.spec: dict | None = None
         self.scout: dict | None = None
         self.selection: dict | None = None
+        self.analysis_table = None            # the DataFrame you built from the plan's recipe
+        self.method_override: str | None = None
         self.required_checks = list(required_checks) if required_checks is not None else None
         if self.required_checks is not None:
             _validate({}, self.required_checks)      # fail fast on an unknown or empty list
@@ -112,6 +114,74 @@ class WorkflowSession:
         self.scout = dict(report)
         if self.persist:
             self._save()
+
+    # ── Investigation plan (ds_workbench.core.plan) ────────────────────────────
+
+    def _state(self) -> dict:
+        df = self.analysis_table
+        return {"spec": self.spec, "scout": self.scout, "selection": self.selection,
+                "results": dict(self._results),
+                "analysis_table": ({"name": "analysis_table", "columns": list(df.columns), "rows": len(df)}
+                                   if df is not None else None)}
+
+    def plan(self):
+        """The investigation plan for this session's question: ordered steps with their status,
+        the causal method (if any) and why, the analysis-table recipe and column contract, and
+        the next action. Its mandatory checks are declared as this session's required checks."""
+        from ds_workbench.core.plan import build_plan
+        from skills.result import SkillResult
+        p = build_plan(self._state())
+        if self.method_override and p["method"]:
+            p["method"] = {"method": self.method_override, "why": "chosen by you (method_override)"}
+            for s in p["steps"]:
+                if s["skill"] == "causal_inference":
+                    s["method"] = self.method_override
+        if self.spec:
+            from ds_workbench.core.problem_spec import required_checks
+            self.required_checks = list(dict.fromkeys([*required_checks(self.spec), *p["required_checks"]]))
+        return SkillResult(p, skill="investigation_plan")
+
+    def next(self) -> dict:
+        """The next action, as text: run a step, do a human step, fix a failure, or done."""
+        return self.plan()["next"]
+
+    def run_next(self, df=None, **kwargs):
+        """Run the plan's next step.
+
+        Model steps run with arguments taken from the plan (spec, contract, selection); pass
+        keyword arguments to override them. The two human steps stay human: select tables with
+        select_tables(); build the analysis table from the recipe and pass it here as df.
+        """
+        p = self.plan()
+        nxt = p["next"]
+        step = next((s for s in p["steps"] if s["id"] == nxt["step"]), None)
+        if step is None:
+            raise ValueError(nxt["text"])
+        if nxt["kind"] in ("fix", "stop"):
+            raise ValueError(nxt["text"])
+        if step["id"] == "select":
+            raise ValueError("Choosing tables is your call: session.select_tables([...], note=...)")
+        if step["id"] == "assemble":
+            if df is None:
+                raise ValueError("Build the analysis table from the plan's recipe, then run_next(df)")
+            return self.set_analysis_table(df)
+        return _run_step(self, step, p, df, kwargs)
+
+    def set_analysis_table(self, df):
+        """Register the analysis table you built; its columns must meet the plan's contract."""
+        from ds_workbench.core.plan import build_plan
+        state = self._state()
+        state["analysis_table"] = {"name": "analysis_table", "columns": list(df.columns), "rows": len(df)}
+        p = build_plan(state)
+        missing = [v for v in p["contract"].values() if not v.startswith("<") and " " not in v
+                   and v not in df.columns]
+        if missing:
+            raise ValueError(f"The analysis table is missing contract column(s) {missing}; "
+                             f"expected: {p['contract']}")
+        self.analysis_table = df
+        if self.persist:
+            self._save()
+        return self.plan()
 
     def select_tables(self, tables: list[str], note: str = "") -> dict:
         """Choose which tables to verify and analyse (your call, not the scout's). Recorded
@@ -209,7 +279,7 @@ class WorkflowSession:
                 datasets=self.datasets, results=dict(self._results), runs=self._runs, source="notebook",
                 prediction_point=self.prediction_point, confirmations=self.confirmations,
                 required_checks=self.required_checks, spec=self.spec, scout=self.scout,
-                selection=self.selection)
+                selection=self.selection, analysis_table=self._state()["analysis_table"])
         except Exception:
             pass  # persistence must never break an analysis
 
@@ -290,6 +360,65 @@ class WorkflowSession:
         ran = list(self._results.keys())
         ctx = f" | context: '{self.context}'" if self.context else ""
         return f"WorkflowSession({len(ran)} completed: {', '.join(ran) or 'none'}{ctx})"
+
+
+def _run_step(session, step: dict, plan: dict, df, overrides: dict):
+    """Call the skill a plan step names, with arguments from the plan; overrides win."""
+    from ds_workbench.core.problem_spec import primary_question
+    sk = step["skill"]
+    spec = session.spec or {}
+    question = spec.get("question") or session.context
+    table = session.analysis_table if df is None else df
+    if sk == "frame":
+        from skills.problem_framer import frame
+        return frame(overrides.pop("question", question), session=session, **overrides)
+    if sk == "scout":
+        from skills.data_scout import scout
+        return scout(session=session, **overrides)
+    if sk == "data_verification":
+        from skills.data_verification import verify
+        return verify(session=session, **overrides)
+    if table is None:
+        raise ValueError("No analysis table yet: build it from the plan's recipe and run_next(df)")
+    if sk == "data_quality":
+        from skills.data_quality import assess
+        return assess(table, table_name=overrides.pop("table_name", "analysis_table"), session=session, **overrides)
+    if sk == "causal_inference":
+        from skills import causal_inference
+        if step.get("method") == "did":
+            kwargs = {"outcome_col": "outcome", "group_col": "treated_group", "time_col": "period",
+                      "unit_col": "unit_id" if "unit_id" in table.columns else None, "context": question}
+            kwargs.update(overrides)
+            if "treatment_start" not in kwargs:
+                raise ValueError("Difference-in-differences needs treatment_start: run_next(treatment_start=...)")
+            return causal_inference.did(table, session=session, **kwargs)
+        reserved = {"treated", "outcome", "outcome_pre"}
+        randomized = step.get("randomized")
+        covariates = [c for c in table.columns if c not in reserved and table[c].nunique() > 1 and not c.endswith("_id")]
+        # Without randomisation the pre-period outcome is the best proxy for how units were chosen:
+        # adjust for it, don't only use it for variance reduction
+        if randomized is not True and "outcome_pre" in table.columns:
+            covariates.append("outcome_pre")
+        kwargs = {"treatment_col": "treated", "outcome_col": "outcome", "covariates": covariates,
+                  "pre_outcome_col": "outcome_pre" if "outcome_pre" in table.columns else None,
+                  "randomized": randomized, "context": question}
+        kwargs.update(overrides)
+        return causal_inference.analyze(table, session=session, **kwargs)
+    target = overrides.pop("target_col", "target")
+    if sk == "leakage_detector":
+        from skills.leakage_detector import check
+        q = primary_question(spec)
+        return check(table, target, session=session, prediction_point=q.get("prediction_point", ""), **overrides)
+    if sk == "feature_engineering":
+        from skills.feature_engineering import suggest
+        return suggest(table, target, session=session, **overrides)
+    if sk == "model_selector":
+        from skills.model_selector import select
+        return select(table, target, session=session, **overrides)
+    if sk == "eda":
+        from skills.eda import analyze
+        return analyze(table, table_name=overrides.pop("table_name", "analysis_table"), session=session, **overrides)
+    raise ValueError(f"No runner for step {step['id']}")
 
 
 # ── Standalone digest builder (used by WorkflowSession.digest and Dash card) ──

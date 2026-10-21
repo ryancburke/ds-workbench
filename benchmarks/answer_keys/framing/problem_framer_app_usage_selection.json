@@ -40,5 +40,8 @@
       "retention",
       "cancel"
     ]
-  }
+  },
+  "assignment": [
+    "not_randomized"
+  ]
 }

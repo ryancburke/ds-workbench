@@ -1177,7 +1177,37 @@ def _render_data_verification(r: dict) -> str:
     )
 
 
+def _render_investigation_plan(r: dict) -> str:
+    from html import escape as e
+    nxt = r.get("next", {})
+    style = {"complete": "success", "fix": "danger", "stop": "danger"}.get(nxt.get("kind"), "info")
+    hero = _verdict_hero("Investigation plan", f"{r.get('done', 0)}/{r.get('total', 0)} STEPS", style,
+                         items=[f"Next: {e(nxt.get('text', ''))}"],
+                         subtitle=f"{r.get('question_type') or '?'} question")
+    icon = {"done": "✅", "ready": "▶️", "waiting": "⏳", "failed": "❌", "blocked": "⛔", "unavailable": "🚫"}
+    rows = "".join(
+        f'<tr><td>{icon.get(st["status"], "")} {e(st["status"])}</td>'
+        f'<td><strong>{e(st["id"])}</strong>{" 🧑" if st.get("human") else ""}'
+        f'{"" if st["mandatory"] else " <span class=wr-muted>(optional)</span>"}</td>'
+        f'<td>{e(st["skill"])}{" · " + e(st["method"]) if st.get("method") else ""}</td>'
+        f'<td class="wr-muted">{e(st["why"])}</td></tr>' for st in r.get("steps", []))
+    recipe = "".join(f"<li>{e(x)}</li>" for x in r.get("recipe", []))
+    contract = "".join(f'<li><span class="wr-mono">{e(k)}</span>: {e(v)}</li>' for k, v in (r.get("contract") or {}).items())
+    method = r.get("method") or {}
+    return (
+        hero
+        + '<div class="wr-header"><span>🗺 Investigation plan</span></div><div class="wr-body">'
+        + f'<table class="wr-tbl"><thead><tr><th>Status</th><th>Step</th><th>Skill</th><th>Why</th></tr></thead>'
+          f"<tbody>{rows}</tbody></table>"
+        + (f'<p><strong>Method: {e(method["method"])}</strong> — {e(method["why"])}</p>' if method else "")
+        + (f"<p><strong>Build the analysis table</strong> (you run this)</p><ol>{recipe}</ol>" if recipe else "")
+        + (f"<p><strong>Columns it must have</strong></p><ul>{contract}</ul>" if contract else "")
+        + '<p class="wr-muted">Required checks: ' + e(", ".join(r.get("required_checks", []))) + "</p></div>"
+    )
+
+
 _RENDERERS = {
+    "investigation_plan":  _render_investigation_plan,
     "data_verification":   _render_data_verification,
     "data_scout":          _render_data_scout,
     "problem_framer":      _render_problem_framer,

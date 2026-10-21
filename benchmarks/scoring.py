@@ -1054,9 +1054,13 @@ def score_problem_framer(output: dict, answer_key: dict, benchmark_id: str | Non
         notes.append(f"CONCEPT '{f}' not named as expected: got {pq.get(f)!r}")
     concept_frac = len(concept_hits) / len(concepts) if concepts else 1.0
 
+    # How the exposure was assigned decides the estimation method: wrong is a failure
+    assign_ok = "assignment" not in answer_key or pq.get("assignment") in answer_key["assignment"]
+    if not assign_ok:
+        notes.append(f"ASSIGNMENT WRONG: got {pq.get('assignment')!r}, expected one of {answer_key['assignment']}")
     overall = (40 * type_ok * (0.75 if missing_types else 1.0) + 25 * ans_ok
-               + 20 * mention_frac + 15 * concept_frac)
-    passed = type_ok and ans_ok and overall >= 70
+               + 20 * mention_frac + 15 * concept_frac * assign_ok)
+    passed = type_ok and ans_ok and assign_ok and overall >= 70
     return ScoreResult(
         benchmark_id=bid, overall=round(overall, 1), passed=passed,
         components={"type_correct": type_ok, "answerability_correct": ans_ok,

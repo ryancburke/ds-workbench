@@ -98,6 +98,7 @@ def verify_tables(catalog, tables: list[str], scout: dict | None = None, spec: d
             "time_column": time_col,
             "time_range": [cols[time_col]["min"], cols[time_col]["max"]] if time_col else None,
             "roles": sorted({_kind(r) for r in roles}),
+            "date_columns": [name for name, c in cols.items() if isinstance(c["min"], str) and _day(c["min"])],
             "mapped_columns": {r["column"]: cols.get(r["column"]) for r in roles},
         }
 

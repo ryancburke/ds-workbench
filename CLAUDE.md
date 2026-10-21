@@ -154,6 +154,8 @@ ds_workbench/              # Notebook import surface: `from ds_workbench import 
                           #   (aggregates) + sample (capped); SyntheticCatalog
     scout.py              #   Data Scout rules: concepts_from_spec, validate_report (no invented names)
     verify.py             #   verify_tables: freshness, column fill, join match/cardinality, temporal alignment
+    plan.py               #   build_plan(state): steps per question type, status, next action, causal method,
+                          #   analysis-table recipe + column contract (deterministic, recomputed each time)
   catalogs/               # synthetic catalog fixtures (retail_marketing.json: 17 tables incl. decoys)
                           # + retail_marketing_data.py: rows with planted problems for verification
 

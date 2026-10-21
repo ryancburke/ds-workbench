@@ -24,6 +24,7 @@ from datetime import datetime, timezone
 
 QUESTION_TYPES = ("descriptive", "diagnostic", "predictive", "causal", "optimization")
 ANSWERABILITY = ("answerable", "answerable_with_gaps", "needs_clarification", "not_answerable_as_posed")
+ASSIGNMENT = ("randomized", "not_randomized", "unknown")     # how a causal exposure was assigned
 
 # Checks each kind of question requires (ds_workbench.core.readiness check names)
 CHECKS_BY_TYPE = {
@@ -37,7 +38,8 @@ CHECKS_BY_TYPE = {
 UNSUPPORTED_TYPES = {"optimization": "No optimisation skill yet (see ROADMAP.md, phase 3)."}
 
 _QUESTION_KEYS = ("id", "type", "statement", "primary", "unit_of_analysis", "population",
-                  "outcome_concept", "exposure_concept", "comparison", "time_window", "prediction_point")
+                  "outcome_concept", "exposure_concept", "comparison", "time_window", "prediction_point",
+                  "assignment")
 
 
 def _text(v) -> str:
@@ -80,6 +82,12 @@ def normalize(raw: dict, question: str = "") -> dict:
         seen_primary = seen_primary or q["primary"]
     for q in questions:
         if q["type"] == "causal":
+            if q.get("assignment") not in ASSIGNMENT:
+                q["assignment"] = "unknown"
+            if q["primary"] and q["assignment"] == "unknown":
+                missing.append(_missing("How was the exposure assigned: randomised, or chosen (by whom, how)?",
+                                        "it decides between an experiment readout and adjusting for confounding",
+                                        False))
             for field, label in (("exposure_concept", "exposure (what was done)"), ("outcome_concept", "outcome")):
                 if not q.get(field):
                     missing.append(_missing(f"Define the {label} for '{q.get('statement', q['id'])}'",

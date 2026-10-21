@@ -123,6 +123,27 @@ check = data_verification.verify(session=session)            # free
 check = data_verification.verify(session=session, dq=True)   # + data quality skill per table (paid)
 ```
 
+**Follow the plan.** `session.plan()` lays out the investigation for the question type —
+causal: verify → build the analysis table → data quality → causal inference (difference-in-
+differences when the exposure is a period applied to groups over time, otherwise a comparison
+of exposed and unexposed units adjusting for covariates); predictive: … → leakage → features →
+model; descriptive/diagnostic: … → EDA. A causal question never goes down the modelling path.
+The plan is deterministic and recomputed from the session each time; a failed step blocks the
+rest and the next action says what to fix. Its checks become the session's required checks.
+
+Building the analysis table stays with you: the plan gives a recipe (join path over verified
+keys, which exposure to keep, outcome and pre-period windows, which covariates not to use and
+why, verification warnings to watch) and the columns the table must have. Then `run_next`
+calls each skill with arguments from the plan:
+
+```python
+session.plan()            # steps, method and why, recipe, column contract, next action
+session.run_next(df)      # register the analysis table you built (checked against the contract)
+session.run_next()        # data quality on it
+session.run_next()        # causal inference: analyze(..., randomized from the spec) or did(...)
+session.digest()
+```
+
 ```python
 from ds_workbench import WorkflowSession, data_quality, leakage_detector, feature_engineering, model_selector, preflight
 
