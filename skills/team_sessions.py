@@ -40,7 +40,7 @@ def save_session(session_id: str, *, owner: str, question: str, datasets: list[s
                  results: dict, runs: list[dict], source: str, started_at: str | None = None,
                  prediction_point: str = "", confirmations: list[dict] | None = None,
                  required_checks: list[str] | None = None, spec: dict | None = None,
-                 scout: dict | None = None) -> dict:
+                 scout: dict | None = None, selection: dict | None = None) -> dict:
     """Create or update one session. `results` maps skill → its latest result dict;
     `runs` lists every run in order ({skill, label, ts, status, run_id}); `confirmations` are
     people's availability confirmations, kept apart from the skill results."""
@@ -59,6 +59,7 @@ def save_session(session_id: str, *, owner: str, question: str, datasets: list[s
             "required_checks": list(required_checks) if required_checks is not None else None,
             "spec": _jsonable(spec) if spec else None,
             "scout": _scout_summary(scout),
+            "selection": selection,
         }
         if existing:
             sessions[sessions.index(existing)] = record
@@ -115,6 +116,12 @@ def headline(skill: str, result: dict) -> str:
         return f"{result.get('verdict', '?').replace('_', ' ')}{eff}"
     if skill == "join_auditor":
         return f"{result.get('overall_verdict', '?').replace('_', ' ')} join"
+    if skill == "data_verification":
+        crit = sum(1 for x in f if x.get("severity") == "critical")
+        joins = result.get("joins", [])
+        return (f"{result.get('verdict', '?').replace('_', ' ')} · {len(result.get('tables', {}))} tables · "
+                f"{sum(j['status'] == 'verified' for j in joins)}/{len(joins)} joins clean"
+                + (f" · {crit} critical" if crit else ""))
     if skill == "eda":
         return f"{len(result.get('key_insights', []))} insights"
     return (result.get("summary") or "")[:90]

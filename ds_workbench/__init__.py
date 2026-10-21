@@ -30,6 +30,7 @@ _SKILLS = {
     "causal_inference": "skills.causal_inference",
     "problem_framer": "skills.problem_framer",
     "data_scout": "skills.data_scout",
+    "data_verification": "skills.data_verification",
 }
 
 __all__ = [*_SKILLS, "WorkflowSession", "core"]

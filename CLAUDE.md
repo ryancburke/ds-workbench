@@ -150,9 +150,12 @@ ds_workbench/              # Notebook import surface: `from ds_workbench import 
     causal_stats.py       #   SRM, balance, IPW, CUPED, DiD, event study, pre-trend, E-value
     readiness.py          #   assess(results) — the one readiness policy (see project rule 6)
     problem_spec.py       #   ProblemSpec rules: normalize(draft), required_checks(spec), confirm()
-    catalog.py            #   Catalog interface (search/describe/lineage, metadata only) + SyntheticCatalog
+    catalog.py            #   Catalog interface: search/describe/lineage (metadata) + profile/join_profile
+                          #   (aggregates) + sample (capped); SyntheticCatalog
     scout.py              #   Data Scout rules: concepts_from_spec, validate_report (no invented names)
+    verify.py             #   verify_tables: freshness, column fill, join match/cardinality, temporal alignment
   catalogs/               # synthetic catalog fixtures (retail_marketing.json: 17 tables incl. decoys)
+                          # + retail_marketing_data.py: rows with planted problems for verification
 
 skills/                   # Pure Python — no Dash dependency. Called by pages, agents,
                           # AND importable directly from Databricks notebooks.
@@ -168,6 +171,7 @@ skills/                   # Pure Python — no Dash dependency. Called by pages,
   causal_inference.py     # analyze(df, treatment, outcome) / did(...) → verdict, estimate, findings
   problem_framer.py       # frame(question, context) → ProblemSpec draft (types, gaps, answerability)
   data_scout.py           # scout(spec, catalog) → ranked shortlist, roles, join keys, coverage (metadata only)
+  data_verification.py    # verify(session) → checks the selected tables against the data (readiness check)
   api_retry.py            # shared client, api_call/check_response, strict_tool, tool_input, call_context
   models.py               # role() → model + effort per role; override_roles() for sweeps
   usage.py                # usage ledger (every call: user, skill, run, tokens, cost); Delta export
@@ -258,6 +262,7 @@ the go/no-go decision is always front and center before charts or tables.
 | `causal_inference` | Causal Inference (A/B + observational) | `skills/causal_inference.analyze()` | ✓ |
 | `problem_framer` | Problem Framer (question → ProblemSpec) | `skills/problem_framer.frame()` | ✓ |
 | `data_scout` | Data Scout (spec → candidate datasets, metadata only) | `skills/data_scout.scout()` | ✓ |
+| `data_verification` | Data verification (selected tables vs. the data; deterministic) | `skills/data_verification.verify()` | offline tests |
 
 The first 8 skills plus `experiment_tracker` (training metrics come from the notebook) and
 `preflight` are importable via `from ds_workbench import <skill>` (see `ds_workbench/__init__.py`).
