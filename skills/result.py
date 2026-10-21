@@ -1130,7 +1130,55 @@ def _render_data_scout(r: dict) -> str:
     )
 
 
+def _render_data_verification(r: dict) -> str:
+    from html import escape as e
+    verdict = r.get("verdict", "failed")
+    style = {"verified": "success", "verified_with_issues": "warning"}.get(verdict, "danger")
+    findings = r.get("findings", [])
+    crit = [f for f in findings if f["severity"] == "critical"]
+    hero = _verdict_hero("Data verification", verdict.replace("_", " ").upper(), style,
+                         items=[f"{e(f['table'].split('.')[-1])}: {e(f['description'])}"[:160] for f in crit] or None,
+                         subtitle=f"{len(r.get('tables', {}))} tables · {len(r.get('joins', []))} joins · aggregates only")
+    trs = "".join(
+        f'<tr><td><span class="wr-mono">{e(t)}</span></td><td>{v["row_count"]:,}</td>'
+        f'<td>{e(", ".join(v["roles"]) or "—")}</td>'
+        f'<td>{e(v["time_column"] or "—")}: {e(" → ".join(x[:10] for x in v["time_range"]) if v["time_range"] else "—")}</td>'
+        f'<td>{e(str(v["updated_at"] or "?"))}</td></tr>' for t, v in r.get("tables", {}).items())
+    js = "".join(
+        f'<tr><td>{e(j["left_table"].split(".")[-1])}.{e(j["left_column"])} = '
+        f'{e(j["right_table"].split(".")[-1])}.{e(j["right_column"])}</td><td>{e(j["cardinality"])}</td>'
+        f'<td>{j["child_match_rate"]:.0%} of {e(j["child"].split(".")[-1])}</td>'
+        f'<td>{_badge(j["status"].replace("_", " "), {"verified": "success", "verified_with_issues": "warning"}.get(j["status"], "danger"))}'
+        + (f'<br><span class="wr-muted">{e(j["note"])}</span>' if j["note"] else "") + "</td></tr>"
+        for j in r.get("joins", []))
+    fs = "".join(f'<tr class="{_sev_row_cls(f["severity"])}"><td>{_badge(f["severity"].upper(), _sev_style(f["severity"]))}</td>'
+                 f'<td>{e(f["table"].split(".")[-1])}</td><td>{e(f["description"])}'
+                 + (f'<br><span class="wr-muted">{e(f["recommendation"])}</span>' if f["recommendation"] else "")
+                 + "</td></tr>" for f in findings)
+    dq = "".join(f'<li><span class="wr-mono">{e(t)}</span>: '
+                 + (f'failed — {e(d["error"][:120])}' if d.get("error") else
+                    f'{d["score"]}/100 · {d["critical"]} critical · {d["warnings"]} warnings')
+                 + "</li>" for t, d in (r.get("dq") or {}).items())
+    outside = r.get("not_from_shortlist") or []
+    return (
+        hero
+        + f'<div class="wr-header"><span>🔬 Data verification</span>{_badge("aggregates only", "secondary")}</div>'
+        + '<div class="wr-body">'
+        + (f'<div class="wr-muted">⚠ Not from the scout\'s shortlist: {e(", ".join(outside))}</div>' if outside else "")
+        + (f'<table class="wr-tbl"><thead><tr><th></th><th>Table</th><th>Finding</th></tr></thead><tbody>{fs}</tbody></table>'
+           if fs else '<p style="color:#2e7d32">✓ No problems found.</p>')
+        + '<p><strong>Joins</strong></p>'
+        + (f'<table class="wr-tbl"><thead><tr><th>Join</th><th>Cardinality</th><th>Match</th><th>Status</th></tr></thead>'
+           f'<tbody>{js}</tbody></table>' if js else '<p class="wr-muted">No joins between the selected tables were proposed.</p>')
+        + '<p><strong>Tables</strong></p><table class="wr-tbl"><thead><tr><th>Table</th><th>Rows</th><th>Roles</th>'
+          f'<th>Time range</th><th>Updated</th></tr></thead><tbody>{trs}</tbody></table>'
+        + (f"<p><strong>Data quality (sampled)</strong></p><ul>{dq}</ul>" if dq else "")
+        + "</div>"
+    )
+
+
 _RENDERERS = {
+    "data_verification":   _render_data_verification,
     "data_scout":          _render_data_scout,
     "problem_framer":      _render_problem_framer,
     "data_quality":        _render_data_quality,

@@ -107,6 +107,22 @@ from ds_workbench import data_scout
 report = data_scout.scout(session=session)   # CATALOG_BACKEND=synthetic uses ds_workbench/catalogs/
 ```
 
+**Then check the tables you pick against the data.** You choose the shortlist; verification
+runs deterministic checks as aggregates where the data lives (nothing is copied out): rows,
+freshness, deprecated tags, how full the mapped columns are, join match rates and
+cardinality in both directions, and, for causal questions, whether the outcome is observed
+after the exposure and the covariates exist from before it. Only this step marks a join
+verified. It is a readiness check: a critical finding blocks the session.
+
+```python
+from ds_workbench import data_verification
+
+session.select_tables(["demo.marketing.campaign_exposure", "demo.crm.customers",
+                       "demo.sales.customer_orders"], note="exposure, unit, outcome")
+check = data_verification.verify(session=session)            # free
+check = data_verification.verify(session=session, dq=True)   # + data quality skill per table (paid)
+```
+
 ```python
 from ds_workbench import WorkflowSession, data_quality, leakage_detector, feature_engineering, model_selector, preflight
 

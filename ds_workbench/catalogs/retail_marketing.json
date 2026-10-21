@@ -663,5 +663,6 @@
     "demo.crm.customer_features_daily"
    ]
   }
- }
+ },
+ "data_module": "retail_marketing_data"
 }

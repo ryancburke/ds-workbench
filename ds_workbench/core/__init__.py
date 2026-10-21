@@ -21,7 +21,7 @@ _EXPORTS = {
     "leakage_profile": "ds_workbench.core.leakage",
     "assess_readiness": "ds_workbench.core.readiness",
 }
-_SUBMODULES = {"joins", "leakage", "causal_stats", "readiness", "problem_spec", "catalog", "scout"}
+_SUBMODULES = {"joins", "leakage", "causal_stats", "readiness", "problem_spec", "catalog", "scout", "verify"}
 
 __all__ = [*_EXPORTS, *_SUBMODULES]
 

@@ -38,7 +38,7 @@ STATUS_LABEL = {"blocked": "Blocked", "incomplete": "Incomplete", "caution": "Ca
 CHECK_LABEL = {"data_quality": "Data quality", "leakage_detector": "Leakage",
                "feature_engineering": "Features", "model_selector": "Model",
                "causal_inference": "Causal", "join_auditor": "Join", "mlops_review": "MLOps",
-               "experiment_tracker": "Experiment"}
+               "experiment_tracker": "Experiment", "data_verification": "Data verification"}
 
 
 def mandatory_for(results: dict) -> tuple[str, ...]:
@@ -89,6 +89,7 @@ VERDICT_RULES = {
     "model_selector":     ("data_readiness",  {"insufficient"},     {"needs_prep"},    {"ready"}),
     "causal_inference":   ("verdict",         {"not_identified"},   {"caution"},       {"valid"}),
     "experiment_tracker": ("verdict",         {"red_flags"},        {"needs_work"},    {"promising"}),
+    "data_verification":  ("verdict",         {"failed"},           {"verified_with_issues"}, {"verified"}),
 }
 
 

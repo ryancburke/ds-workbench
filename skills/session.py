@@ -85,6 +85,7 @@ class WorkflowSession:
         self.confirmations: list[dict] = []
         self.spec: dict | None = None
         self.scout: dict | None = None
+        self.selection: dict | None = None
         self.required_checks = list(required_checks) if required_checks is not None else None
         if self.required_checks is not None:
             _validate({}, self.required_checks)      # fail fast on an unknown or empty list
@@ -111,6 +112,25 @@ class WorkflowSession:
         self.scout = dict(report)
         if self.persist:
             self._save()
+
+    def select_tables(self, tables: list[str], note: str = "") -> dict:
+        """Choose which tables to verify and analyse (your call, not the scout's). Recorded
+        with who and when; tables the scout rejected or never listed are allowed but flagged."""
+        from datetime import datetime, timezone
+        from skills import usage
+        from skills.api_retry import _call_ctx
+        tables = list(dict.fromkeys(t for t in ([tables] if isinstance(tables, str) else tables) if t))
+        if not tables:
+            raise ValueError("select at least one table")
+        rec = {c["table"]: c["recommendation"] for c in (self.scout or {}).get("candidates", [])}
+        self.selection = {
+            "tables": tables, "note": note, "user": usage.current_user(dict(_call_ctx.get())),
+            "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "outside_shortlist": [t for t in tables if rec.get(t) in (None, "reject")] if self.scout else [],
+        }
+        if self.persist:
+            self._save()
+        return self.selection
 
     def confirm_spec(self, note: str = "") -> dict:
         """Confirm the problem spec as the definition of this work (recommended before data
@@ -188,7 +208,8 @@ class WorkflowSession:
                 self.id, owner=usage.current_user(dict(_call_ctx.get())), question=self.context,
                 datasets=self.datasets, results=dict(self._results), runs=self._runs, source="notebook",
                 prediction_point=self.prediction_point, confirmations=self.confirmations,
-                required_checks=self.required_checks, spec=self.spec, scout=self.scout)
+                required_checks=self.required_checks, spec=self.spec, scout=self.scout,
+                selection=self.selection)
         except Exception:
             pass  # persistence must never break an analysis
 
