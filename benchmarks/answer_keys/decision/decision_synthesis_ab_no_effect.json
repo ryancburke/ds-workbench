@@ -1,0 +1,121 @@
+{
+ "_meta": {
+  "dataset": "decision",
+  "skill": "decision_synthesis",
+  "schema_version": "1.0",
+  "description": "Randomised test, clean, effect +0.002 with CI -0.004 to 0.008: a supported null. Must say no detectable effect and what size could still be hiding; must not claim an increase."
+ },
+ "input": {
+  "state": {
+   "spec": {
+    "question": "Did the new onboarding emails raise 30-day retention?",
+    "decision": {
+     "statement": "Keep the new emails",
+     "options": [
+      "keep",
+      "revert"
+     ],
+     "criteria": "",
+     "inputs_needed": []
+    },
+    "questions": [
+     {
+      "id": "q1",
+      "type": "causal",
+      "statement": "Did the new onboarding emails raise 30-day retention?",
+      "primary": true,
+      "unit_of_analysis": "new user",
+      "population": "new sign-ups",
+      "outcome_concept": "30-day retention",
+      "exposure_concept": "new onboarding emails",
+      "comparison": "old emails",
+      "assignment": "randomized"
+     }
+    ],
+    "assumptions": [],
+    "missing": [],
+    "clarifying_questions": [],
+    "answerability": {
+     "status": "answerable",
+     "reason": ""
+    },
+    "status": "confirmed",
+    "required_checks": [
+     "data_quality",
+     "causal_inference"
+    ],
+    "confirmed_by": "benchmark",
+    "note": "",
+    "confirmed_at": "2026-10-21T00:00:00+00:00"
+   },
+   "results": {
+    "data_verification": {
+     "verdict": "verified",
+     "findings": [],
+     "tables": {},
+     "joins": []
+    },
+    "data_quality": {
+     "overall_score": 93,
+     "findings": []
+    },
+    "causal_inference": {
+     "verdict": "valid",
+     "estimate": {
+      "method": "difference_in_means",
+      "effect": 0.002,
+      "se": 0.0030612244897959186,
+      "ci_low": -0.004,
+      "ci_high": 0.008,
+      "p_value": 0.51
+     },
+     "findings": [],
+     "evidence": {
+      "n_treated": 9000,
+      "n_control": 9000,
+      "mde_80pct_power": 0.011
+     }
+    }
+   }
+  },
+  "inputs": {}
+ },
+ "expected_status": "supported",
+ "expected_conclusion": [
+  "no_detectable_effect"
+ ],
+ "must_mention": [
+  {
+   "id": "null",
+   "any_of": [
+    "no detectable",
+    "not detect",
+    "no evidence",
+    "no measurable",
+    "no significant",
+    "didn't detect",
+    "did not detect",
+    "no clear"
+   ]
+  },
+  {
+   "id": "size_hiding",
+   "any_of": [
+    "0.008",
+    "0.011",
+    "1.1",
+    "0.8",
+    "minimum detectable",
+    "could still",
+    "smaller",
+    "as large as",
+    "up to"
+   ]
+  }
+ ],
+ "forbidden_phrases": [
+  "increased retention",
+  "raised retention",
+  "improved retention by"
+ ]
+}

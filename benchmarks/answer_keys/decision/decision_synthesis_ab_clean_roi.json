@@ -1,0 +1,113 @@
+{
+ "_meta": {
+  "dataset": "decision",
+  "skill": "decision_synthesis",
+  "schema_version": "1.0",
+  "description": "Randomised A/B test of a checkout change, clean checks, effect +0.021 conversion (CI 0.012-0.030), costs given: supported, ROI computed in code and clears the threshold across the interval."
+ },
+ "input": {
+  "state": {
+   "spec": {
+    "question": "Did checkout variant B raise conversion, and should we ship it?",
+    "decision": {
+     "statement": "Ship variant B",
+     "options": [
+      "ship",
+      "don't ship"
+     ],
+     "criteria": "ROI above 20%",
+     "inputs_needed": [
+      "engineering cost",
+      "value per conversion"
+     ]
+    },
+    "questions": [
+     {
+      "id": "q1",
+      "type": "causal",
+      "statement": "Did checkout variant B raise conversion, and should we ship it?",
+      "primary": true,
+      "unit_of_analysis": "user",
+      "population": "checkout visitors",
+      "outcome_concept": "conversion",
+      "exposure_concept": "variant B",
+      "comparison": "variant A",
+      "assignment": "randomized"
+     }
+    ],
+    "assumptions": [],
+    "missing": [],
+    "clarifying_questions": [],
+    "answerability": {
+     "status": "answerable_with_gaps",
+     "reason": ""
+    },
+    "status": "confirmed",
+    "required_checks": [
+     "data_quality",
+     "causal_inference"
+    ],
+    "confirmed_by": "benchmark",
+    "note": "",
+    "confirmed_at": "2026-10-21T00:00:00+00:00"
+   },
+   "results": {
+    "data_verification": {
+     "verdict": "verified",
+     "findings": [],
+     "tables": {},
+     "joins": []
+    },
+    "data_quality": {
+     "overall_score": 93,
+     "findings": []
+    },
+    "causal_inference": {
+     "verdict": "valid",
+     "estimate": {
+      "method": "cuped",
+      "effect": 0.021,
+      "se": 0.004591836734693877,
+      "ci_low": 0.012,
+      "ci_high": 0.03,
+      "p_value": 0.0001
+     },
+     "findings": [],
+     "evidence": {
+      "n_treated": 40000,
+      "n_control": 40000
+     }
+    }
+   }
+  },
+  "inputs": {
+   "cost": 15000,
+   "units": 40000,
+   "value_per_outcome_unit": 60,
+   "roi_threshold": 0.2
+  }
+ },
+ "expected_status": "supported",
+ "expected_conclusion": [
+  "positive_effect"
+ ],
+ "must_mention": [
+  {
+   "id": "roi",
+   "any_of": [
+    "roi",
+    "return"
+   ]
+  },
+  {
+   "id": "ship",
+   "any_of": [
+    "ship"
+   ]
+  }
+ ],
+ "forbidden_phrases": [
+  "insufficient evidence",
+  "not established"
+ ]
+}

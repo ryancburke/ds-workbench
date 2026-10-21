@@ -41,7 +41,7 @@ def save_session(session_id: str, *, owner: str, question: str, datasets: list[s
                  prediction_point: str = "", confirmations: list[dict] | None = None,
                  required_checks: list[str] | None = None, spec: dict | None = None,
                  scout: dict | None = None, selection: dict | None = None,
-                 analysis_table: dict | None = None) -> dict:
+                 analysis_table: dict | None = None, decision: dict | None = None) -> dict:
     """Create or update one session. `results` maps skill → its latest result dict;
     `runs` lists every run in order ({skill, label, ts, status, run_id}); `confirmations` are
     people's availability confirmations, kept apart from the skill results."""
@@ -63,6 +63,9 @@ def save_session(session_id: str, *, owner: str, question: str, datasets: list[s
             "scout_report": _jsonable(scout) if scout else None,     # metadata only; the plan needs its roles
             "selection": selection,
             "analysis_table": analysis_table,
+            "decision": ({k: decision.get(k) for k in ("status", "label", "conclusion", "reasons", "caveats", "roi")}
+                         | {"headline": ((decision.get("narrative") or {}).get("headline") or {}).get("text")}
+                         if decision else None),
         }
         if existing:
             sessions[sessions.index(existing)] = record
@@ -135,7 +138,7 @@ def _plan_summary(session: dict) -> dict | None:
     if not session.get("spec"):
         return None
     from ds_workbench.core.plan import build_plan
-    p = build_plan({k: session.get(k) for k in ("spec", "selection", "analysis_table")}
+    p = build_plan({k: session.get(k) for k in ("spec", "selection", "analysis_table", "decision")}
                    | {"scout": session.get("scout_report"), "results": session.get("results", {})})
     return {"done": p["done"], "total": p["total"], "next": p["next"]["text"], "kind": p["next"]["kind"],
             "method": (p["method"] or {}).get("method")}
@@ -193,6 +196,7 @@ def summarize_session(session: dict) -> dict:
         "framing": _framing(session.get("spec")),
         "scout": session.get("scout"),
         "plan": _plan_summary(session),
+        "decision": session.get("decision"),
         "headlines": [{"skill": s, "line": headline(s, results[s])} for s in seen if s in results],
     }
 

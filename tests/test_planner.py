@@ -68,11 +68,11 @@ PRE = ["frame", "scout", "select", "data_verification", "assemble", "data_qualit
 
 
 @pytest.mark.parametrize("qtype,path", [
-    ("causal", PRE + ["causal_inference"]),
-    ("predictive", PRE + ["leakage_detector", "feature_engineering", "model_selector"]),
-    ("descriptive", PRE + ["eda"]),
-    ("diagnostic", PRE + ["eda"]),
-    ("optimization", PRE + ["unavailable"]),
+    ("causal", PRE + ["causal_inference", "decision_synthesis"]),
+    ("predictive", PRE + ["leakage_detector", "feature_engineering", "model_selector", "decision_synthesis"]),
+    ("descriptive", PRE + ["eda", "decision_synthesis"]),
+    ("diagnostic", PRE + ["eda", "decision_synthesis"]),
+    ("optimization", PRE + ["unavailable", "decision_synthesis"]),
 ])
 def test_each_question_type_gets_its_own_path(qtype, path):
     assert _skills(build_plan({"spec": _spec(qtype)})) == path
@@ -206,7 +206,7 @@ def test_run_next_calls_each_skill_with_arguments_from_the_plan(session, monkeyp
     # assignment unknown: not treated as an experiment, so the pre-period outcome is also adjusted for
     assert kw["covariates"] == ["loyalty_member", "outcome_pre"] and kw["randomized"] is None
     assert kw["context"] == "Did the spring campaign raise purchases?"
-    assert session.next()["kind"] == "complete"
+    assert session.next()["step"] == "decide"           # the analysis ran: the decision summary is next
     # the plan's checks are the session's required checks: verified + DQ + causal valid → ready for review
     assert session.required_checks == ["data_quality", "causal_inference", "data_verification"]
     assert session.digest()["overall_verdict"] == "caution"     # verification had warnings
@@ -249,7 +249,7 @@ def test_the_plan_renders_and_shows_on_the_sessions_page(session, cat, tmp_path,
                                      results={"data_verification": ver}, runs=[], spec=spec, scout=PROMO_SCOUT,
                                      selection={"tables": [WEEKLY, PROMO]})
     out = str(sessions_panel(team_sessions.team_overview([rec])).to_plotly_json())
-    assert "Plan: " in out and "4/7 steps" in out and "method did" in out
+    assert "Plan: " in out and "4/8 steps" in out and "method did" in out
 
 
 @pytest.mark.parametrize("assignment,randomized,adjust_pre", [

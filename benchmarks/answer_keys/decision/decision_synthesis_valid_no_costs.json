@@ -1,0 +1,103 @@
+{
+ "_meta": {
+  "dataset": "decision",
+  "skill": "decision_synthesis",
+  "schema_version": "1.0",
+  "description": "Observational analysis judged valid, effect positive, but no cost inputs: supported with caveats that name the missing costs."
+ },
+ "input": {
+  "state": {
+   "spec": {
+    "question": "Did the loyalty-app launch raise weekly visits among members?",
+    "decision": {
+     "statement": "Invest in app promotion",
+     "options": [
+      "invest",
+      "hold"
+     ],
+     "criteria": "",
+     "inputs_needed": [
+      "promotion cost",
+      "value per visit"
+     ]
+    },
+    "questions": [
+     {
+      "id": "q1",
+      "type": "causal",
+      "statement": "Did the loyalty-app launch raise weekly visits among members?",
+      "primary": true,
+      "unit_of_analysis": "member",
+      "population": "loyalty members",
+      "outcome_concept": "weekly visits",
+      "exposure_concept": "installed the app",
+      "comparison": "members who didn't",
+      "assignment": "not_randomized"
+     }
+    ],
+    "assumptions": [],
+    "missing": [],
+    "clarifying_questions": [],
+    "answerability": {
+     "status": "answerable_with_gaps",
+     "reason": ""
+    },
+    "status": "confirmed",
+    "required_checks": [
+     "data_quality",
+     "causal_inference"
+    ],
+    "confirmed_by": "benchmark",
+    "note": "",
+    "confirmed_at": "2026-10-21T00:00:00+00:00"
+   },
+   "results": {
+    "data_verification": {
+     "verdict": "verified",
+     "findings": [],
+     "tables": {},
+     "joins": []
+    },
+    "data_quality": {
+     "overall_score": 93,
+     "findings": []
+    },
+    "causal_inference": {
+     "verdict": "valid",
+     "estimate": {
+      "method": "regression_adjustment",
+      "effect": 0.31,
+      "se": 0.045918367346938785,
+      "ci_low": 0.22,
+      "ci_high": 0.4,
+      "p_value": 0.0001
+     },
+     "findings": [],
+     "evidence": {
+      "n_treated": 6000,
+      "n_control": 6000
+     }
+    }
+   }
+  },
+  "inputs": {}
+ },
+ "expected_status": "supported_with_caveats",
+ "expected_conclusion": [
+  "positive_effect"
+ ],
+ "must_mention": [
+  {
+   "id": "costs_missing",
+   "any_of": [
+    "cost",
+    "value per visit",
+    "roi",
+    "return"
+   ]
+  }
+ ],
+ "forbidden_phrases": [
+  "insufficient evidence"
+ ]
+}

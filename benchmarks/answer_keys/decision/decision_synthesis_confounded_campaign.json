@@ -1,0 +1,154 @@
+{
+ "_meta": {
+  "dataset": "decision",
+  "skill": "decision_synthesis",
+  "schema_version": "1.0",
+  "description": "The M4 live run: targeted exposure, true effect 0. Adjusted estimate +44.5 with critical residual confounding; verdict caution; session blocked. Must say the effect isn't established and point to the targeting score or a holdout; must never claim the campaign raised purchases. No ROI (the effect isn't established)."
+ },
+ "input": {
+  "state": {
+   "spec": {
+    "question": "Did the spring digital campaign increase customer purchases?",
+    "decision": {
+     "statement": "Expand the spring digital campaign to more customers",
+     "options": [
+      "expand",
+      "keep",
+      "stop"
+     ],
+     "criteria": "incremental margin exceeds campaign spend",
+     "inputs_needed": [
+      "campaign spend",
+      "product margins"
+     ]
+    },
+    "questions": [
+     {
+      "id": "q1",
+      "type": "causal",
+      "statement": "Did the spring digital campaign increase customer purchases?",
+      "primary": true,
+      "unit_of_analysis": "customer",
+      "population": "registered customers",
+      "outcome_concept": "3-month net purchases",
+      "exposure_concept": "received the spring campaign",
+      "comparison": "customers who didn't",
+      "assignment": "not_randomized"
+     }
+    ],
+    "assumptions": [
+     {
+      "statement": "Targeting used the marketing model's propensity score",
+      "source": "user",
+      "must_confirm": true
+     }
+    ],
+    "missing": [],
+    "clarifying_questions": [],
+    "answerability": {
+     "status": "answerable_with_gaps",
+     "reason": ""
+    },
+    "status": "confirmed",
+    "required_checks": [
+     "data_quality",
+     "causal_inference"
+    ],
+    "confirmed_by": "benchmark",
+    "note": "",
+    "confirmed_at": "2026-10-21T00:00:00+00:00"
+   },
+   "results": {
+    "data_verification": {
+     "verdict": "verified_with_issues",
+     "tables": {},
+     "joins": [],
+     "findings": [
+      {
+       "severity": "warning",
+       "check": "join_match",
+       "table": "demo.marketing.campaign_exposure",
+       "column": "email_hash",
+       "description": "14% of campaign_exposure rows have no match",
+       "recommendation": ""
+      }
+     ]
+    },
+    "data_quality": {
+     "overall_score": 84,
+     "findings": [
+      {
+       "severity": "warning",
+       "column": "outcome",
+       "description": "zero-inflated"
+      }
+     ]
+    },
+    "causal_inference": {
+     "verdict": "caution",
+     "estimate": {
+      "method": "regression_adjustment",
+      "effect": 44.51,
+      "se": 2.6811224489795933,
+      "ci_low": 39.26,
+      "ci_high": 49.77,
+      "p_value": 0.0
+     },
+     "findings": [
+      {
+       "severity": "critical",
+       "check": "confounding",
+       "evidence": "abs_smd 0.678 on outcome_pre; the raw difference is 75.2 and adjusting for outcome_pre cuts it to 44.5; residual confounding by the targeting score is likely"
+      },
+      {
+       "severity": "warning",
+       "check": "confounding",
+       "evidence": "Adjusted estimates range from 34.1 (IPW) to 44.5 (regression adjustment)"
+      }
+     ],
+     "evidence": {
+      "n_treated": 2100,
+      "n_control": 2100
+     }
+    }
+   }
+  },
+  "inputs": {
+   "cost": 85000,
+   "value_per_outcome_unit": 0.35
+  }
+ },
+ "expected_status": "insufficient_evidence",
+ "expected_conclusion": [
+  "not_established"
+ ],
+ "must_mention": [
+  {
+   "id": "why_not",
+   "any_of": [
+    "confound",
+    "target",
+    "selected",
+    "chose"
+   ]
+  },
+  {
+   "id": "next",
+   "any_of": [
+    "holdout",
+    "experiment",
+    "random",
+    "control group",
+    "propensity",
+    "score"
+   ]
+  }
+ ],
+ "forbidden_phrases": [
+  "campaign increased purchases",
+  "campaign increased sales",
+  "the campaign worked",
+  "lifted purchases by",
+  "drove an increase"
+ ]
+}

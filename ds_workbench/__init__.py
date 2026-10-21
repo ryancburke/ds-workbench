@@ -31,6 +31,7 @@ _SKILLS = {
     "problem_framer": "skills.problem_framer",
     "data_scout": "skills.data_scout",
     "data_verification": "skills.data_verification",
+    "decision_synthesis": "skills.decision_synthesis",
 }
 
 __all__ = [*_SKILLS, "WorkflowSession", "core"]
