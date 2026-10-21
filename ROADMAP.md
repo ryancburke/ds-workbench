@@ -51,7 +51,7 @@ carry responsibility. Notebook first; the Workbench and Sessions pages are the v
 | M2 | **Data Scout**: catalog interface, synthetic catalog, metadata-only shortlist; no invented tables, columns or joins | shipped (#40) |
 | M3 | **Verification**: the tables a person selects, checked as aggregates (freshness, fill, join match and cardinality, causal timing) | shipped (#41) |
 | M4 | **Planner**: steps per question type, method choice, analysis-table recipe and contract, `run_next` | shipped (#42) |
-| M5 | **Decision synthesis**: decision readiness computed in code (separate from analytical readiness), a cited narrative, optional cost/ROI | in progress |
+| M5 | **Decision synthesis**: decision readiness computed in code (separate from analytical readiness), a cited narrative, optional cost/ROI | shipped (#44) |
 | M6 | **Unity Catalog adapter + pilot harness**: the catalog interface over Unity Catalog, read-only, scoped credentials | next |
 
 Decisions taken: an organisation-approved Anthropic model (the client route is a setting);
