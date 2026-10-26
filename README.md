@@ -76,6 +76,11 @@ these numbers.
 
 ## Using the skills in a notebook
 
+**New here? Start with [`notebooks/skills_walkthrough.ipynb`](notebooks/skills_walkthrough.ipynb).**
+It walks through every skill in workflow order on the synthetic datasets, so it runs locally with
+no Databricks: the deterministic checks (free, no API key), a churn modelling workflow, a causal
+investigation from question to decision, and the standalone skills.
+
 The skills take pandas DataFrames. Put the repo on `sys.path` (for example as a
 Databricks Repo) and make sure the API key is available to `config.py` through a `.env`
 file or an environment variable.

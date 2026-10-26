@@ -263,11 +263,6 @@ def databricks_executor(host: str, http_path: str, *, token: str = "", client_id
     """An executor for UnityCatalogAdapter. Authenticates as a service principal (OAuth M2M:
     client_id + client_secret) when given, else with a token. Queries carry a statement timeout
     and query tags so the platform team can see what the workbench ran."""
-    try:
-        from databricks import sql
-    except ImportError as exc:
-        raise ImportError("Unity Catalog access needs the optional Databricks libraries: "
-                          ".venv/bin/pip install -r requirements-databricks.txt") from exc
     if not host or not http_path:
         raise ValueError("DATABRICKS_HOST and DATABRICKS_HTTP_PATH are required for CATALOG_BACKEND=unity_catalog")
     kwargs = {"server_hostname": host.replace("https://", "").rstrip("/"), "http_path": http_path,
@@ -288,6 +283,12 @@ def databricks_executor(host: str, http_path: str, *, token: str = "", client_id
 
     def execute(statement: str, params: dict) -> list[dict]:
         if state["conn"] is None:
+            # Imported on first use, so settings errors are reported even without the libraries
+            try:
+                from databricks import sql
+            except ImportError as exc:
+                raise ImportError("Unity Catalog access needs the optional Databricks libraries: "
+                                  ".venv/bin/pip install -r requirements-databricks.txt") from exc
             state["conn"] = sql.connect(**kwargs)
         with state["conn"].cursor() as cur:
             cur.execute(statement, parameters=params or None, query_tags=tags)
